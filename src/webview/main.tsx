@@ -1,12 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { EditorContent, useEditor } from '@tiptap/react';
+import Document from '@tiptap/extension-document';
+import Paragraph from '@tiptap/extension-paragraph';
+import Text from '@tiptap/extension-text';
+import Bold from '@tiptap/extension-bold';
+import Heading from '@tiptap/extension-heading';
+import BulletList from '@tiptap/extension-bullet-list';
+import ListItem from '@tiptap/extension-list-item';
 import { Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, addEdge, useReactFlow, type Connection, type Edge, type Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './styles.css';
-import { AgentPipeline, PipelineNode, PipelineNodeType, ValidationFinding, RiskScore } from '../pipeline/types';
+import { AgentPipeline, PipelineEdgeKind, PipelineNode, PipelineNodeType, ValidationFinding, RiskScore } from '../pipeline/types';
 import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles, generateMermaid } from '../pipeline/generators';
+import { deriveVisibleFlowEdges } from './graph';
+import { markdownToTiptapHtml, tiptapJsonToMarkdown } from './markdown';
 
 interface State {
   pipeline: AgentPipeline;
@@ -72,13 +82,28 @@ function App() {
     data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}\n${node.type}` },
     style: { border: `2px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 10, background: 'var(--vscode-editorWidget-background)', color: 'var(--vscode-editorWidget-foreground)', width: 170, whiteSpace: 'pre-line' }
   })), [draft.nodes, risky]);
-  const edges: Edge[] = useMemo(() => draft.edges.map((edge) => ({ id: edge.id, source: edge.from, target: edge.to, label: edge.label ?? edge.artifact ?? edge.kind, animated: edge.kind === 'artifact' })), [draft.edges]);
+  const edges: Edge[] = useMemo(() => deriveVisibleFlowEdges(draft), [draft]);
 
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
     commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? { ...node, ...patch } as PipelineNode : node) }));
   };
   const updateEdges = (nextEdges: Edge[]) => {
-    commitDraft((pipeline) => ({ ...pipeline, edges: nextEdges.map((edge) => ({ id: edge.id, from: String(edge.source), to: String(edge.target), kind: 'flow', label: typeof edge.label === 'string' ? edge.label : undefined })) }));
+    commitDraft((pipeline) => ({
+      ...pipeline,
+      edges: nextEdges
+        .filter((edge) => !isPreviewEdge(edge))
+        .map((edge) => {
+          const metadata = edgeMetadata(edge);
+          return {
+            id: edge.id,
+            from: String(edge.source),
+            to: String(edge.target),
+            kind: metadata.kind,
+            artifact: metadata.artifact,
+            label: typeof edge.label === 'string' ? edge.label : undefined
+          };
+        })
+    }));
   };
   const addNode = (type: PipelineNodeType, position = { x: 120, y: 120 }, connectFrom?: string) => {
     const node = createNode(type, draft, position);
@@ -91,6 +116,17 @@ function App() {
   const savePipeline = () => vscode?.postMessage({ command: 'savePipeline', pipeline: draft, selectedId: selected?.id });
 
   return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setSelectedId={setSelectedId} updateNode={updateNode} updateEdges={updateEdges} addNode={addNode} savePipeline={savePipeline} /></ReactFlowProvider>;
+}
+
+function isPreviewEdge(edge: Edge): boolean {
+  const derivedFrom = (edge as Edge & { data?: { derivedFrom?: string } }).data?.derivedFrom;
+  return typeof derivedFrom === 'string' && derivedFrom !== 'pipeline.edges';
+}
+
+function edgeMetadata(edge: Edge): { kind: PipelineEdgeKind; artifact?: string } {
+  const data = (edge as Edge & { data?: { kind?: string; artifact?: string } }).data;
+  if (data?.kind === 'artifact' || data?.kind === 'prompt' || data?.kind === 'skill' || data?.kind === 'gate') return { kind: data.kind, artifact: data.artifact };
+  return { kind: 'flow' };
 }
 
 function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, setActiveTab, setBottomOpen, setSelectedId, updateNode, updateEdges, addNode, savePipeline }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: Node[]; edges: Edge[]; activeTab: BottomTab; bottomOpen: boolean; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; updateEdges: (edges: Edge[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void; savePipeline: () => void }) {
@@ -150,7 +186,7 @@ function Inspector({ node, pipeline, findings, onChange }: { node?: PipelineNode
     {node.type === 'instruction' && <label>applyTo<input value={node.applyTo} onChange={(event: any) => onChange(node.id, { applyTo: event.target.value } as Partial<PipelineNode>)} /></label>}
     {node.type === 'artifact' && <label>Path<input value={node.path} onChange={(event: any) => onChange(node.id, { path: event.target.value } as Partial<PipelineNode>)} /></label>}
     {node.type === 'gate' && <label>Condition<input value={node.condition} onChange={(event: any) => onChange(node.id, { condition: event.target.value } as Partial<PipelineNode>)} /></label>}
-    <h3>Markdown editor</h3><p className="hint">Tiptap-based editor state. Type @ for references or / for snippets; Save Pipeline writes the JSON state back to Markdown files.</p><TiptapMarkdownEditor value={node.markdown ?? ''} references={references} onChange={(value) => onChange(node.id, { markdown: value } as Partial<PipelineNode>)} />
+    <h3>Markdown editor</h3><TiptapMarkdownEditor value={node.markdown ?? ''} references={references} onChange={(value) => onChange(node.id, { markdown: value } as Partial<PipelineNode>)} />
     <h3>Findings</h3>{findings.length ? findings.map((finding) => <p key={`${finding.ruleId}-${finding.message}`} className={finding.severity}>{finding.message}</p>) : <p>No node findings.</p>}
   </div>;
 }
@@ -179,17 +215,50 @@ function TiptapMarkdownEditor({ value, references, onChange }: { value: string; 
     { label: 'Checklist', value: '- [ ] ', type: 'snippet' },
     { label: 'Definition of done', value: '## Definition of done\n\n- [ ] ', type: 'snippet' }
   ];
+  const lastMarkdown = useRef(value);
+  const editor = useEditor({
+    extensions: [Document, Paragraph, Text, Bold, Heading.configure({ levels: [1, 2, 3] }), BulletList, ListItem],
+    content: markdownToTiptapHtml(value),
+    editorProps: {
+      attributes: {
+        class: 'markdown-editor tiptap-editor',
+        'aria-label': 'TipTap Markdown editor',
+        spellcheck: 'false'
+      }
+    },
+    onUpdate: ({ editor }: any) => {
+      const markdown = tiptapJsonToMarkdown(editor.getJSON());
+      lastMarkdown.current = markdown;
+      onChange(markdown);
+      updateQuery(markdown);
+    }
+  });
+
+  useEffect(() => {
+    if (!editor || value === lastMarkdown.current) return;
+    lastMarkdown.current = value;
+    editor.commands.setContent(markdownToTiptapHtml(value), { emitUpdate: false });
+    updateQuery(value);
+  }, [editor, value]);
+
   const suggestions = query ? (query.trigger === '@' ? references : slashItems).filter((item) => item.label.toLowerCase().includes(query.text.toLowerCase()) || item.value.toLowerCase().includes(query.text.toLowerCase())).slice(0, 8) : [];
-  const update = (next: string) => {
-    onChange(next);
-    const match = next.match(/(^|\s)([@/])([^\s@/]*)$/);
+  const updateQuery = (markdown: string) => {
+    const match = markdown.match(/(^|\s)([@/])([^\s@/]*)$/);
     setQuery(match ? { trigger: match[2] as '@' | '/', text: match[3] } : undefined);
   };
-  const insertSuggestion = (item: ReferenceItem) => {
-    const next = value.replace(/(^|\s)([@/])([^\s@/]*)$/, (_match, prefix) => `${prefix}${item.value} `);
-    update(next === value ? `${value}${item.value} ` : next);
+  const replaceMarkdown = (next: string) => {
+    lastMarkdown.current = next;
+    onChange(next);
+    updateQuery(next);
+    editor?.commands.setContent(markdownToTiptapHtml(next), { emitUpdate: false });
   };
-  return <div className="markdown-shell tiptap-shell"><div className="editor-toolbar"><button onClick={() => update(`${value}\n# Heading\n`)}>H1</button><button onClick={() => update(`${value}\n## Heading\n`)}>H2</button><button onClick={() => update(`${value}\n- `)}>List</button><button onClick={() => update(`${value}**bold**`)}>Bold</button></div><textarea className="markdown-editor tiptap-editor" value={value} onChange={(event: any) => update(event.target.value)} spellCheck={false} aria-label="Tiptap Markdown editor" />{suggestions.length > 0 && <div className="reference-menu">{suggestions.map((item) => <button key={`${item.type}-${item.value}`} onClick={() => insertSuggestion(item)}><span>{item.label}</span><small>{item.type} · {item.value}</small></button>)}</div>}<div className="markdown-preview"><MarkdownPreview markdown={value || 'Start writing Markdown. Use @ for references and / for snippets.'} /></div></div>;
+  const appendMarkdown = (snippet: string) => replaceMarkdown(`${lastMarkdown.current}${snippet}`);
+  const insertSuggestion = (item: ReferenceItem) => {
+    const current = lastMarkdown.current;
+    const next = current.replace(/(^|\s)([@/])([^\s@/]*)$/, (_match, prefix) => `${prefix}${item.value} `);
+    replaceMarkdown(next === current ? `${current}${item.value} ` : next);
+  };
+  return <div className="markdown-shell tiptap-shell"><div className="editor-toolbar"><button onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</button><button onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</button><button onClick={() => editor?.chain().focus().toggleBulletList().run()}>List</button><button onClick={() => editor?.chain().focus().toggleBold().run()}>Bold</button><button onClick={() => appendMarkdown('\n- [ ] ')}>Check</button></div><EditorContent editor={editor} />{suggestions.length > 0 && <div className="reference-menu">{suggestions.map((item) => <button key={`${item.type}-${item.value}`} onClick={() => insertSuggestion(item)}><span>{item.label}</span><small>{item.type} · {item.value}</small></button>)}</div>}<div className="markdown-preview"><MarkdownPreview markdown={lastMarkdown.current || 'Start writing Markdown. Use @ for references and / for snippets.'} /></div></div>;
 }
 
 function MarkdownPreview({ markdown }: { markdown: string }) {

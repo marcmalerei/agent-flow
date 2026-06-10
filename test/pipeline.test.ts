@@ -6,6 +6,7 @@ import { validatePipeline } from '../src/pipeline/validator';
 import { calculateRiskScore } from '../src/pipeline/riskScore';
 import { AgentPipeline } from '../src/pipeline/types';
 import { normalizePipelineAgentReferences, resolveAgentReference, stripYamlQuotes } from '../src/pipeline/referenceResolver';
+import { deriveVisibleFlowEdges } from '../src/webview/graph';
 
 describe('pipeline parsing', () => {
   it('round-trips the default pipeline schema', () => {
@@ -83,6 +84,44 @@ describe('mermaid generator', () => {
   });
 });
 
+describe('webview graph projection', () => {
+  it('projects live configuration references into visible flow edges', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Live refs',
+      nodes: [
+        { id: 'prompt', type: 'prompt', label: 'Prompt', startAgent: 'Router' },
+        { id: 'router', type: 'agent', label: 'Router', calls: ['"Worker Agent"'], outputs: ['.agent-output/work.md'] },
+        { id: 'worker-agent', type: 'agent', label: 'Worker Agent', inputs: ['.agent-output/work.md'] },
+        { id: 'work-artifact', type: 'artifact', label: 'Work artifact', path: '.agent-output/work.md' }
+      ],
+      edges: []
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.id, edge.source, edge.target, edge.data?.derivedFrom])).toEqual([
+      ['ref:prompt:prompt:startAgent:router', 'prompt', 'router', 'prompt.startAgent'],
+      ['ref:agent:router:calls:worker-agent', 'router', 'worker-agent', 'agent.calls'],
+      ['ref:artifact-output:router:work-artifact', 'router', 'work-artifact', 'agent.outputs'],
+      ['ref:artifact-input:work-artifact:worker-agent', 'work-artifact', 'worker-agent', 'agent.inputs']
+    ]);
+  });
+
+  it('keeps explicit user-drawn edges editable and avoids duplicate reference previews', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Explicit refs',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'Router', calls: ['worker'], outputs: [] },
+        { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }
+      ],
+      edges: [{ id: 'router-to-worker', from: 'router', to: 'worker', kind: 'flow', label: 'handoff' }]
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.id, edge.source, edge.target, edge.data?.derivedFrom])).toEqual([
+      ['router-to-worker', 'router', 'worker', 'pipeline.edges']
+    ]);
+  });
+});
 
 describe('agent reference normalization', () => {
   it('strips YAML quotes and resolves display-name references to agent ids', () => {
