@@ -11,7 +11,7 @@ import ListItem from '@tiptap/extension-list-item';
 import CodeBlock from '@tiptap/extension-code-block';
 import Code from '@tiptap/extension-code';
 import Link from '@tiptap/extension-link';
-import { Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, addEdge, useReactFlow, type Connection, type Edge, type Node } from '@xyflow/react';
+import { Background, Controls, ReactFlow, ReactFlowProvider, addEdge, useReactFlow, type Connection, type Edge, type Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './styles.css';
 import { AgentPipeline, PipelineEdgeKind, PipelineNode, PipelineNodeType, ValidationFinding, RiskScore } from '../pipeline/types';
@@ -150,7 +150,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'}`}>
     <header className="toolbar"><strong>AgentFlow</strong><span>{draft.name}</span><button onClick={savePipeline}>Save Pipeline</button><div className="node-buttons">{nodeTypes.map((type) => <button key={type} onClick={() => addNode(type)} title={`Create ${type} node`}>+ {type}</button>)}</div></header>
-    <main className="canvas"><ReactFlow nodes={nodes} edges={edges} onNodeClick={(_: unknown, node: Node) => setSelectedId(node.id)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><MiniMap /><Controls /><Background /></ReactFlow></main>
+    <main className="canvas"><ReactFlow nodes={nodes} edges={edges} onNodeClick={(_: unknown, node: Node) => setSelectedId(node.id)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
     <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>
     <section className="bottom"><button className="collapse" onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} />}</section>
   </div>;
