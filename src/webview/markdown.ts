@@ -62,6 +62,17 @@ export function markdownToTiptapHtml(markdown: string): string {
   return blocks.join('');
 }
 
+export function splitMarkdownFrontmatter(markdown: string): { frontmatter?: string; body: string } {
+  const match = markdown.match(/^(---\r?\n[\s\S]*?\r?\n---)(?:\r?\n)?([\s\S]*)$/);
+  if (!match) return { body: markdown };
+  return { frontmatter: match[1], body: (match[2] ?? '').replace(/^(?:\r?\n)+/, '') };
+}
+
+export function combineMarkdownFrontmatter(frontmatter: string | undefined, body: string): string {
+  if (!frontmatter?.trim()) return body;
+  return body.trim() ? `${frontmatter.trimEnd()}\n\n${body.trimStart()}` : `${frontmatter.trimEnd()}\n`;
+}
+
 export function tiptapJsonToMarkdown(document: TiptapNode): string {
   return (document.content ?? [])
     .map(nodeToMarkdown)

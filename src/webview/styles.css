@@ -18,7 +18,7 @@ body { margin: 0; font-family: var(--vscode-font-family, system-ui); background:
 .bottom { grid-column: 1 / 3; border-top: 1px solid var(--agentflow-border); overflow: hidden; background: var(--vscode-panel-background, var(--vscode-editor-background)); }
 button { display: inline-block; margin: 4px; padding: 7px 10px; border-radius: 4px; border: 1px solid var(--vscode-button-border, transparent); background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; }
 button:hover { background: var(--vscode-button-hoverBackground); }
-.toolbar button, .editor-toolbar button { width: auto; white-space: nowrap; }
+.toolbar button { width: auto; white-space: nowrap; }
 button.secondary { background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
 .node-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; max-width: 600px; }
 .node-buttons button { padding: 5px 8px; font-size: 12px; }
@@ -36,12 +36,28 @@ pre { white-space: pre-wrap; font-size: 12px; background: var(--vscode-textCodeB
 .checks label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 400; }
 .checks input { width: auto; margin: 0; }
 .selected-tools label { color: var(--vscode-descriptionForeground); }
-.markdown-shell { position: relative; border: 1px solid var(--agentflow-border); border-radius: 6px; background: var(--vscode-editor-background); }
-.editor-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; border-bottom: 1px solid var(--agentflow-border); background: var(--vscode-editorGroupHeader-tabsBackground, var(--agentflow-panel)); }
-.markdown-editor, .wysiwyg-editor { box-sizing: border-box; width: 100%; min-height: 170px !important; padding: 10px; border: 0 !important; border-radius: 0 !important; outline: none; font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); background: var(--vscode-editor-background) !important; color: var(--vscode-editor-foreground) !important; resize: vertical; white-space: pre-wrap; }
-.wysiwyg-editor:focus, .tiptap-editor:focus { box-shadow: inset 0 0 0 1px var(--vscode-focusBorder); }
-.tiptap-shell { overflow: hidden; }
-.reference-menu { position: absolute; left: 10px; right: 10px; top: 220px; z-index: 10; max-height: 190px; overflow: auto; padding: 6px; border: 1px solid var(--vscode-quickInputList-focusBackground, var(--agentflow-border)); border-radius: 6px; background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background)); box-shadow: 0 8px 20px var(--vscode-widget-shadow, rgba(0,0,0,.35)); }
+.markdown-shell { position: relative; border: 1px solid var(--agentflow-border); border-radius: 6px; background: var(--vscode-editor-background); overflow: hidden; }
+.editor-toolbar { display: flex; align-items: center; gap: 2px; min-height: 42px; padding: 4px 8px; border-bottom: 1px solid var(--agentflow-border); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--agentflow-panel)) 92%, transparent); }
+.editor-tool { display: inline-grid; place-items: center; width: 30px; height: 30px; margin: 0; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--vscode-descriptionForeground); font: 600 13px/1 var(--vscode-font-family, system-ui); cursor: pointer; }
+.editor-tool:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); color: var(--vscode-foreground); }
+.editor-tool.active { background: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground)); color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); }
+.editor-separator { width: 1px; height: 22px; margin: 0 6px; background: var(--agentflow-border); }
+.frontmatter-drawer { border-bottom: 1px solid var(--agentflow-border); background: var(--vscode-editorWidget-background, var(--agentflow-panel)); }
+.frontmatter-drawer summary { padding: 7px 12px; cursor: pointer; color: var(--vscode-descriptionForeground); font-size: 12px; font-weight: 600; }
+.frontmatter-drawer textarea { box-sizing: border-box; width: 100%; min-height: 140px; margin: 0; padding: 10px 12px; border: 0; border-top: 1px solid var(--agentflow-border); border-radius: 0; outline: none; resize: vertical; background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background)); color: var(--vscode-editor-foreground); font: 12px/1.45 var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); }
+.tiptap-editor { box-sizing: border-box; width: 100%; min-height: 320px; max-height: min(58vh, 680px); padding: 22px 24px; overflow: auto; outline: none; background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); font: 14px/1.65 var(--vscode-font-family, system-ui); white-space: pre-wrap; }
+.tiptap-editor:focus { box-shadow: inset 0 0 0 1px var(--vscode-focusBorder); }
+.tiptap-editor h1, .tiptap-editor h2, .tiptap-editor h3 { margin: 0 0 14px; color: var(--vscode-editor-foreground); line-height: 1.25; }
+.tiptap-editor h1 { font-size: 26px; }
+.tiptap-editor h2 { font-size: 21px; }
+.tiptap-editor h3 { font-size: 17px; }
+.tiptap-editor p { margin: 0 0 14px; }
+.tiptap-editor ul { margin: 0 0 14px; padding-left: 22px; }
+.tiptap-editor code { padding: 1px 4px; border-radius: 3px; background: var(--vscode-textCodeBlock-background, var(--vscode-editorWidget-background)); font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); }
+.tiptap-editor pre { margin: 0 0 14px; padding: 12px; border: 1px solid var(--agentflow-border); border-radius: 6px; overflow: auto; background: var(--vscode-textCodeBlock-background, var(--vscode-editorWidget-background)); }
+.tiptap-editor pre code { padding: 0; background: transparent; white-space: pre; }
+.tiptap-editor a { color: var(--vscode-textLink-foreground); text-decoration: underline; }
+.reference-menu { position: absolute; left: 12px; right: 12px; top: 52px; z-index: 10; max-height: 190px; overflow: auto; padding: 6px; border: 1px solid var(--vscode-quickInputList-focusBackground, var(--agentflow-border)); border-radius: 6px; background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background)); box-shadow: 0 8px 20px var(--vscode-widget-shadow, rgba(0,0,0,.35)); }
 .reference-menu button { display: flex; width: 100%; flex-direction: column; align-items: flex-start; margin: 2px 0; background: transparent; color: var(--vscode-foreground); border: 0; }
 .reference-menu button:hover { background: var(--vscode-list-hoverBackground); }
 .reference-menu small { color: var(--vscode-descriptionForeground); }

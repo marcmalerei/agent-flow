@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { markdownToTiptapHtml, tiptapJsonToMarkdown } from '../src/webview/markdown';
+import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from '../src/webview/markdown';
 
 describe('TipTap markdown bridge', () => {
   it('converts existing Markdown into TipTap HTML', () => {
@@ -28,6 +28,17 @@ describe('TipTap markdown bridge', () => {
         { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Body' }] }
       ]
     })).toBe(markdown);
+  });
+
+  it('splits and recombines frontmatter for body-first editing', () => {
+    const markdown = '---\nname: Agent\ntools:\n  - read\n---\n\n# Body\n\nInstructions.';
+
+    expect(splitMarkdownFrontmatter(markdown)).toEqual({
+      frontmatter: '---\nname: Agent\ntools:\n  - read\n---',
+      body: '# Body\n\nInstructions.'
+    });
+    expect(combineMarkdownFrontmatter('---\nname: Agent\n---', '# Updated')).toBe('---\nname: Agent\n---\n\n# Updated');
+    expect(combineMarkdownFrontmatter(undefined, '# Plain')).toBe('# Plain');
   });
 
   it('preserves fenced code blocks with language hints', () => {

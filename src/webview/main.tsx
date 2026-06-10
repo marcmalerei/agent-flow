@@ -20,7 +20,7 @@ import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges } from './graph';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
-import { markdownToTiptapHtml, tiptapJsonToMarkdown } from './markdown';
+import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
 import { partitionConfiguredTools } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 
@@ -239,30 +239,38 @@ function TiptapMarkdownEditor({ value, references, onChange }: { value: string; 
     { label: 'Checklist', value: '- [ ] ', type: 'snippet' },
     { label: 'Definition of done', value: '## Definition of done\n\n- [ ] ', type: 'snippet' }
   ];
-  const lastMarkdown = useRef(value);
+  const initialMarkdown = splitMarkdownFrontmatter(value);
+  const frontmatter = useRef(initialMarkdown.frontmatter ?? '');
+  const lastBodyMarkdown = useRef(initialMarkdown.body);
+  const lastFullMarkdown = useRef(value);
   const editor = useEditor({
     extensions: [Document, Paragraph, Text, Bold, Code, Link, Heading.configure({ levels: [1, 2, 3] }), BulletList, ListItem, CodeBlock],
-    content: markdownToTiptapHtml(value),
+    content: markdownToTiptapHtml(initialMarkdown.body),
     editorProps: {
       attributes: {
-        class: 'markdown-editor tiptap-editor',
+        class: 'tiptap-editor',
         'aria-label': 'TipTap Markdown editor',
         spellcheck: 'false'
       }
     },
     onUpdate: ({ editor }: any) => {
       const markdown = tiptapJsonToMarkdown(editor.getJSON());
-      lastMarkdown.current = markdown;
-      onChange(markdown);
+      const fullMarkdown = combineMarkdownFrontmatter(frontmatter.current, markdown);
+      lastBodyMarkdown.current = markdown;
+      lastFullMarkdown.current = fullMarkdown;
+      onChange(fullMarkdown);
       updateQuery(markdown);
     }
   });
 
   useEffect(() => {
-    if (!editor || value === lastMarkdown.current) return;
-    lastMarkdown.current = value;
-    editor.commands.setContent(markdownToTiptapHtml(value), { emitUpdate: false });
-    updateQuery(value);
+    if (!editor || value === lastFullMarkdown.current) return;
+    const markdown = splitMarkdownFrontmatter(value);
+    frontmatter.current = markdown.frontmatter ?? '';
+    lastBodyMarkdown.current = markdown.body;
+    lastFullMarkdown.current = value;
+    editor.commands.setContent(markdownToTiptapHtml(markdown.body), { emitUpdate: false });
+    updateQuery(markdown.body);
   }, [editor, value]);
 
   const suggestions = query ? (query.trigger === '@' ? references : slashItems).filter((item) => item.label.toLowerCase().includes(query.text.toLowerCase()) || item.value.toLowerCase().includes(query.text.toLowerCase())).slice(0, 8) : [];
@@ -270,19 +278,53 @@ function TiptapMarkdownEditor({ value, references, onChange }: { value: string; 
     const match = markdown.match(/(^|\s)([@/])([^\s@/]*)$/);
     setQuery(match ? { trigger: match[2] as '@' | '/', text: match[3] } : undefined);
   };
-  const replaceMarkdown = (next: string) => {
-    lastMarkdown.current = next;
-    onChange(next);
+  const replaceBodyMarkdown = (next: string) => {
+    const fullMarkdown = combineMarkdownFrontmatter(frontmatter.current, next);
+    lastBodyMarkdown.current = next;
+    lastFullMarkdown.current = fullMarkdown;
+    onChange(fullMarkdown);
     updateQuery(next);
     editor?.commands.setContent(markdownToTiptapHtml(next), { emitUpdate: false });
   };
-  const appendMarkdown = (snippet: string) => replaceMarkdown(`${lastMarkdown.current}${snippet}`);
+  const appendMarkdown = (snippet: string) => replaceBodyMarkdown(`${lastBodyMarkdown.current}${snippet}`);
   const insertSuggestion = (item: ReferenceItem) => {
-    const current = lastMarkdown.current;
+    const current = lastBodyMarkdown.current;
     const next = current.replace(/(^|\s)([@/])([^\s@/]*)$/, (_match, prefix) => `${prefix}${item.value} `);
-    replaceMarkdown(next === current ? `${current}${item.value} ` : next);
+    replaceBodyMarkdown(next === current ? `${current}${item.value} ` : next);
   };
-  return <div className="markdown-shell tiptap-shell"><div className="editor-toolbar"><button onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</button><button onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</button><button onClick={() => editor?.chain().focus().toggleBulletList().run()}>List</button><button onClick={() => editor?.chain().focus().toggleBold().run()}>Bold</button><button onClick={() => appendMarkdown('\n- [ ] ')}>Check</button></div><EditorContent editor={editor} />{suggestions.length > 0 && <div className="reference-menu">{suggestions.map((item) => <button key={`${item.type}-${item.value}`} onClick={() => insertSuggestion(item)}><span>{item.label}</span><small>{item.type} · {item.value}</small></button>)}</div>}</div>;
+  const updateFrontmatter = (next: string) => {
+    const fullMarkdown = combineMarkdownFrontmatter(next, lastBodyMarkdown.current);
+    frontmatter.current = next;
+    lastFullMarkdown.current = fullMarkdown;
+    onChange(fullMarkdown);
+  };
+  const addLink = () => {
+    const href = window.prompt('URL');
+    if (!href) return;
+    editor?.chain().focus().setLink({ href }).run();
+  };
+  return <div className="markdown-shell tiptap-shell">
+    <div className="editor-toolbar" role="toolbar" aria-label="Markdown formatting">
+      <EditorTool title="Heading 1" active={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</EditorTool>
+      <EditorTool title="Heading 2" active={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</EditorTool>
+      <EditorTool title="Heading 3" active={editor?.isActive('heading', { level: 3 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}>H3</EditorTool>
+      <span className="editor-separator" />
+      <EditorTool title="Bullet list" active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()}>-</EditorTool>
+      <EditorTool title="Checklist" onClick={() => appendMarkdown('\n- [ ] ')}>[ ]</EditorTool>
+      <span className="editor-separator" />
+      <EditorTool title="Bold" active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()}>B</EditorTool>
+      <EditorTool title="Inline code" active={editor?.isActive('code')} onClick={() => editor?.chain().focus().toggleCode().run()}>`</EditorTool>
+      <EditorTool title="Code block" active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()}>{`</>`}</EditorTool>
+      <EditorTool title="Link" active={editor?.isActive('link')} onClick={addLink}>@</EditorTool>
+    </div>
+    {frontmatter.current && <details className="frontmatter-drawer"><summary>Frontmatter</summary><textarea value={frontmatter.current} onChange={(event: any) => updateFrontmatter(event.target.value)} spellCheck={false} /></details>}
+    <EditorContent editor={editor} />
+    {suggestions.length > 0 && <div className="reference-menu">{suggestions.map((item) => <button key={`${item.type}-${item.value}`} onClick={() => insertSuggestion(item)}><span>{item.label}</span><small>{item.type} · {item.value}</small></button>)}</div>}
+  </div>;
+}
+
+function EditorTool({ active, children, title, onClick }: { active?: boolean; children: React.ReactNode; title: string; onClick: () => void }) {
+  return <button type="button" className={`editor-tool${active ? ' active' : ''}`} title={title} aria-label={title} onMouseDown={(event: any) => event.preventDefault()} onClick={onClick}>{children}</button>;
 }
 
 function Bottom({ state, activeTab, setActiveTab }: { state: State; activeTab: BottomTab; setActiveTab: (tab: BottomTab) => void }) {
