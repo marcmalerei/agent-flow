@@ -197,6 +197,22 @@ describe('webview graph projection', () => {
     ]);
   });
 
+  it('projects handoffs as distinct visible edges', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Handoffs',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'Router', calls: [], outputs: [], handoffs: [{ label: 'Escalate', agent: 'worker', prompt: 'Take over.' }] },
+        { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }
+      ],
+      edges: []
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label, edge.data.kind, edge.data.derivedFrom, edge.style?.strokeDasharray])).toEqual([
+      ['router', 'worker', 'Escalate', 'handoff', 'agent.handoffs', '3 3']
+    ]);
+  });
+
   it('keeps explicit user-drawn edges editable and avoids duplicate reference previews', () => {
     const pipeline: AgentPipeline = {
       version: 1,
@@ -210,6 +226,22 @@ describe('webview graph projection', () => {
 
     expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.id, edge.source, edge.target, edge.data?.derivedFrom])).toEqual([
       ['router-to-worker', 'router', 'worker', 'pipeline.edges']
+    ]);
+  });
+
+  it('keeps generic stored flow edges visible even without a live reference', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Manual flow',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'Router', calls: [], outputs: [] },
+        { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }
+      ],
+      edges: [{ id: 'manual-flow', from: 'router', to: 'worker', kind: 'flow' }]
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.id, edge.source, edge.target, edge.label])).toEqual([
+      ['manual-flow', 'router', 'worker', undefined]
     ]);
   });
 
@@ -239,7 +271,7 @@ describe('webview graph projection', () => {
     ]);
   });
 
-  it('hides stored agent-to-agent edges when the subagent reference is removed', () => {
+  it('hides stored handoff edges when the handoff reference is removed', () => {
     const pipeline: AgentPipeline = {
       version: 1,
       name: 'Unchecked refs',
@@ -247,7 +279,7 @@ describe('webview graph projection', () => {
         { id: 'router', type: 'agent', label: 'Router', calls: [], outputs: [] },
         { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }
       ],
-      edges: [{ id: 'router-to-worker', from: 'router', to: 'worker', kind: 'flow' }]
+      edges: [{ id: 'router-to-worker', from: 'router', to: 'worker', kind: 'handoff' }]
     };
 
     expect(deriveVisibleFlowEdges(pipeline)).toEqual([]);

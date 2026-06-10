@@ -140,7 +140,7 @@ function isPreviewEdge(edge: Edge): boolean {
 
 function edgeMetadata(edge: Edge): { kind: PipelineEdgeKind; artifact?: string } {
   const data = (edge as Edge & { data?: { kind?: string; artifact?: string } }).data;
-  if (data?.kind === 'artifact' || data?.kind === 'prompt' || data?.kind === 'skill' || data?.kind === 'gate') return { kind: data.kind, artifact: data.artifact };
+  if (data?.kind === 'artifact' || data?.kind === 'prompt' || data?.kind === 'skill' || data?.kind === 'gate' || data?.kind === 'handoff') return { kind: data.kind, artifact: data.artifact };
   return { kind: 'flow' };
 }
 
