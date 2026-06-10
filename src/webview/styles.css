@@ -24,6 +24,7 @@ pre { white-space: pre-wrap; font-size: 12px; background: var(--vscode-textCodeB
 .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
 .checks label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 400; }
 .checks input { width: auto; margin: 0; }
+.unavailable-tools label { color: var(--vscode-descriptionForeground); }
 .markdown-shell { position: relative; border: 1px solid var(--agentflow-border); border-radius: 6px; background: var(--vscode-editor-background); }
 .editor-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; border-bottom: 1px solid var(--agentflow-border); background: var(--vscode-editorGroupHeader-tabsBackground, var(--agentflow-panel)); }
 .markdown-editor, .wysiwyg-editor { box-sizing: border-box; width: 100%; min-height: 170px !important; padding: 10px; border: 0 !important; border-radius: 0 !important; outline: none; font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace); background: var(--vscode-editor-background) !important; color: var(--vscode-editor-foreground) !important; resize: vertical; white-space: pre-wrap; }

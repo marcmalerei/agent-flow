@@ -17,6 +17,7 @@ import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles, generateMermaid } from '../pipeline/generators';
 import { deriveVisibleFlowEdges } from './graph';
 import { markdownToTiptapHtml, tiptapJsonToMarkdown } from './markdown';
+import { partitionConfiguredTools } from './toolOptions';
 
 interface State {
   pipeline: AgentPipeline;
@@ -177,11 +178,11 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
     const current = Array.isArray((node as any)[field]) ? (node as any)[field] as string[] : [];
     onChange(node.id, { [field]: checked ? [...new Set([...current, item])] : current.filter((value) => value !== item) } as Partial<PipelineNode>);
   };
-  const visibleTools = toolOptions;
+  const toolGroups = (node.type === 'agent' || node.type === 'prompt') ? partitionConfiguredTools({ availableTools: toolOptions, configuredTools: node.tools ?? [] }) : { available: [], unavailable: [] };
   return <div className="config"><h2>{node.label}</h2><span className="pill">{node.type}</span>
     <label>Label<input value={node.label} onChange={(event: any) => onChange(node.id, { label: event.target.value } as Partial<PipelineNode>)} /></label>
     <label>Description<textarea value={node.description ?? ''} onChange={(event: any) => onChange(node.id, { description: event.target.value } as Partial<PipelineNode>)} /></label>
-    {(node.type === 'agent' || node.type === 'prompt') && <><h3>Tools</h3>{visibleTools.length ? <div className="checks">{visibleTools.map((tool) => <label key={tool}><input type="checkbox" checked={(node.tools ?? []).includes(tool)} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div> : <p className="hint">No VS Code language model tools are registered.</p>}</>}
+    {(node.type === 'agent' || node.type === 'prompt') && <><h3>Tools</h3>{toolGroups.available.length ? <div className="checks">{toolGroups.available.map((tool) => <label key={tool}><input type="checkbox" checked={(node.tools ?? []).includes(tool)} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div> : <p className="hint">No VS Code language model tools are registered.</p>}{toolGroups.unavailable.length > 0 && <><h4>Unavailable tools</h4><div className="checks unavailable-tools">{toolGroups.unavailable.map((tool) => <label key={tool} title="Configured on this node, but not registered by VS Code right now."><input type="checkbox" checked={true} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div></>}</>}
     {node.type === 'agent' && <><h3>Subagents</h3><div className="checks">{agents.map((agent) => <label key={agent.id}><input type="checkbox" checked={(node.calls ?? []).includes(agent.id)} onChange={(event: any) => toggleListItem('calls', agent.id, event.target.checked)} />{agent.label}</label>)}</div><label>Input artifacts<textarea value={(node.inputs ?? []).join('\n')} onChange={(event: any) => setArray('inputs', event.target.value)} /></label><label>Output artifacts<textarea value={(node.outputs ?? []).join('\n')} onChange={(event: any) => setArray('outputs', event.target.value)} /></label></>}
     {node.type === 'prompt' && <label>Start agent<select value={node.startAgent ?? ''} onChange={(event: any) => onChange(node.id, { startAgent: event.target.value || undefined } as Partial<PipelineNode>)}><option value="">None</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}</select></label>}
     {node.type === 'instruction' && <label>applyTo<input value={node.applyTo} onChange={(event: any) => onChange(node.id, { applyTo: event.target.value } as Partial<PipelineNode>)} /></label>}

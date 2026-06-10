@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listToolOptionNames } from '../src/webview/toolOptions';
+import { listToolOptionNames, partitionConfiguredTools } from '../src/webview/toolOptions';
 
 describe('VS Code tool options', () => {
   it('uses unique sorted tool names from VS Code language model tools', () => {
@@ -9,5 +9,15 @@ describe('VS Code tool options', () => {
       { name: 'terminal', description: 'duplicate', inputSchema: {}, tags: ['run'] },
       { name: '  ', description: 'ignored', inputSchema: undefined, tags: [] }
     ])).toEqual(['codebase', 'terminal']);
+  });
+
+  it('partitions configured tools into available and unavailable groups', () => {
+    expect(partitionConfiguredTools({
+      availableTools: ['terminal', 'codebase'],
+      configuredTools: ['legacyTool', 'terminal', 'missingTool', 'legacyTool']
+    })).toEqual({
+      available: ['codebase', 'terminal'],
+      unavailable: ['legacyTool', 'missingTool']
+    });
   });
 });
