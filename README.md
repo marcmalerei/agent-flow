@@ -35,6 +35,93 @@ npm test
 
 In restricted environments, package installation may be blocked. The TypeScript sources include lightweight local declaration shims so core type-checking can still be run with a globally available `tsc`.
 
+## Running in VS Code while developing
+
+Use an **Extension Development Host** when you want to test AgentFlow from this source checkout without packaging or installing a `.vsix`.
+
+### 1. Install and build
+
+From the repository root:
+
+```bash
+npm install
+npm run compile
+npm run build:webview
+```
+
+`npm run compile` creates the extension host entrypoint at `dist/extension.js`. `npm run build:webview` creates the webview assets expected by the extension under `webview-dist/assets/`.
+
+### 2. Launch from VS Code
+
+Open this repository in VS Code:
+
+```bash
+code .
+```
+
+Then press `F5` and choose an **Extension Host** launch configuration if VS Code offers one. If there is no launch configuration yet, create `.vscode/launch.json` locally with:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run AgentFlow Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ],
+      "preLaunchTask": "npm: compile"
+    }
+  ]
+}
+```
+
+This opens a second VS Code window named **Extension Development Host**. That window is where AgentFlow is installed for the current debugging session.
+
+### 3. Launch from the command line
+
+You can also start VS Code with this checkout loaded as a development extension:
+
+```bash
+code --extensionDevelopmentPath="$(pwd)"
+```
+
+To test AgentFlow against a separate disposable workspace, pass the workspace path after the extension path:
+
+```bash
+mkdir -p /tmp/agentflow-smoke
+code --extensionDevelopmentPath="$(pwd)" /tmp/agentflow-smoke
+```
+
+### 4. Exercise AgentFlow commands
+
+In the **Extension Development Host** window, open the Command Palette and run:
+
+1. `AgentFlow: Create Default Pipeline`
+2. `AgentFlow: Open Pipeline`
+3. `AgentFlow: Validate Pipeline`
+4. `AgentFlow: Export Mermaid`
+5. `AgentFlow: Generate Files`
+
+Use a disposable workspace for `AgentFlow: Generate Files` while testing. The command shows a generated-file preview and asks for confirmation before writing files, but the generated files are still intended to modify the active workspace after confirmation.
+
+### 5. Optional packaged install for manual testing
+
+For a local install that behaves more like a normal VS Code extension, package a `.vsix` and install it manually:
+
+```bash
+npm run build
+npx @vscode/vsce package
+code --install-extension agentflow-0.0.1.vsix
+```
+
+After installing a packaged build, reload VS Code and run the AgentFlow commands from the Command Palette. Rebuild and reinstall the `.vsix` whenever you want to test new source changes outside the Extension Development Host.
+
 ## Usage
 
 1. Open a workspace in VS Code.
