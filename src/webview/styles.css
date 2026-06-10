@@ -81,6 +81,9 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .react-flow__controls-button { border: 0 !important; border-bottom: 1px solid var(--agentflow-border) !important; background: var(--vscode-editorWidget-background) !important; color: var(--vscode-icon-foreground, var(--vscode-foreground)) !important; fill: currentColor; }
 .react-flow__controls-button:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)) !important; }
 .react-flow__controls-button svg { fill: currentColor; }
+.react-flow__edge-path { stroke: var(--vscode-editor-foreground); stroke-opacity: .75; stroke-width: 1.5; }
+.react-flow__edge-textbg { fill: var(--vscode-editorWidget-background); }
+.react-flow__edge-text { fill: var(--vscode-editorWidget-foreground); font-size: 11px; }
 .react-flow__handle { width: 7px; height: 7px; border: 1px solid var(--vscode-focusBorder); background: var(--vscode-editor-background); }
 .react-flow__node.selected { box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
 .error { color: var(--vscode-errorForeground, #fca5a5); } .warning { color: var(--vscode-editorWarning-foreground, #fde68a); } .risk { color: var(--vscode-editorInfo-foreground, #fdba74); } .info { color: var(--vscode-editorInfo-foreground, #bfdbfe); }

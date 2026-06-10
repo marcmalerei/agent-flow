@@ -16,7 +16,7 @@ function assertStringArray(value: unknown, field: string): string[] | undefined 
 }
 
 const nodeTypes = new Set(['agent', 'prompt', 'instruction', 'skill', 'artifact', 'gate', 'hook']);
-const edgeKinds = new Set(['flow', 'artifact', 'prompt', 'skill', 'gate']);
+const edgeKinds = new Set(['flow', 'artifact', 'prompt', 'skill', 'gate', 'handoff']);
 
 export function parsePipelineJson(source: string): AgentPipeline {
   let parsed: unknown;
