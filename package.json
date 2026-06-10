@@ -1,0 +1,73 @@
+{
+  "name": "agentflow",
+  "displayName": "AgentFlow",
+  "description": "Visual manager for GitHub Copilot agent pipelines.",
+  "version": "0.0.1",
+  "publisher": "agentflow",
+  "private": true,
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:agentflow.openPipeline",
+    "onCommand:agentflow.scanWorkspace",
+    "onCommand:agentflow.generateFiles",
+    "onCommand:agentflow.validatePipeline",
+    "onCommand:agentflow.exportMermaid",
+    "onCommand:agentflow.createDefaultPipeline"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "agentflow.openPipeline",
+        "title": "AgentFlow: Open Pipeline"
+      },
+      {
+        "command": "agentflow.scanWorkspace",
+        "title": "AgentFlow: Scan Workspace"
+      },
+      {
+        "command": "agentflow.generateFiles",
+        "title": "AgentFlow: Generate Files"
+      },
+      {
+        "command": "agentflow.validatePipeline",
+        "title": "AgentFlow: Validate Pipeline"
+      },
+      {
+        "command": "agentflow.exportMermaid",
+        "title": "AgentFlow: Export Mermaid"
+      },
+      {
+        "command": "agentflow.createDefaultPipeline",
+        "title": "AgentFlow: Create Default Pipeline"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "build:webview": "vite build --config vite.webview.config.mts",
+    "build": "npm run compile && npm run build:webview",
+    "test": "vitest run --config vitest.config.ts",
+    "check": "npm run compile && npm run test"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.6.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/vscode": "^1.92.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.4",
+    "vitest": "^1.6.0"
+  }
+}
