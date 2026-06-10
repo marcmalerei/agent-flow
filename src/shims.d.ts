@@ -38,9 +38,9 @@ declare module 'vscode' {
   export namespace env { export const clipboard: { writeText(value: string): Thenable<void> } }
 }
 
-declare module 'react' { export function useEffect(effect: () => void | (() => void), deps?: unknown[]): void; export function useMemo<T>(factory: () => T, deps: unknown[]): T; export function useState<T>(initial: T): [T, (value: T | ((previous: T) => T)) => void]; const React: any; export default React; }
+declare module 'react' { export function useCallback<T extends (...args: any[]) => any>(callback: T, deps: unknown[]): T; export function useEffect(effect: () => void | (() => void), deps?: unknown[]): void; export function useMemo<T>(factory: () => T, deps: unknown[]): T; export function useRef<T>(initial: T): { current: T }; export function useState<T>(initial: T): [T, (value: T | ((previous: T) => T)) => void]; const React: any; export default React; }
 declare module 'react-dom/client' { export function createRoot(element: Element): { render(node: unknown): void } }
-declare module '@xyflow/react' { export interface Node { id: string; position: { x: number; y: number }; data?: any; style?: any } export interface Edge { id: string; source: string; target: string; label?: string; animated?: boolean } export const Background: any; export const Controls: any; export const MiniMap: any; export const ReactFlow: any; }
+declare module '@xyflow/react' { export interface Node { id: string; position: { x: number; y: number }; data?: any; style?: any } export interface Edge { id: string; source: string; target: string; label?: string; animated?: boolean } export interface Connection { source?: string | null; target?: string | null; sourceHandle?: string | null; targetHandle?: string | null } export function addEdge(connection: Connection, edges: Edge[]): Edge[]; export function useReactFlow(): { screenToFlowPosition(position: { x: number; y: number }): { x: number; y: number } }; export const Background: any; export const Controls: any; export const MiniMap: any; export const ReactFlow: any; export const ReactFlowProvider: any; }
 declare module 'react/jsx-runtime' { export const jsx: any; export const jsxs: any; export const Fragment: any }
 declare module '*.css';
 
