@@ -21,6 +21,7 @@ import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges } from './graph';
 import { markdownToTiptapHtml, tiptapJsonToMarkdown } from './markdown';
 import { partitionConfiguredTools } from './toolOptions';
+import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 
 interface State {
   pipeline: AgentPipeline;
@@ -37,6 +38,9 @@ declare global { interface Window { __AGENTFLOW_STATE__: State; acquireVsCodeApi
 const vscode = window.acquireVsCodeApi?.();
 const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-charts-green)', artifact: 'var(--vscode-descriptionForeground)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)' };
 const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'artifact', 'gate', 'hook'];
+const nodeTypesConfig = {
+  tokenNode: ({ data }: { data: { label: string; type: string; tokenBadge: string } }) => <div className="flow-node"><span className="token-badge" title="Estimated token count">{data.tokenBadge}</span><span>{data.label}</span><small>{data.type}</small></div>
+};
 
 function deriveState(pipeline: AgentPipeline, previous: State): State {
   return {
@@ -83,9 +87,10 @@ function App() {
   const nodes: Node[] = useMemo(() => draft.nodes.map((node) => ({
     id: node.id,
     position: node.position ?? { x: 0, y: 0 },
-    data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}\n${node.type}` },
-    style: { border: `2px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 10, background: 'var(--vscode-editorWidget-background)', color: 'var(--vscode-editorWidget-foreground)', width: 170, whiteSpace: 'pre-line' }
-  })), [draft.nodes, risky]);
+    type: 'tokenNode',
+    data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)) },
+    style: { border: `2px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 10, background: 'var(--vscode-editorWidget-background)', color: 'var(--vscode-editorWidget-foreground)', width: 190 }
+  })), [draft, risky]);
   const edges: Edge[] = useMemo(() => deriveVisibleFlowEdges(draft), [draft]);
 
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
@@ -149,7 +154,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>AgentFlow</strong><span>{draft.name}</span><button onClick={savePipeline}>Save Pipeline</button><button className="secondary" onClick={() => setInspectorOpen(!inspectorOpen)}>{inspectorOpen ? 'Hide config' : 'Show config'}</button><div className="node-buttons">{nodeTypes.map((type) => <button key={type} onClick={() => addNode(type)} title={`Create ${type} node`}>+ {type}</button>)}</div></header>
-    <main className="canvas"><ReactFlow nodes={nodes} edges={edges} onNodeClick={(_: unknown, node: Node) => setSelectedId(node.id)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
+    <main className="canvas"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => setSelectedId(node.id)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><button className="collapse" onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} />}</section>
   </div>;

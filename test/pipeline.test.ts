@@ -7,6 +7,7 @@ import { calculateRiskScore } from '../src/pipeline/riskScore';
 import { AgentPipeline } from '../src/pipeline/types';
 import { normalizePipelineAgentReferences, resolveAgentReference, stripYamlQuotes } from '../src/pipeline/referenceResolver';
 import { deriveVisibleFlowEdges } from '../src/webview/graph';
+import { estimateNodeTokenCount, estimateTokenCount, formatTokenBadge } from '../src/webview/tokenCounts';
 
 describe('pipeline parsing', () => {
   it('round-trips the default pipeline schema', () => {
@@ -143,6 +144,17 @@ describe('markdown generators', () => {
 });
 
 describe('webview graph projection', () => {
+  it('estimates token badges for generated node content', () => {
+    const pipeline = createDefaultPipeline();
+    const frontend = pipeline.nodes.find((node) => node.id === 'frontend');
+    expect(frontend).toBeDefined();
+    expect(estimateTokenCount('')).toBe(0);
+    expect(estimateTokenCount('123456789')).toBe(3);
+    expect(estimateNodeTokenCount(pipeline, frontend!)).toBeGreaterThan(50);
+    expect(formatTokenBadge(999)).toBe('~999 tok');
+    expect(formatTokenBadge(1200)).toBe('~1.2k tok');
+  });
+
   it('projects live configuration references into visible flow edges', () => {
     const pipeline: AgentPipeline = {
       version: 1,
