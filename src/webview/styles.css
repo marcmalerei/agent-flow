@@ -5,6 +5,8 @@
 body { margin: 0; font-family: var(--vscode-font-family, system-ui); background: var(--vscode-editor-background); color: var(--vscode-foreground); }
 .app { display: grid; grid-template-columns: 1fr 390px; grid-template-rows: 56px 1fr 42px; height: 100vh; background: var(--vscode-editor-background); }
 .app.bottom-open { grid-template-rows: 56px 1fr 250px; }
+.app.inspector-closed { grid-template-columns: 1fr; }
+.app.inspector-closed .toolbar, .app.inspector-closed .bottom { grid-column: 1; }
 .toolbar { grid-column: 1 / 3; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-bottom: 1px solid var(--agentflow-border); background: var(--vscode-titleBar-activeBackground, var(--vscode-editorGroupHeader-tabsBackground)); color: var(--vscode-titleBar-activeForeground, var(--vscode-foreground)); }
 .toolbar strong { font-size: 14px; }
 .toolbar span { flex: 1; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -14,11 +16,15 @@ body { margin: 0; font-family: var(--vscode-font-family, system-ui); background:
 button { display: inline-block; margin: 4px; padding: 7px 10px; border-radius: 4px; border: 1px solid var(--vscode-button-border, transparent); background: var(--vscode-button-background); color: var(--vscode-button-foreground); cursor: pointer; }
 button:hover { background: var(--vscode-button-hoverBackground); }
 .toolbar button, .editor-toolbar button { width: auto; white-space: nowrap; }
+button.secondary { background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
 .node-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; max-width: 600px; }
 .node-buttons button { padding: 5px 8px; font-size: 12px; }
 pre { white-space: pre-wrap; font-size: 12px; background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background)); padding: 8px; border-radius: 6px; }
 .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
 .config label { display: block; margin: 12px 0; font-weight: 600; }
+.config details { margin: 12px 0; padding: 8px 0; border-top: 1px solid var(--agentflow-border); }
+.config summary { cursor: pointer; font-weight: 700; color: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground)); }
+.config h4 { margin: 12px 0 8px; }
 .config input, .config textarea, .config select { box-sizing: border-box; width: 100%; margin-top: 5px; padding: 8px; border: 1px solid var(--vscode-input-border, var(--agentflow-border)); border-radius: 4px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); }
 .config textarea { min-height: 72px; resize: vertical; }
 .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
