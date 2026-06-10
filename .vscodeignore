@@ -3,12 +3,16 @@
 .github/**
 .vscode/**
 docs/**
+scripts/**
+smoke/**
 test/**
 src/**
 node_modules/.cache/**
+dist-smoke/**
 dist/**/*.map
 webview-dist/**/*.map
 *.vsix
+tsconfig.smoke.json
 vitest.config.*
 vite.webview.config.*
 tsconfig.json

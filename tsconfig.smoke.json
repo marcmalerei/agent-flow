@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist-smoke",
+    "rootDir": ".",
+    "types": [
+      "node",
+      "vscode"
+    ]
+  },
+  "include": [
+    "smoke/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-smoke",
+    "webview-dist"
+  ]
+}

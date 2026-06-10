@@ -27,6 +27,9 @@ jobs:
       - name: Compile and test
         run: npm run check
 
+      - name: Extension host smoke
+        run: xvfb-run -a npm run test:smoke
+
       - name: Build webview
         run: npm run build:webview
 
