@@ -6,7 +6,7 @@ import { parsePipeline } from '../pipeline/parser';
 import { normalizePipelineAgentReferences } from '../pipeline/referenceResolver';
 import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
-import { generateFileForNode, generateFiles, generateMermaid } from '../pipeline/generators';
+import { generateFiles, generateMermaid } from '../pipeline/generators';
 import { AgentPipeline } from '../pipeline/types';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext): Promise<void> {
@@ -19,36 +19,12 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
   });
   panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline));
   panel.webview.onDidReceiveMessage(async (message) => {
-    if (message?.command === 'exportMermaid') {
-      await vscode.env.clipboard.writeText(generateMermaid(pipeline));
-      vscode.window.showInformationMessage('AgentFlow Mermaid diagram copied to clipboard.');
-    }
-    if (message?.command === 'generateFiles') {
-      await vscode.commands.executeCommand('agentflow.generateFiles');
-    }
-    if (message?.command === 'reloadPipeline') {
-      pipeline = await loadOrInferPipeline(workspace);
-      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId: message.selectedId });
-      vscode.window.showInformationMessage('AgentFlow pipeline reloaded.');
-    }
     if (message?.command === 'savePipeline') {
       pipeline = normalizePipelineAgentReferences(parsePipeline(message.pipeline));
       await writePipeline(workspace, pipeline);
+      await writeGeneratedFiles(workspace, pipeline);
       panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId: message.selectedId });
-      vscode.window.showInformationMessage('AgentFlow pipeline saved and reloaded.');
-    }
-    if (message?.command === 'writeNodeFile') {
-      pipeline = normalizePipelineAgentReferences(parsePipeline(message.pipeline));
-      await writePipeline(workspace, pipeline);
-      const file = generateFileForNode(pipeline, String(message.nodeId));
-      if (!file) { vscode.window.showWarningMessage('Selected node does not generate a file.'); return; }
-      const answer = await vscode.window.showWarningMessage(`Write generated file ${file.path}?`, { modal: true }, 'Write File');
-      if (answer !== 'Write File') return;
-      const target = path.join(workspace, file.path);
-      await fs.mkdir(path.dirname(target), { recursive: true });
-      await fs.writeFile(target, file.content, 'utf8');
-      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId: message.nodeId });
-      vscode.window.showInformationMessage(`AgentFlow wrote ${file.path}.`);
+      vscode.window.showInformationMessage('AgentFlow pipeline saved to JSON and Markdown files.');
     }
   });
 }
@@ -63,6 +39,14 @@ async function writePipeline(workspace: string, pipeline: AgentPipeline): Promis
   const target = path.join(workspace, '.agent-pipeline/pipeline.json');
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(target, `${JSON.stringify(pipeline, null, 2)}\n`, 'utf8');
+}
+
+async function writeGeneratedFiles(workspace: string, pipeline: AgentPipeline): Promise<void> {
+  for (const file of generateFiles(pipeline)) {
+    const target = path.join(workspace, file.path);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, file.content, 'utf8');
+  }
 }
 
 function html(webview: vscode.Webview, context: vscode.ExtensionContext, state: unknown): string {
