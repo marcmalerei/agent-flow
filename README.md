@@ -126,6 +126,8 @@ After installing a packaged build, reload VS Code and run the AgentFlow commands
 
 ## Usage
 
+AgentFlow requires VS Code `1.120.0` or newer because the inspector reads available language model tools from the VS Code `lm.tools` API.
+
 1. Open a workspace in VS Code.
 2. Run `AgentFlow: Create Default Pipeline`.
 3. Run `AgentFlow: Open Pipeline` to view the pipeline graph.
@@ -143,3 +145,9 @@ AgentFlow encourages explicit artifacts and context budgets. Each generated agen
 ## Editing nodes
 
 The webview supports direct node configuration in the inspector and uses VS Code theme colors so it blends into light and dark installations. Select a node to edit common fields, choose agent tools with checkboxes, choose callable subagents from known agents, update artifact lists, and maintain a Markdown override in the WYSIWYG editor. The editor stores Markdown, provides a rendered preview, preserves frontmatter, fenced code blocks, headings, bullet lists, bold text, inline code, and HTTP(S) links, and supports `@` references for agents, skills, prompts, artifacts, and files plus `/` snippets for dates and checklists. Dragging nodes updates their position in the draft pipeline; saving writes the updated `.agent-pipeline/pipeline.json` and reloads the flow state so validation and generated previews reflect the changes. Generated node files are still written only after explicit confirmation. The diagnostics drawer is collapsed by default so validation and generated-file details do not crowd the canvas.
+
+## Known limitations
+
+- AgentFlow manages local files only. It does not execute pipelines or call Copilot agents.
+- The inspector tool list reflects tools currently registered in VS Code. Tools saved in a pipeline but not currently registered are shown as unavailable so they can be removed.
+- Markdown editing preserves common AgentFlow constructs, but arbitrary Markdown extensions are not guaranteed to round-trip.

@@ -3,12 +3,28 @@
   "displayName": "AgentFlow",
   "description": "Visual manager for GitHub Copilot agent pipelines.",
   "version": "0.0.1",
-  "publisher": "agentflow",
-  "private": true,
+  "publisher": "marcmalerei",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marcmalerei/agent-flow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/marcmalerei/agent-flow/issues"
+  },
+  "homepage": "https://github.com/marcmalerei/agent-flow#readme",
+  "keywords": [
+    "agent",
+    "copilot",
+    "pipeline",
+    "workflow",
+    "visualization"
+  ],
   "engines": {
     "vscode": "^1.120.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
   "activationEvents": [
@@ -52,10 +68,11 @@
     "compile": "tsc -p ./",
     "build:webview": "vite build --config vite.webview.config.mts",
     "build": "npm run compile && npm run build:webview",
+    "package:vsix": "vsce package --out agentflow-0.0.1.vsix",
     "test": "vitest run --config vitest.config.mts",
     "check": "npm run compile && npm run test"
   },
-  "dependencies": {
+  "devDependencies": {
     "@tiptap/extension-bold": "^3.26.0",
     "@tiptap/extension-bullet-list": "^3.26.0",
     "@tiptap/extension-code": "^3.26.0",
@@ -67,16 +84,15 @@
     "@tiptap/extension-paragraph": "^3.26.0",
     "@tiptap/extension-text": "^3.26.0",
     "@tiptap/react": "^3.26.0",
-    "@xyflow/react": "^12.6.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@types/vscode": "^1.120.0",
     "@vitejs/plugin-react": "^6.0.2",
+    "@vscode/vsce": "^3.9.2",
+    "@xyflow/react": "^12.6.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "typescript": "^5.5.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.8"
