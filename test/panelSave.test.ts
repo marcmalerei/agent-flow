@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { handleSavePipelineMessage } from '../src/webview/panelMessages';
+import { handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from '../src/webview/panelMessages';
 import { AgentPipeline } from '../src/pipeline/types';
 
 describe('webview save handling', () => {
@@ -27,5 +27,71 @@ describe('webview save handling', () => {
     });
 
     expect(calls).toEqual(['pipeline:worker', 'state', 'message']);
+  });
+
+  it('writes generated Markdown files after confirmation', async () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Write markdown',
+      nodes: [
+        { id: 'prompt', type: 'prompt', label: 'Prompt', startAgent: '"Agent"' },
+        { id: 'agent', type: 'agent', label: 'Agent', outputs: ['.agent-output/result.md'] },
+        { id: 'artifact', type: 'artifact', label: 'Result', path: '.agent-output/result.md' }
+      ],
+      edges: []
+    };
+    const calls: string[] = [];
+
+    const result = await handleWriteMarkdownFilesMessage({
+      message: { command: 'writeMarkdownFiles', pipeline, selectedId: 'agent' },
+      workspace: '/workspace',
+      confirmWrite: async (count) => {
+        calls.push(`confirm:${count}`);
+        return true;
+      },
+      writeMarkdownFiles: async (_workspace, saved) => {
+        calls.push(`write:${saved.nodes.find((node) => node.type === 'prompt' && node.id === 'prompt')?.type === 'prompt' ? 'ok' : 'missing'}`);
+      },
+      postState: async (_pipeline, selectedId) => {
+        calls.push(`state:${selectedId}`);
+      },
+      showWrittenMessage: async (count) => {
+        calls.push(`message:${count}`);
+      }
+    });
+
+    expect(result?.nodes.find((node) => node.type === 'prompt' && node.id === 'prompt')?.type === 'prompt' && result.nodes.find((node) => node.type === 'prompt' && node.id === 'prompt')?.startAgent).toBe('agent');
+    expect(calls).toEqual(['confirm:3', 'write:ok', 'state:agent', 'message:3']);
+  });
+
+  it('does not write generated Markdown files when confirmation is cancelled', async () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Cancelled',
+      nodes: [{ id: 'agent', type: 'agent', label: 'Agent', outputs: [] }],
+      edges: []
+    };
+    const calls: string[] = [];
+
+    const result = await handleWriteMarkdownFilesMessage({
+      message: { command: 'writeMarkdownFiles', pipeline },
+      workspace: '/workspace',
+      confirmWrite: async (count) => {
+        calls.push(`confirm:${count}`);
+        return false;
+      },
+      writeMarkdownFiles: async () => {
+        calls.push('write');
+      },
+      postState: async () => {
+        calls.push('state');
+      },
+      showWrittenMessage: async () => {
+        calls.push('message');
+      }
+    });
+
+    expect(result).toBeUndefined();
+    expect(calls).toEqual(['confirm:1']);
   });
 });
