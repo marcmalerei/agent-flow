@@ -8,6 +8,7 @@ import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles, generateMermaid } from '../pipeline/generators';
 import { AgentPipeline } from '../pipeline/types';
+import { listToolOptionNames } from './toolOptions';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -32,7 +33,14 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
 async function buildState(workspace: string, pipeline: AgentPipeline): Promise<unknown> {
   const findings = validatePipeline(pipeline);
   const risk = calculateRiskScore(pipeline, { copilotInstructionsLines: await countCopilotInstructionLines(workspace) });
-  return { pipeline, findings, risk, mermaid: generateMermaid(pipeline), generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })) };
+  return {
+    pipeline,
+    findings,
+    risk,
+    mermaid: generateMermaid(pipeline),
+    generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })),
+    toolOptions: listToolOptionNames(vscode.lm.tools)
+  };
 }
 
 async function writePipeline(workspace: string, pipeline: AgentPipeline): Promise<void> {
