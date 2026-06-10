@@ -36,6 +36,28 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "AgentFlow",
+      "properties": {
+        "agentflow.flow.layout": {
+          "type": "string",
+          "default": "manual",
+          "enum": [
+            "manual",
+            "vertical",
+            "horizontal",
+            "typeColumns"
+          ],
+          "enumDescriptions": [
+            "Use saved node positions from the pipeline JSON.",
+            "Arrange nodes in top-to-bottom dependency layers.",
+            "Arrange nodes in left-to-right dependency layers.",
+            "Arrange nodes in columns by node type."
+          ],
+          "description": "Controls how AgentFlow displays node positions in the flow view. Non-manual layouts affect the preview only and do not overwrite saved positions."
+        }
+      }
+    },
     "commands": [
       {
         "command": "agentflow.openPipeline",

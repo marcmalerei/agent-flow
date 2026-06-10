@@ -138,6 +138,8 @@ AgentFlow requires VS Code `1.120.0` or newer because the inspector reads availa
 8. Expand the diagnostics drawer only when you need validation, generated files, tool matrix, or context risk details.
 9. Run `AgentFlow: Generate Files` and confirm only after reviewing the preview.
 
+Set `agentflow.flow.layout` in VS Code settings to change the graph display. `manual` uses saved node positions, while `vertical`, `horizontal`, and `typeColumns` calculate preview-only layouts without overwriting saved positions.
+
 ## Keeping context costs low
 
 AgentFlow encourages explicit artifacts and context budgets. Each generated agent file describes required input artifacts, output artifacts, scope rules, verification rules, and context limits so agents do not rely on broad chat history or vague handoffs.

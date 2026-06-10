@@ -8,16 +8,22 @@ import { generateFiles } from '../pipeline/generators';
 import { AgentPipeline } from '../pipeline/types';
 import { listToolOptionNames } from './toolOptions';
 import { handleSavePipelineMessage } from './panelMessages';
+import { coerceFlowLayout } from './flowLayout';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspace) { vscode.window.showErrorMessage('Open a workspace folder before opening AgentFlow.'); return; }
   let pipeline = await loadOrInferPipeline(workspace);
-  const panel = vscode.window.createWebviewPanel('agentflow.pipeline', 'AgentFlow Pipeline', vscode.ViewColumn.One, {
+  const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'AgentFlow Pipeline', vscode.ViewColumn.One, {
     enableScripts: true,
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
   });
   panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline));
+  const configurationListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
+    if (!event.affectsConfiguration('agentflow.flow.layout')) return;
+    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId: undefined });
+  });
+  panel.onDidDispose(() => configurationListener.dispose());
   panel.webview.onDidReceiveMessage(async (message) => {
     if (message?.command === 'savePipeline') {
       pipeline = await handleSavePipelineMessage({
@@ -43,6 +49,7 @@ async function buildState(workspace: string, pipeline: AgentPipeline): Promise<u
     findings,
     risk,
     generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })),
+    flowLayout: coerceFlowLayout(vscode.workspace.getConfiguration('agentflow.flow').get('layout')),
     toolOptions: listToolOptionNames(vscode.lm.tools)
   };
 }

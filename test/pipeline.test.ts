@@ -7,6 +7,7 @@ import { calculateRiskScore } from '../src/pipeline/riskScore';
 import { AgentPipeline } from '../src/pipeline/types';
 import { normalizePipelineAgentReferences, resolveAgentReference, stripYamlQuotes } from '../src/pipeline/referenceResolver';
 import { deriveVisibleFlowEdges } from '../src/webview/graph';
+import { coerceFlowLayout, layoutFlowNodes } from '../src/webview/flowLayout';
 import { estimateNodeTokenCount, estimateTokenCount, formatTokenBadge } from '../src/webview/tokenCounts';
 
 describe('pipeline parsing', () => {
@@ -144,6 +145,26 @@ describe('markdown generators', () => {
 });
 
 describe('webview graph projection', () => {
+  it('coerces and applies flow layout settings', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Layouts',
+      nodes: [
+        { id: 'prompt', type: 'prompt', label: 'Prompt', startAgent: 'agent', position: { x: 11, y: 22 } },
+        { id: 'agent', type: 'agent', label: 'Agent', calls: ['skill'], outputs: [] },
+        { id: 'skill', type: 'skill', label: 'Skill' }
+      ],
+      edges: []
+    };
+
+    expect(coerceFlowLayout('vertical')).toBe('vertical');
+    expect(coerceFlowLayout('unknown')).toBe('manual');
+    expect(layoutFlowNodes(pipeline, 'manual').get('prompt')).toEqual({ x: 11, y: 22 });
+    expect(layoutFlowNodes(pipeline, 'vertical').get('agent')?.y).toBeGreaterThan(layoutFlowNodes(pipeline, 'vertical').get('prompt')?.y ?? 0);
+    expect(layoutFlowNodes(pipeline, 'horizontal').get('agent')?.x).toBeGreaterThan(layoutFlowNodes(pipeline, 'horizontal').get('prompt')?.x ?? 0);
+    expect(layoutFlowNodes(pipeline, 'typeColumns').get('agent')?.x).toBeGreaterThan(layoutFlowNodes(pipeline, 'typeColumns').get('prompt')?.x ?? 0);
+  });
+
   it('estimates token badges for generated node content', () => {
     const pipeline = createDefaultPipeline();
     const frontend = pipeline.nodes.find((node) => node.id === 'frontend');

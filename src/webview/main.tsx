@@ -19,6 +19,7 @@ import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges } from './graph';
+import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { markdownToTiptapHtml, tiptapJsonToMarkdown } from './markdown';
 import { partitionConfiguredTools } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
@@ -28,6 +29,7 @@ interface State {
   findings: ValidationFinding[];
   risk: RiskScore;
   generatedFiles: Array<{ path: string; kind: string }>;
+  flowLayout: FlowLayout;
   toolOptions: string[];
 }
 
@@ -49,6 +51,7 @@ function deriveState(pipeline: AgentPipeline, previous: State): State {
     findings: validatePipeline(pipeline),
     risk: calculateRiskScore(pipeline),
     generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })),
+    flowLayout: previous.flowLayout,
     toolOptions: previous.toolOptions
   };
 }
@@ -84,13 +87,15 @@ function App() {
 
   const selected = draft.nodes.find((node) => node.id === selectedId) ?? draft.nodes[0];
   const risky = new Set(state.findings.filter((finding) => finding.nodeId).map((finding) => finding.nodeId));
+  const layoutPositions = useMemo(() => layoutFlowNodes(draft, state.flowLayout), [draft, state.flowLayout]);
   const nodes: Node[] = useMemo(() => draft.nodes.map((node) => ({
     id: node.id,
-    position: node.position ?? { x: 0, y: 0 },
+    position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
+    draggable: state.flowLayout === 'manual',
     type: 'tokenNode',
     data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)) },
     style: { border: `2px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 10, background: 'var(--vscode-editorWidget-background)', color: 'var(--vscode-editorWidget-foreground)', width: 190 }
-  })), [draft, risky]);
+  })), [draft, layoutPositions, risky, state.flowLayout]);
   const edges: Edge[] = useMemo(() => deriveVisibleFlowEdges(draft), [draft]);
 
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
