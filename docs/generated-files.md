@@ -16,7 +16,6 @@ Generated files include a marker:
 - `.github/instructions/*.instructions.md`
 - `.github/skills/*/SKILL.md`
 - `.agent-output/**` for artifact nodes
-- `AGENT_PIPELINE.md`
 
 ## Safe writing
 

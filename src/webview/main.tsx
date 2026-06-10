@@ -17,7 +17,7 @@ import './styles.css';
 import { AgentPipeline, PipelineEdgeKind, PipelineNode, PipelineNodeType, ValidationFinding, RiskScore } from '../pipeline/types';
 import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
-import { generateFiles, generateMermaid } from '../pipeline/generators';
+import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges } from './graph';
 import { markdownToTiptapHtml, tiptapJsonToMarkdown } from './markdown';
 import { partitionConfiguredTools } from './toolOptions';
@@ -26,12 +26,11 @@ interface State {
   pipeline: AgentPipeline;
   findings: ValidationFinding[];
   risk: RiskScore;
-  mermaid: string;
   generatedFiles: Array<{ path: string; kind: string }>;
   toolOptions: string[];
 }
 
-type BottomTab = 'validation' | 'files' | 'mermaid' | 'tools' | 'risk';
+type BottomTab = 'validation' | 'files' | 'tools' | 'risk';
 
 declare global { interface Window { __AGENTFLOW_STATE__: State; acquireVsCodeApi?: () => { postMessage(message: unknown): void } } }
 
@@ -45,7 +44,6 @@ function deriveState(pipeline: AgentPipeline, previous: State): State {
     pipeline,
     findings: validatePipeline(pipeline),
     risk: calculateRiskScore(pipeline),
-    mermaid: generateMermaid(pipeline),
     generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })),
     toolOptions: previous.toolOptions
   };
@@ -279,7 +277,7 @@ function MarkdownPreview({ markdown }: { markdown: string }) {
 
 function Bottom({ state, activeTab, setActiveTab }: { state: State; activeTab: BottomTab; setActiveTab: (tab: BottomTab) => void }) {
   const matrix = state.pipeline.nodes.filter((node) => node.type === 'agent').map((node) => `${node.id}: ${(node.tools ?? []).join(', ') || 'none'}`);
-  return <div className="diagnostics"><nav>{(['validation', 'files', 'mermaid', 'tools', 'risk'] as BottomTab[]).map((tab) => <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tab}</button>)}</nav><article>{activeTab === 'validation' && (state.findings.length ? state.findings.map((finding, index) => <p key={index} className={finding.severity}>{finding.severity.toUpperCase()}: {finding.message}</p>) : <p>No findings.</p>)}{activeTab === 'files' && <ul>{state.generatedFiles.map((file) => <li key={file.path}>{file.kind}: {file.path}</li>)}</ul>}{activeTab === 'mermaid' && <pre>{state.mermaid}</pre>}{activeTab === 'tools' && <pre>{matrix.join('\n')}</pre>}{activeTab === 'risk' && <><strong>{state.risk.score}/100</strong><ul>{state.risk.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></>}</article></div>;
+  return <div className="diagnostics"><nav>{(['validation', 'files', 'tools', 'risk'] as BottomTab[]).map((tab) => <button key={tab} className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tab}</button>)}</nav><article>{activeTab === 'validation' && (state.findings.length ? state.findings.map((finding, index) => <p key={index} className={finding.severity}>{finding.severity.toUpperCase()}: {finding.message}</p>) : <p>No findings.</p>)}{activeTab === 'files' && <ul>{state.generatedFiles.map((file) => <li key={file.path}>{file.kind}: {file.path}</li>)}</ul>}{activeTab === 'tools' && <pre>{matrix.join('\n')}</pre>}{activeTab === 'risk' && <><strong>{state.risk.score}/100</strong><ul>{state.risk.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></>}</article></div>;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

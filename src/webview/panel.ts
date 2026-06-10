@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { countCopilotInstructionLines, loadOrInferPipeline } from '../pipeline/scanner';
 import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
-import { generateFiles, generateMermaid } from '../pipeline/generators';
+import { generateFiles } from '../pipeline/generators';
 import { AgentPipeline } from '../pipeline/types';
 import { listToolOptionNames } from './toolOptions';
 import { handleSavePipelineMessage } from './panelMessages';
@@ -42,7 +42,6 @@ async function buildState(workspace: string, pipeline: AgentPipeline): Promise<u
     pipeline,
     findings,
     risk,
-    mermaid: generateMermaid(pipeline),
     generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })),
     toolOptions: listToolOptionNames(vscode.lm.tools)
   };

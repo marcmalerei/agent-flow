@@ -32,7 +32,6 @@
     "onCommand:agentflow.scanWorkspace",
     "onCommand:agentflow.generateFiles",
     "onCommand:agentflow.validatePipeline",
-    "onCommand:agentflow.exportMermaid",
     "onCommand:agentflow.createDefaultPipeline"
   ],
   "main": "./dist/extension.js",
@@ -53,10 +52,6 @@
       {
         "command": "agentflow.validatePipeline",
         "title": "AgentFlow: Validate Pipeline"
-      },
-      {
-        "command": "agentflow.exportMermaid",
-        "title": "AgentFlow: Export Mermaid"
       },
       {
         "command": "agentflow.createDefaultPipeline",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultPipeline } from '../src/pipeline/defaultPipeline';
 import { parsePipelineJson, stringifyPipeline } from '../src/pipeline/parser';
-import { generateAgentMarkdown, generateFiles, generateInstructionMarkdown, generateMermaid, generatePromptMarkdown, generateSkillMarkdown } from '../src/pipeline/generators';
+import { generateAgentMarkdown, generateFiles, generateInstructionMarkdown, generatePromptMarkdown, generateSkillMarkdown } from '../src/pipeline/generators';
 import { validatePipeline } from '../src/pipeline/validator';
 import { calculateRiskScore } from '../src/pipeline/riskScore';
 import { AgentPipeline } from '../src/pipeline/types';
@@ -71,16 +71,7 @@ describe('markdown generators', () => {
   it('generates all files in deterministic path order', () => {
     const files = generateFiles(pipeline);
     expect(files.map((file) => file.path)).toEqual([...files.map((file) => file.path)].sort());
-    expect(files.some((file) => file.path === 'AGENT_PIPELINE.md')).toBe(true);
-  });
-});
-
-describe('mermaid generator', () => {
-  it('exports a flowchart with edges', () => {
-    const mermaid = generateMermaid(createDefaultPipeline());
-    expect(mermaid).toContain('flowchart TD');
-    expect(mermaid).toContain('router --> context');
-    expect(mermaid).toContain('tests-green{Tests Green?}');
+    expect(files.some((file) => file.path === 'AGENT_PIPELINE.md')).toBe(false);
   });
 });
 

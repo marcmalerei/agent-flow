@@ -8,7 +8,6 @@ const expectedCommands = [
   'agentflow.scanWorkspace',
   'agentflow.generateFiles',
   'agentflow.validatePipeline',
-  'agentflow.exportMermaid',
   'agentflow.createDefaultPipeline'
 ];
 

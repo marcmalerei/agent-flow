@@ -4,7 +4,6 @@ import { generateAgentMarkdown, agentFilePath } from './agentGenerator';
 import { generatePromptMarkdown, promptFilePath } from './promptGenerator';
 import { generateInstructionMarkdown, instructionFilePath } from './instructionGenerator';
 import { generateSkillMarkdown, skillFilePath } from './skillGenerator';
-import { generateMermaid } from './mermaidGenerator';
 import { GENERATED_MARKER } from './shared';
 
 export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
@@ -18,7 +17,6 @@ export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
     if (node.type === 'skill') files.push({ path: skillFilePath(node), content: generateSkillMarkdown(node), kind: 'skill' });
     if (node.type === 'artifact') files.push({ path: node.path, content: `${GENERATED_MARKER}\n# ${node.label}\n\n${node.template ?? 'Artifact content will be written by agents.'}\n`, kind: 'artifact' });
   }
-  files.push({ path: 'AGENT_PIPELINE.md', content: `${GENERATED_MARKER}\n# ${pipeline.name}\n\n\`\`\`mermaid\n${generateMermaid(pipeline)}\`\`\`\n`, kind: 'documentation' });
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -35,4 +33,4 @@ export function generateFileForNode(pipeline: AgentPipeline, nodeId: string): Ge
   });
 }
 
-export { generateAgentMarkdown, generatePromptMarkdown, generateInstructionMarkdown, generateSkillMarkdown, generateMermaid };
+export { generateAgentMarkdown, generatePromptMarkdown, generateInstructionMarkdown, generateSkillMarkdown };
