@@ -7,7 +7,7 @@ import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { AgentPipeline } from '../pipeline/types';
 import { listToolOptionNames } from './toolOptions';
-import { handleSavePipelineMessage } from './panelMessages';
+import { handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from './panelMessages';
 import { coerceFlowLayout } from './flowLayout';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext): Promise<void> {
@@ -38,6 +38,24 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
         }
       });
     }
+    if (message?.command === 'writeMarkdownFiles') {
+      const nextPipeline = await handleWriteMarkdownFilesMessage({
+        message,
+        workspace,
+        writeMarkdownFiles: writeGeneratedFiles,
+        postState: async (nextPipeline, selectedId) => {
+          panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
+        },
+        confirmWrite: async (fileCount) => {
+          const answer = await vscode.window.showWarningMessage(`Write ${fileCount} generated AgentFlow Markdown/artifact files? Existing files may be overwritten.`, { modal: true }, 'Write Files');
+          return answer === 'Write Files';
+        },
+        showWrittenMessage: async (fileCount) => {
+          vscode.window.showInformationMessage(`AgentFlow wrote ${fileCount} generated files.`);
+        }
+      });
+      if (nextPipeline) pipeline = nextPipeline;
+    }
   });
 }
 
@@ -61,7 +79,7 @@ async function writePipeline(workspace: string, pipeline: AgentPipeline): Promis
 }
 
 async function writeGeneratedFiles(workspace: string, pipeline: AgentPipeline): Promise<void> {
-  for (const file of generateFiles(pipeline)) {
+  for (const file of generateFiles(pipeline).filter((file) => file.kind !== 'pipeline')) {
     const target = path.join(workspace, file.path);
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, file.content, 'utf8');
