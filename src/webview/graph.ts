@@ -19,12 +19,14 @@ const previewStyle = { strokeDasharray: '5 5', opacity: 0.8 };
 
 export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge[] {
   const normalized = normalizePipelineAgentReferences(pipeline);
-  const nodeIds = new Set(normalized.nodes.map((node) => node.id));
+  const nodesById = new Map(normalized.nodes.map((node) => [node.id, node]));
+  const nodeIds = new Set(nodesById.keys());
   const explicitPairs = new Set<string>();
   const visible: VisibleFlowEdge[] = [];
 
   for (const edge of normalized.edges) {
     if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to)) continue;
+    if (!isStoredEdgeVisible(edge.from, edge.to, nodesById)) continue;
     explicitPairs.add(pairKey(edge.from, edge.to));
     visible.push({
       id: edge.id,
@@ -107,4 +109,14 @@ function addPreviewEdge(
 
 function pairKey(source: string, target: string): string {
   return `${source}\u0000${target}`;
+}
+
+function isStoredEdgeVisible(source: string, target: string, nodesById: Map<string, AgentPipeline['nodes'][number]>): boolean {
+  const sourceNode = nodesById.get(source);
+  const targetNode = nodesById.get(target);
+  if (sourceNode?.type === 'agent' && targetNode?.type === 'agent') return (sourceNode.calls ?? []).includes(target);
+  if (sourceNode?.type === 'prompt' && targetNode?.type === 'agent') return sourceNode.startAgent === target;
+  if (sourceNode?.type === 'agent' && targetNode?.type === 'artifact') return (sourceNode.outputs ?? []).includes(targetNode.path);
+  if (sourceNode?.type === 'artifact' && targetNode?.type === 'agent') return (targetNode.inputs ?? []).includes(sourceNode.path);
+  return true;
 }
