@@ -6,6 +6,7 @@ export default defineConfig({
   build: {
     outDir: 'webview-dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       input: 'src/webview/main.tsx',
       output: {
