@@ -32,7 +32,7 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
       id: edge.id,
       source: edge.from,
       target: edge.to,
-      label: edge.label ?? edge.artifact ?? edge.kind,
+      label: deriveStoredEdgeLabel(edge.label, edge.artifact, edge.kind),
       animated: edge.kind === 'artifact',
       data: { derivedFrom: 'pipeline.edges', kind: edge.kind, artifact: edge.artifact }
     });
@@ -109,6 +109,13 @@ function addPreviewEdge(
 
 function pairKey(source: string, target: string): string {
   return `${source}\u0000${target}`;
+}
+
+function deriveStoredEdgeLabel(label: string | undefined, artifact: string | undefined, kind: PipelineEdgeKind): string | undefined {
+  if (label) return label;
+  if (artifact) return artifact;
+  if (kind === 'flow') return undefined;
+  return kind;
 }
 
 function isStoredEdgeVisible(source: string, target: string, nodesById: Map<string, AgentPipeline['nodes'][number]>): boolean {

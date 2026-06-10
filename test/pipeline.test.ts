@@ -122,6 +122,32 @@ describe('webview graph projection', () => {
     ]);
   });
 
+  it('does not render generic flow labels and keeps meaningful edge labels', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Edge labels',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'Router', calls: ['worker'], outputs: ['.agent-output/result.md'] },
+        { id: 'worker', type: 'agent', label: 'Worker', outputs: [] },
+        { id: 'artifact', type: 'artifact', label: 'Result', path: '.agent-output/result.md' },
+        { id: 'gate', type: 'gate', label: 'Ready?', condition: 'Tests passed' }
+      ],
+      edges: [
+        { id: 'router-to-worker', from: 'router', to: 'worker', kind: 'flow' },
+        { id: 'router-to-artifact', from: 'router', to: 'artifact', kind: 'artifact', artifact: '.agent-output/result.md' },
+        { id: 'worker-to-gate', from: 'worker', to: 'gate', kind: 'gate', label: 'true' },
+        { id: 'gate-to-router', from: 'gate', to: 'router', kind: 'flow', label: 'retry' }
+      ]
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.id, edge.label])).toEqual([
+      ['router-to-worker', undefined],
+      ['router-to-artifact', '.agent-output/result.md'],
+      ['worker-to-gate', 'true'],
+      ['gate-to-router', 'retry']
+    ]);
+  });
+
   it('hides stored agent-to-agent edges when the subagent reference is removed', () => {
     const pipeline: AgentPipeline = {
       version: 1,
