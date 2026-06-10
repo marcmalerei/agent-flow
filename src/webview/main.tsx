@@ -61,7 +61,7 @@ function App() {
   const [draft, setDraft] = useState(state.pipeline);
   const [selectedId, setSelectedId] = useState(state.pipeline.nodes[0]?.id ?? '');
   const [bottomOpen, setBottomOpen] = useState(false);
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<BottomTab>('validation');
 
   useEffect(() => {
@@ -159,8 +159,8 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
   }, [addNode, screenToFlowPosition]);
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
-    <header className="toolbar"><strong>AgentFlow</strong><span>{draft.name}</span><button className="button-primary" onClick={savePipeline}>Save Pipeline</button><button className="button-secondary" onClick={writeMarkdownFiles}>Write Markdown Files</button><button className="button-secondary" onClick={() => setInspectorOpen(!inspectorOpen)}>{inspectorOpen ? 'Hide config' : 'Show config'}</button><div className="node-buttons">{nodeTypes.map((type) => <button className="button-secondary compact" key={type} onClick={() => addNode(type)} title={`Create ${type} node`}>+ {type}</button>)}</div></header>
-    <main className="canvas"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => setSelectedId(node.id)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
+    <header className="toolbar"><strong>AgentFlow</strong><span>{draft.name}</span><button className="button-primary" onClick={savePipeline}>Save Pipeline</button><button className="button-secondary" onClick={writeMarkdownFiles}>Write Markdown Files</button><div className="node-buttons">{nodeTypes.map((type) => <button className="button-secondary compact" key={type} onClick={() => addNode(type)} title={`Create ${type} node`}>+ {type}</button>)}</div></header>
+    <main className="canvas"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><button className="collapse" onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} />}</section>
   </div>;
