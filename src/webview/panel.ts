@@ -2,13 +2,12 @@ import * as vscode from 'vscode';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { countCopilotInstructionLines, loadOrInferPipeline } from '../pipeline/scanner';
-import { parsePipeline } from '../pipeline/parser';
-import { normalizePipelineAgentReferences } from '../pipeline/referenceResolver';
 import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles, generateMermaid } from '../pipeline/generators';
 import { AgentPipeline } from '../pipeline/types';
 import { listToolOptionNames } from './toolOptions';
+import { handleSavePipelineMessage } from './panelMessages';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -21,11 +20,17 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
   panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline));
   panel.webview.onDidReceiveMessage(async (message) => {
     if (message?.command === 'savePipeline') {
-      pipeline = normalizePipelineAgentReferences(parsePipeline(message.pipeline));
-      await writePipeline(workspace, pipeline);
-      await writeGeneratedFiles(workspace, pipeline);
-      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId: message.selectedId });
-      vscode.window.showInformationMessage('AgentFlow pipeline saved to JSON and Markdown files.');
+      pipeline = await handleSavePipelineMessage({
+        message,
+        workspace,
+        writePipeline,
+        postState: async (nextPipeline, selectedId) => {
+          panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
+        },
+        showSavedMessage: async () => {
+          vscode.window.showInformationMessage('AgentFlow pipeline saved to JSON.');
+        }
+      });
     }
   });
 }
