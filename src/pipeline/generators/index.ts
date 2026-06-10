@@ -22,4 +22,17 @@ export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+export function generateFileForNode(pipeline: AgentPipeline, nodeId: string): GeneratedFile | undefined {
+  return generateFiles(pipeline).find((file) => {
+    const node = pipeline.nodes.find((item) => item.id === nodeId);
+    if (!node) return false;
+    if (node.type === 'agent') return file.path === agentFilePath(node);
+    if (node.type === 'prompt') return file.path === promptFilePath(node);
+    if (node.type === 'instruction') return file.path === instructionFilePath(node);
+    if (node.type === 'skill') return file.path === skillFilePath(node);
+    if (node.type === 'artifact') return file.path === node.path;
+    return false;
+  });
+}
+
 export { generateAgentMarkdown, generatePromptMarkdown, generateInstructionMarkdown, generateSkillMarkdown, generateMermaid };

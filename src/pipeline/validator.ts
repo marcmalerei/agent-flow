@@ -1,4 +1,5 @@
 import { AgentPipeline, PipelineNode, ValidationFinding } from './types';
+import { normalizePipelineAgentReferences, resolveAgentReference, stripYamlQuotes } from './referenceResolver';
 
 function finding(severity: ValidationFinding['severity'], ruleId: string, message: string, nodeId?: string): ValidationFinding {
   return { severity, ruleId, message, nodeId };
@@ -9,9 +10,9 @@ function hasBroadTool(tools: string[] | undefined): boolean {
 }
 
 export function validatePipeline(pipeline: AgentPipeline): ValidationFinding[] {
+  pipeline = normalizePipelineAgentReferences(pipeline);
   const findings: ValidationFinding[] = [];
   const nodes = new Map(pipeline.nodes.map((node) => [node.id, node]));
-  const agents = new Set(pipeline.nodes.filter((node) => node.type === 'agent').map((node) => node.id));
   const writes = new Map<string, string[]>();
   const reads = new Map<string, string[]>();
 
@@ -23,7 +24,7 @@ export function validatePipeline(pipeline: AgentPipeline): ValidationFinding[] {
   for (const node of pipeline.nodes) {
     if (node.type === 'agent') {
       for (const call of node.calls ?? []) {
-        if (!agents.has(call)) findings.push(finding('error', 'unknown-subagent', `${node.id}.agent.md references subagent \`${call}\`, but it does not exist.`, node.id));
+        if (!resolveAgentReference(call, pipeline.nodes)) findings.push(finding('error', 'unknown-subagent', `${node.id}.agent.md references subagent \`${stripYamlQuotes(call)}\`, but it does not exist.`, node.id));
       }
       if (!node.outputs?.length) findings.push(finding('warning', 'agent-no-output', `${node.id}.agent.md has no output artifact.`, node.id));
       for (const input of node.inputs ?? []) reads.set(input, [...(reads.get(input) ?? []), node.id]);
@@ -34,7 +35,7 @@ export function validatePipeline(pipeline: AgentPipeline): ValidationFinding[] {
       if (/review/i.test(node.id + node.label) && node.tools?.includes('editFiles')) findings.push(finding('warning', 'review-can-edit', `${node.id}.agent.md is a review agent but can edit files.`, node.id));
     }
     if (node.type === 'prompt') {
-      if (node.startAgent && !agents.has(node.startAgent)) findings.push(finding('error', 'prompt-unknown-agent', `${node.id}.prompt.md references unknown start agent \`${node.startAgent}\`.`, node.id));
+      if (node.startAgent && !resolveAgentReference(node.startAgent, pipeline.nodes)) findings.push(finding('error', 'prompt-unknown-agent', `${node.id}.prompt.md references unknown start agent \`${stripYamlQuotes(node.startAgent)}\`.`, node.id));
       if (!node.constraints?.length) findings.push(finding('warning', 'prompt-no-constraints', `${node.id}.prompt.md has no constraints or non-goals.`, node.id));
     }
     if (node.type === 'instruction') {

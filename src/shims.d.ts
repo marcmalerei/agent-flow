@@ -19,7 +19,7 @@ declare module 'vscode' {
   export interface Uri { fsPath: string }
   export namespace Uri { export function file(path: string): Uri }
   export enum ViewColumn { One = 1 }
-  export interface Webview { html: string; cspSource: string; asWebviewUri(uri: Uri): Uri; onDidReceiveMessage(listener: (message: any) => any): Disposable }
+  export interface Webview { html: string; cspSource: string; asWebviewUri(uri: Uri): Uri; onDidReceiveMessage(listener: (message: any) => any): Disposable; postMessage(message: any): Thenable<boolean> }
   export namespace window {
     export function showInformationMessage(message: string, ...items: any[]): Thenable<any>;
     export function showWarningMessage(message: string, ...items: any[]): Thenable<any>;
@@ -38,7 +38,7 @@ declare module 'vscode' {
   export namespace env { export const clipboard: { writeText(value: string): Thenable<void> } }
 }
 
-declare module 'react' { export function useMemo<T>(factory: () => T, deps: unknown[]): T; export function useState<T>(initial: T): [T, (value: T) => void]; const React: any; export default React; }
+declare module 'react' { export function useEffect(effect: () => void | (() => void), deps?: unknown[]): void; export function useMemo<T>(factory: () => T, deps: unknown[]): T; export function useState<T>(initial: T): [T, (value: T | ((previous: T) => T)) => void]; const React: any; export default React; }
 declare module 'react-dom/client' { export function createRoot(element: Element): { render(node: unknown): void } }
 declare module '@xyflow/react' { export interface Node { id: string; position: { x: number; y: number }; data?: any; style?: any } export interface Edge { id: string; source: string; target: string; label?: string; animated?: boolean } export const Background: any; export const Controls: any; export const MiniMap: any; export const ReactFlow: any; }
 declare module 'react/jsx-runtime' { export const jsx: any; export const jsxs: any; export const Fragment: any }

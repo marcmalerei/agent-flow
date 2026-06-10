@@ -6,7 +6,7 @@ AgentFlow does **not** integrate with Copilot internals, execute agent pipelines
 
 ## Features
 
-- `AgentFlow: Open Pipeline` opens a React + React Flow visualizer.
+- `AgentFlow: Open Pipeline` opens a React + React Flow visualizer with editable node configuration.
 - `AgentFlow: Create Default Pipeline` writes a safe default `.agent-pipeline/pipeline.json` preset.
 - `AgentFlow: Scan Workspace` loads `pipeline.json` or infers a graph from `.github/agents`, `.github/prompts`, `.github/instructions`, `.github/skills`, and `.agent-output`.
 - `AgentFlow: Validate Pipeline` reports pipeline findings and context risk score.
@@ -127,9 +127,16 @@ After installing a packaged build, reload VS Code and run the AgentFlow commands
 1. Open a workspace in VS Code.
 2. Run `AgentFlow: Create Default Pipeline`.
 3. Run `AgentFlow: Open Pipeline` to view the pipeline graph.
-4. Review validation findings, the tool permission matrix, Mermaid output, and generated file list.
-5. Run `AgentFlow: Generate Files` and confirm only after reviewing the preview.
+4. Click a node to edit its label, description, tools, subagents, artifacts, and Markdown override in the inspector.
+5. Drag nodes on the canvas to update their saved positions.
+6. Use `Save pipeline.json` to persist graph/configuration edits or `Write this node file` to write only the selected node's generated file after confirmation.
+7. Expand the diagnostics drawer only when you need validation, generated files, Mermaid, tool matrix, or context risk details.
+8. Run `AgentFlow: Generate Files` and confirm only after reviewing the preview.
 
 ## Keeping context costs low
 
 AgentFlow encourages explicit artifacts and context budgets. Each generated agent file describes required input artifacts, output artifacts, scope rules, verification rules, and context limits so agents do not rely on broad chat history or vague handoffs.
+
+## Editing nodes
+
+The webview supports direct node configuration in the inspector. Select a node to edit common fields, choose agent tools with checkboxes, choose callable subagents from known agents, update artifact lists, and maintain a Markdown override with a live preview. Dragging nodes updates their position in the draft pipeline; saving writes the updated `.agent-pipeline/pipeline.json`. Generated node files are still written only after explicit confirmation. The diagnostics drawer is collapsed by default so validation and generated-file details do not crowd the canvas.

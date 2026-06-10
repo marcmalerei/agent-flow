@@ -11,6 +11,8 @@ export interface BaseNode {
   type: PipelineNodeType;
   label: string;
   description?: string;
+  /** Optional Markdown override edited from the AgentFlow webview. */
+  markdown?: string;
   position?: Position;
 }
 

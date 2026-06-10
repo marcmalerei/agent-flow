@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { AgentPipeline, PipelineEdge, PipelineNode, PIPELINE_VERSION } from './types';
 import { parsePipelineJson } from './parser';
+import { normalizeAgentCalls, normalizePipelineAgentReferences, stripYamlQuotes } from './referenceResolver';
 
 async function exists(file: string): Promise<boolean> {
   try { await fs.access(file); return true; } catch { return false; }
@@ -40,16 +41,16 @@ function frontmatter(source: string): Record<string, string | string[]> {
   let current: string | undefined;
   for (const line of source.slice(3, end).split(/\r?\n/)) {
     const key = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
-    if (key) { current = key[1]; data[current] = key[2] || []; continue; }
+    if (key) { current = key[1]; data[current] = key[2] ? stripYamlQuotes(key[2]) : []; continue; }
     const item = line.match(/^\s*-\s+(.+)$/);
-    if (item && current) data[current] = [...(Array.isArray(data[current]) ? data[current] as string[] : []), item[1]];
+    if (item && current) data[current] = [...(Array.isArray(data[current]) ? data[current] as string[] : []), stripYamlQuotes(item[1])];
   }
   return data;
 }
 
 export async function loadOrInferPipeline(workspace: string): Promise<AgentPipeline> {
   const pipelineFile = path.join(workspace, '.agent-pipeline/pipeline.json');
-  if (await exists(pipelineFile)) return parsePipelineJson(await fs.readFile(pipelineFile, 'utf8'));
+  if (await exists(pipelineFile)) return normalizePipelineAgentReferences(parsePipelineJson(await fs.readFile(pipelineFile, 'utf8')));
   return inferPipelineFromWorkspace(workspace);
 }
 
@@ -60,13 +61,20 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
   const addPosition = () => { const pos = { x, y: 160 + (nodes.length % 4) * 120 }; x += nodes.length % 4 === 3 ? 180 : 0; return pos; };
 
   const agentFiles = await findFiles(path.join(workspace, '.github/agents'), (file) => file.endsWith('.agent.md'));
+  const pendingAgentCalls: Array<{ id: string; calls: string[] }> = [];
   for (const file of agentFiles.sort()) {
     const content = await fs.readFile(file, 'utf8');
     const fm = frontmatter(content);
     const id = path.basename(file, '.agent.md');
     const calls = Array.isArray(fm.agents) ? fm.agents : [];
-    nodes.push({ id, type: 'agent', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), agentFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, tools: Array.isArray(fm.tools) ? fm.tools : [], calls, outputs: [], inputs: [], position: addPosition() });
-    for (const call of calls) edges.push({ id: `${id}-calls-${call}`, from: id, to: call, kind: 'flow' });
+    nodes.push({ id, type: 'agent', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), agentFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, tools: Array.isArray(fm.tools) ? fm.tools : [], calls: [], outputs: [], inputs: [], position: addPosition() });
+    pendingAgentCalls.push({ id, calls });
+  }
+  for (const pending of pendingAgentCalls) {
+    const normalizedCalls = normalizeAgentCalls(pending.calls, nodes);
+    const node = nodes.find((item) => item.id === pending.id);
+    if (node?.type === 'agent') node.calls = normalizedCalls;
+    for (const call of normalizedCalls) edges.push({ id: `${pending.id}-calls-${call}`, from: pending.id, to: call, kind: 'flow' });
   }
 
   const promptFiles = await findFiles(path.join(workspace, '.github/prompts'), (file) => file.endsWith('.prompt.md'));
@@ -83,7 +91,7 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
   for (const file of instructionFiles.sort()) {
     const id = path.basename(file, '.instructions.md');
     const fm = frontmatter(await fs.readFile(file, 'utf8'));
-    nodes.push({ id, type: 'instruction', label: titleFromId(id), instructionFile: rel(workspace, file), applyTo: typeof fm.applyTo === 'string' ? fm.applyTo.replace(/^"|"$/g, '') : '**/*', description: typeof fm.description === 'string' ? fm.description.replace(/^"|"$/g, '') : undefined, position: addPosition() });
+    nodes.push({ id, type: 'instruction', label: titleFromId(id), instructionFile: rel(workspace, file), applyTo: typeof fm.applyTo === 'string' ? stripYamlQuotes(fm.applyTo) : '**/*', description: typeof fm.description === 'string' ? stripYamlQuotes(fm.description) : undefined, position: addPosition() });
   }
 
   const skillFiles = await findFiles(path.join(workspace, '.github/skills'), (file) => path.basename(file) === 'SKILL.md');
@@ -99,7 +107,8 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     nodes.push({ id, type: 'artifact', label: rel(workspace, file), path: rel(workspace, file), position: addPosition() });
   }
 
-  return { version: PIPELINE_VERSION, name: 'Inferred Agent Pipeline', nodes, edges };
+  const pipeline: AgentPipeline = { version: PIPELINE_VERSION, name: 'Inferred Agent Pipeline', nodes, edges };
+  return normalizePipelineAgentReferences(pipeline);
 }
 
 export async function countCopilotInstructionLines(workspace: string): Promise<number> {

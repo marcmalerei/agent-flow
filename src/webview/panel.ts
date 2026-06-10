@@ -1,22 +1,23 @@
 import * as vscode from 'vscode';
+import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { countCopilotInstructionLines, loadOrInferPipeline } from '../pipeline/scanner';
+import { parsePipeline } from '../pipeline/parser';
+import { normalizePipelineAgentReferences } from '../pipeline/referenceResolver';
 import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
-import { generateFiles, generateMermaid } from '../pipeline/generators';
+import { generateFileForNode, generateFiles, generateMermaid } from '../pipeline/generators';
+import { AgentPipeline } from '../pipeline/types';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspace) { vscode.window.showErrorMessage('Open a workspace folder before opening AgentFlow.'); return; }
-  const pipeline = await loadOrInferPipeline(workspace);
-  const findings = validatePipeline(pipeline);
-  const risk = calculateRiskScore(pipeline, { copilotInstructionsLines: await countCopilotInstructionLines(workspace) });
-  const generatedFiles = generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind }));
+  let pipeline = await loadOrInferPipeline(workspace);
   const panel = vscode.window.createWebviewPanel('agentflow.pipeline', 'AgentFlow Pipeline', vscode.ViewColumn.One, {
     enableScripts: true,
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
   });
-  panel.webview.html = html(panel.webview, context, { pipeline, findings, risk, mermaid: generateMermaid(pipeline), generatedFiles });
+  panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline));
   panel.webview.onDidReceiveMessage(async (message) => {
     if (message?.command === 'exportMermaid') {
       await vscode.env.clipboard.writeText(generateMermaid(pipeline));
@@ -25,7 +26,38 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
     if (message?.command === 'generateFiles') {
       await vscode.commands.executeCommand('agentflow.generateFiles');
     }
+    if (message?.command === 'savePipeline') {
+      pipeline = normalizePipelineAgentReferences(parsePipeline(message.pipeline));
+      await writePipeline(workspace, pipeline);
+      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline) });
+      vscode.window.showInformationMessage('AgentFlow pipeline saved.');
+    }
+    if (message?.command === 'writeNodeFile') {
+      pipeline = normalizePipelineAgentReferences(parsePipeline(message.pipeline));
+      await writePipeline(workspace, pipeline);
+      const file = generateFileForNode(pipeline, String(message.nodeId));
+      if (!file) { vscode.window.showWarningMessage('Selected node does not generate a file.'); return; }
+      const answer = await vscode.window.showWarningMessage(`Write generated file ${file.path}?`, { modal: true }, 'Write File');
+      if (answer !== 'Write File') return;
+      const target = path.join(workspace, file.path);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await fs.writeFile(target, file.content, 'utf8');
+      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline) });
+      vscode.window.showInformationMessage(`AgentFlow wrote ${file.path}.`);
+    }
   });
+}
+
+async function buildState(workspace: string, pipeline: AgentPipeline): Promise<unknown> {
+  const findings = validatePipeline(pipeline);
+  const risk = calculateRiskScore(pipeline, { copilotInstructionsLines: await countCopilotInstructionLines(workspace) });
+  return { pipeline, findings, risk, mermaid: generateMermaid(pipeline), generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })) };
+}
+
+async function writePipeline(workspace: string, pipeline: AgentPipeline): Promise<void> {
+  const target = path.join(workspace, '.agent-pipeline/pipeline.json');
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.writeFile(target, `${JSON.stringify(pipeline, null, 2)}\n`, 'utf8');
 }
 
 function html(webview: vscode.Webview, context: vscode.ExtensionContext, state: unknown): string {
