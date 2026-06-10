@@ -26,11 +26,16 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
     if (message?.command === 'generateFiles') {
       await vscode.commands.executeCommand('agentflow.generateFiles');
     }
+    if (message?.command === 'reloadPipeline') {
+      pipeline = await loadOrInferPipeline(workspace);
+      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId: message.selectedId });
+      vscode.window.showInformationMessage('AgentFlow pipeline reloaded.');
+    }
     if (message?.command === 'savePipeline') {
       pipeline = normalizePipelineAgentReferences(parsePipeline(message.pipeline));
       await writePipeline(workspace, pipeline);
-      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline) });
-      vscode.window.showInformationMessage('AgentFlow pipeline saved.');
+      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId: message.selectedId });
+      vscode.window.showInformationMessage('AgentFlow pipeline saved and reloaded.');
     }
     if (message?.command === 'writeNodeFile') {
       pipeline = normalizePipelineAgentReferences(parsePipeline(message.pipeline));
@@ -42,7 +47,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
       const target = path.join(workspace, file.path);
       await fs.mkdir(path.dirname(target), { recursive: true });
       await fs.writeFile(target, file.content, 'utf8');
-      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline) });
+      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId: message.nodeId });
       vscode.window.showInformationMessage(`AgentFlow wrote ${file.path}.`);
     }
   });

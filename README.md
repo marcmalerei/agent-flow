@@ -129,9 +129,10 @@ After installing a packaged build, reload VS Code and run the AgentFlow commands
 3. Run `AgentFlow: Open Pipeline` to view the pipeline graph.
 4. Click a node to edit its label, description, tools, subagents, artifacts, and Markdown override in the inspector.
 5. Drag nodes on the canvas to update their saved positions.
-6. Use `Save pipeline.json` to persist graph/configuration edits or `Write this node file` to write only the selected node's generated file after confirmation.
-7. Expand the diagnostics drawer only when you need validation, generated files, Mermaid, tool matrix, or context risk details.
-8. Run `AgentFlow: Generate Files` and confirm only after reviewing the preview.
+6. Use `Save & reload flow` to persist graph/configuration edits and refresh validation, generated files, Mermaid, and the tool matrix.
+7. Use the WYSIWYG Markdown editor toolbar for headings/lists/bold text, type `@` to reference agents, skills, prompts, artifacts, or files, and type `/` for snippets such as dates and checklists.
+8. Expand the diagnostics drawer only when you need validation, generated files, Mermaid, tool matrix, or context risk details.
+9. Run `AgentFlow: Generate Files` and confirm only after reviewing the preview.
 
 ## Keeping context costs low
 
@@ -139,4 +140,4 @@ AgentFlow encourages explicit artifacts and context budgets. Each generated agen
 
 ## Editing nodes
 
-The webview supports direct node configuration in the inspector. Select a node to edit common fields, choose agent tools with checkboxes, choose callable subagents from known agents, update artifact lists, and maintain a Markdown override with a live preview. Dragging nodes updates their position in the draft pipeline; saving writes the updated `.agent-pipeline/pipeline.json`. Generated node files are still written only after explicit confirmation. The diagnostics drawer is collapsed by default so validation and generated-file details do not crowd the canvas.
+The webview supports direct node configuration in the inspector and uses VS Code theme colors so it blends into light and dark installations. Select a node to edit common fields, choose agent tools with checkboxes, choose callable subagents from known agents, update artifact lists, and maintain a Markdown override in the WYSIWYG editor. The editor stores Markdown, provides a rendered preview, and supports `@` references for agents, skills, prompts, artifacts, and files plus `/` snippets for dates and checklists. Dragging nodes updates their position in the draft pipeline; saving writes the updated `.agent-pipeline/pipeline.json` and reloads the flow state so validation and generated previews reflect the changes. Generated node files are still written only after explicit confirmation. The diagnostics drawer is collapsed by default so validation and generated-file details do not crowd the canvas.

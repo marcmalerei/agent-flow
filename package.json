@@ -52,7 +52,7 @@
     "compile": "tsc -p ./",
     "build:webview": "vite build --config vite.webview.config.mts",
     "build": "npm run compile && npm run build:webview",
-    "test": "vitest run --config vitest.config.ts",
+    "test": "vitest run --config vitest.config.mts",
     "check": "npm run compile && npm run test"
   },
   "dependencies": {

@@ -21,14 +21,14 @@ The webview is a React application built with Vite. It uses `@xyflow/react` to d
 
 - node palette
 - canvas with typed nodes and edges
-- editable node inspector for labels, descriptions, tools, subagents, artifacts, and Markdown overrides
+- editable node inspector for labels, descriptions, tools, subagents, artifacts, and WYSIWYG Markdown overrides with `@` references and `/` snippets
 - collapsible validation panel
 - generated files
 - Mermaid source
 - tool matrix
 - context risk score
 
-The webview can edit pipeline configuration and node positions, but file writes are routed back through VS Code commands so the extension host can validate, persist `pipeline.json`, and show confirmation prompts before writing generated node files.
+The webview can edit pipeline configuration and node positions, uses VS Code theme color variables, and reloads host-derived state after saves so validation, Mermaid, generated files, and tool matrices stay current. File writes are routed back through VS Code commands so the extension host can validate, persist `pipeline.json`, and show confirmation prompts before writing generated node files.
 
 ## Pure pipeline modules
 
