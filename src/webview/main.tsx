@@ -261,18 +261,7 @@ function TiptapMarkdownEditor({ value, references, onChange }: { value: string; 
     const next = current.replace(/(^|\s)([@/])([^\s@/]*)$/, (_match, prefix) => `${prefix}${item.value} `);
     replaceMarkdown(next === current ? `${current}${item.value} ` : next);
   };
-  return <div className="markdown-shell tiptap-shell"><div className="editor-toolbar"><button onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</button><button onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</button><button onClick={() => editor?.chain().focus().toggleBulletList().run()}>List</button><button onClick={() => editor?.chain().focus().toggleBold().run()}>Bold</button><button onClick={() => appendMarkdown('\n- [ ] ')}>Check</button></div><EditorContent editor={editor} />{suggestions.length > 0 && <div className="reference-menu">{suggestions.map((item) => <button key={`${item.type}-${item.value}`} onClick={() => insertSuggestion(item)}><span>{item.label}</span><small>{item.type} · {item.value}</small></button>)}</div>}<div className="markdown-preview"><MarkdownPreview markdown={lastMarkdown.current || 'Start writing Markdown. Use @ for references and / for snippets.'} /></div></div>;
-}
-
-function MarkdownPreview({ markdown }: { markdown: string }) {
-  return <>{markdown.split(/\r?\n/).map((line, index) => {
-    if (line.startsWith('### ')) return <h4 key={index}>{line.slice(4)}</h4>;
-    if (line.startsWith('## ')) return <h3 key={index}>{line.slice(3)}</h3>;
-    if (line.startsWith('# ')) return <h2 key={index}>{line.slice(2)}</h2>;
-    if (line.startsWith('- ')) return <p key={index}>• {line.slice(2)}</p>;
-    const parts = line.split(/(@(?:file|skill|prompt)?:[^\s]+|@[A-Za-z0-9_-]+)/g);
-    return <p key={index}>{parts.map((part, partIndex) => part.startsWith('@') ? <span key={partIndex} className="mention">{part}</span> : part || '\u00a0')}</p>;
-  })}</>;
+  return <div className="markdown-shell tiptap-shell"><div className="editor-toolbar"><button onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</button><button onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</button><button onClick={() => editor?.chain().focus().toggleBulletList().run()}>List</button><button onClick={() => editor?.chain().focus().toggleBold().run()}>Bold</button><button onClick={() => appendMarkdown('\n- [ ] ')}>Check</button></div><EditorContent editor={editor} />{suggestions.length > 0 && <div className="reference-menu">{suggestions.map((item) => <button key={`${item.type}-${item.value}`} onClick={() => insertSuggestion(item)}><span>{item.label}</span><small>{item.type} · {item.value}</small></button>)}</div>}</div>;
 }
 
 function Bottom({ state, activeTab, setActiveTab }: { state: State; activeTab: BottomTab; setActiveTab: (tab: BottomTab) => void }) {
