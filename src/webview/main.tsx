@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import ReactFlow, { Background, Controls, MiniMap, Node, Edge } from '@xyflow/react';
+import { Background, Controls, MiniMap, ReactFlow, type Node, type Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './styles.css';
 import { AgentPipeline, PipelineNode, ValidationFinding, RiskScore } from '../pipeline/types';

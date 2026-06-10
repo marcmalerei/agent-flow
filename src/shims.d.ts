@@ -40,7 +40,7 @@ declare module 'vscode' {
 
 declare module 'react' { export function useMemo<T>(factory: () => T, deps: unknown[]): T; export function useState<T>(initial: T): [T, (value: T) => void]; const React: any; export default React; }
 declare module 'react-dom/client' { export function createRoot(element: Element): { render(node: unknown): void } }
-declare module '@xyflow/react' { export interface Node { id: string; position: { x: number; y: number }; data?: any; style?: any } export interface Edge { id: string; source: string; target: string; label?: string; animated?: boolean } export const Background: any; export const Controls: any; export const MiniMap: any; const ReactFlow: any; export default ReactFlow; }
+declare module '@xyflow/react' { export interface Node { id: string; position: { x: number; y: number }; data?: any; style?: any } export interface Edge { id: string; source: string; target: string; label?: string; animated?: boolean } export const Background: any; export const Controls: any; export const MiniMap: any; export const ReactFlow: any; }
 declare module 'react/jsx-runtime' { export const jsx: any; export const jsxs: any; export const Fragment: any }
 declare module '*.css';
 
