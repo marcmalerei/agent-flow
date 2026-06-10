@@ -1,4 +1,5 @@
 import { AgentNode } from '../types';
+import { normalizeToolsForVsCode } from '../toolNormalization';
 import { GENERATED_MARKER, ensureTrailingNewline, list, yamlBooleanLine, yamlList, yamlString, yamlStringLine } from './shared';
 
 export function agentFilePath(node: AgentNode): string {
@@ -13,7 +14,7 @@ export function generateAgentMarkdown(node: AgentNode): string {
 name: ${yamlString(node.label)}
 description: ${yamlString(node.description ?? node.label)}
 ${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('model', node.model)}${yamlStringLine('target', node.target)}${yamlBooleanLine('user-invocable', node.userInvocable)}${yamlBooleanLine('disable-model-invocation', node.disableModelInvocation)}${yamlAgentHandoffs(node.handoffs)}
-${yamlList('tools', node.tools)}
+${yamlList('tools', normalizeToolsForVsCode(node.tools))}
 ${yamlList('agents', node.calls)}
 ---
 
@@ -47,7 +48,7 @@ ${list(node.forbiddenChanges)}
 
 # Command safety
 
-${list(node.commandSafety, node.tools?.includes('runCommands') ? '- Prefer the smallest relevant command and avoid destructive commands.' : 'No command execution expected.')}
+${list(node.commandSafety, (node.tools?.includes('execute') || node.tools?.includes('runCommands')) ? '- Prefer the smallest relevant command and avoid destructive commands.' : 'No command execution expected.')}
 
 # Verification
 

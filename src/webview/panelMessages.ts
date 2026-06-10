@@ -2,6 +2,7 @@ import { parsePipeline } from '../pipeline/parser';
 import { normalizePipelineAgentReferences } from '../pipeline/referenceResolver';
 import { AgentPipeline } from '../pipeline/types';
 import { generateFiles } from '../pipeline/generators';
+import { normalizePipelineTools } from '../pipeline/toolNormalization';
 
 export interface SavePipelineMessage {
   command: 'savePipeline';
@@ -24,7 +25,7 @@ export interface SavePipelineDependencies {
 }
 
 export async function handleSavePipelineMessage(dependencies: SavePipelineDependencies): Promise<AgentPipeline> {
-  const pipeline = normalizePipelineAgentReferences(parsePipeline(dependencies.message.pipeline));
+  const pipeline = normalizePipelineTools(normalizePipelineAgentReferences(parsePipeline(dependencies.message.pipeline)));
   await dependencies.writePipeline(dependencies.workspace, pipeline);
   await dependencies.postState(pipeline, dependencies.message.selectedId);
   await dependencies.showSavedMessage();
@@ -41,7 +42,7 @@ export interface WriteMarkdownFilesDependencies {
 }
 
 export async function handleWriteMarkdownFilesMessage(dependencies: WriteMarkdownFilesDependencies): Promise<AgentPipeline | undefined> {
-  const pipeline = normalizePipelineAgentReferences(parsePipeline(dependencies.message.pipeline));
+  const pipeline = normalizePipelineTools(normalizePipelineAgentReferences(parsePipeline(dependencies.message.pipeline)));
   const fileCount = generateFiles(pipeline).filter((file) => file.kind !== 'pipeline').length;
   if (!await dependencies.confirmWrite(fileCount)) return undefined;
   await dependencies.writeMarkdownFiles(dependencies.workspace, pipeline);

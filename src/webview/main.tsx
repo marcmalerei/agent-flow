@@ -21,7 +21,7 @@ import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges } from './graph';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
-import { partitionConfiguredTools } from './toolOptions';
+import { normalizeConfiguredTools, partitionConfiguredTools } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 
 interface State {
@@ -173,7 +173,7 @@ function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: {
   while (existing.has(`${baseId}-${suffix}`)) suffix += 1;
   const id = `${baseId}-${suffix}`;
   const base = { id, type, label: `New ${type}`, description: '', markdown: `# New ${type}\n\nDescribe this ${type} node.`, position };
-  if (type === 'agent') return { ...base, type, agentFile: `.github/agents/${id}.agent.md`, tools: ['codebase'], calls: [], inputs: [], outputs: [] };
+  if (type === 'agent') return { ...base, type, agentFile: `.github/agents/${id}.agent.md`, tools: ['read', 'search'], calls: [], inputs: [], outputs: [] };
   if (type === 'prompt') return { ...base, type, promptFile: `.github/prompts/${id}.prompt.md`, tools: [], workflow: [], constraints: [] };
   if (type === 'instruction') return { ...base, type, instructionFile: `.github/instructions/${id}.instructions.md`, applyTo: '**/*', rules: [] };
   if (type === 'skill') return { ...base, type, skillFile: `.github/skills/${id}/SKILL.md`, activationCriteria: [], procedure: [] };
@@ -196,7 +196,8 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
     }).filter(Boolean)
   } as Partial<PipelineNode>);
   const toggleListItem = (field: string, item: string, checked: boolean) => {
-    const current = Array.isArray((node as any)[field]) ? (node as any)[field] as string[] : [];
+    const rawCurrent = Array.isArray((node as any)[field]) ? (node as any)[field] as string[] : [];
+    const current = field === 'tools' ? normalizeConfiguredTools(rawCurrent) : rawCurrent;
     onChange(node.id, { [field]: checked ? [...new Set([...current, item])] : current.filter((value) => value !== item) } as Partial<PipelineNode>);
   };
   const toolGroups = (node.type === 'agent' || node.type === 'prompt') ? partitionConfiguredTools({ availableTools: toolOptions, configuredTools: node.tools ?? [] }) : { available: [], unavailable: [] };

@@ -6,7 +6,7 @@ function finding(severity: ValidationFinding['severity'], ruleId: string, messag
 }
 
 function hasBroadTool(tools: string[] | undefined): boolean {
-  return Boolean(tools?.includes('editFiles') && tools.includes('runCommands'));
+  return Boolean((tools?.includes('edit') || tools?.includes('editFiles')) && (tools.includes('execute') || tools.includes('runCommands')));
 }
 
 export function validatePipeline(pipeline: AgentPipeline): ValidationFinding[] {
@@ -30,9 +30,9 @@ export function validatePipeline(pipeline: AgentPipeline): ValidationFinding[] {
       for (const input of node.inputs ?? []) reads.set(input, [...(reads.get(input) ?? []), node.id]);
       for (const output of node.outputs ?? []) writes.set(output, [...(writes.get(output) ?? []), node.id]);
       if (hasBroadTool(node.tools)) findings.push(finding('risk', 'broad-agent-tools', `${node.id}.agent.md can run commands and edit files. Consider command restrictions or hooks.`, node.id));
-      if (node.tools?.includes('runCommands') && !node.commandSafety?.length) findings.push(finding('warning', 'missing-command-safety', `${node.id}.agent.md has runCommands but no command safety policy.`, node.id));
-      if (node.id.includes('docs') && node.tools?.includes('editFiles') && !node.editRules?.some((rule) => /only edit documentation|docs only/i.test(rule))) findings.push(finding('warning', 'docs-edits-production', `${node.id}.agent.md can edit files without a documentation-only rule.`, node.id));
-      if (/review/i.test(node.id + node.label) && node.tools?.includes('editFiles')) findings.push(finding('warning', 'review-can-edit', `${node.id}.agent.md is a review agent but can edit files.`, node.id));
+      if ((node.tools?.includes('execute') || node.tools?.includes('runCommands')) && !node.commandSafety?.length) findings.push(finding('warning', 'missing-command-safety', `${node.id}.agent.md can execute commands but has no command safety policy.`, node.id));
+      if (node.id.includes('docs') && (node.tools?.includes('edit') || node.tools?.includes('editFiles')) && !node.editRules?.some((rule) => /only edit documentation|docs only/i.test(rule))) findings.push(finding('warning', 'docs-edits-production', `${node.id}.agent.md can edit files without a documentation-only rule.`, node.id));
+      if (/review/i.test(node.id + node.label) && (node.tools?.includes('edit') || node.tools?.includes('editFiles'))) findings.push(finding('warning', 'review-can-edit', `${node.id}.agent.md is a review agent but can edit files.`, node.id));
     }
     if (node.type === 'prompt') {
       if (node.startAgent && !resolveAgentReference(node.startAgent, pipeline.nodes)) findings.push(finding('error', 'prompt-unknown-agent', `${node.id}.prompt.md references unknown start agent \`${stripYamlQuotes(node.startAgent)}\`.`, node.id));

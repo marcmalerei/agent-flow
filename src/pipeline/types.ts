@@ -2,7 +2,7 @@ export const PIPELINE_VERSION = 1;
 
 export type PipelineNodeType = 'agent' | 'prompt' | 'instruction' | 'skill' | 'artifact' | 'gate' | 'hook';
 export type PipelineEdgeKind = 'flow' | 'artifact' | 'prompt' | 'skill' | 'gate';
-export type ToolPermission = 'codebase' | 'editFiles' | 'runCommands' | 'search' | 'terminal' | string;
+export type ToolPermission = 'agent' | 'browser' | 'edit' | 'execute' | 'read' | 'search' | 'todo' | 'vscode' | 'web' | string;
 export type CustomizationTarget = 'vscode' | 'github-copilot' | string;
 export type SkillContext = 'inline' | 'fork' | string;
 
