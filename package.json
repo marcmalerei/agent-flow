@@ -58,8 +58,11 @@
   "dependencies": {
     "@tiptap/extension-bold": "^3.26.0",
     "@tiptap/extension-bullet-list": "^3.26.0",
+    "@tiptap/extension-code": "^3.26.0",
+    "@tiptap/extension-code-block": "^3.26.0",
     "@tiptap/extension-document": "^3.26.0",
     "@tiptap/extension-heading": "^3.26.0",
+    "@tiptap/extension-link": "^3.26.0",
     "@tiptap/extension-list-item": "^3.26.0",
     "@tiptap/extension-paragraph": "^3.26.0",
     "@tiptap/extension-text": "^3.26.0",

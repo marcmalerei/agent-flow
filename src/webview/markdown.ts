@@ -1,8 +1,8 @@
 export interface TiptapNode {
   type?: string;
   text?: string;
-  attrs?: { level?: number };
-  marks?: Array<{ type?: string }>;
+  attrs?: { level?: number; language?: string };
+  marks?: Array<{ type?: string; attrs?: { href?: string } }>;
   content?: TiptapNode[];
 }
 
@@ -15,6 +15,22 @@ export function markdownToTiptapHtml(markdown: string): string {
     const line = lines[index];
     if (!line.trim()) {
       index += 1;
+      continue;
+    }
+
+    if (index === 0 && line === '---') {
+      const block = collectUntil(lines, index, /^---$/);
+      blocks.push(`<pre><code>${escapeHtml(block.content.join('\n'))}</code></pre>`);
+      index = block.nextIndex;
+      continue;
+    }
+
+    const fence = line.match(/^```([A-Za-z0-9_-]+)?$/);
+    if (fence) {
+      const block = collectUntil(lines, index, /^```$/);
+      const language = fence[1] ? ` data-language="${escapeHtml(fence[1])}"` : '';
+      blocks.push(`<pre><code${language}>${escapeHtml(block.content.slice(1, -1).join('\n'))}</code></pre>`);
+      index = block.nextIndex;
       continue;
     }
 
@@ -57,6 +73,7 @@ export function tiptapJsonToMarkdown(document: TiptapNode): string {
 function nodeToMarkdown(node: TiptapNode): string {
   if (node.type === 'heading') return `${'#'.repeat(clampHeadingLevel(node.attrs?.level))} ${childrenToMarkdown(node)}`;
   if (node.type === 'paragraph') return childrenToMarkdown(node);
+  if (node.type === 'codeBlock') return codeBlockToMarkdown(node);
   if (node.type === 'bulletList') return (node.content ?? []).map((item) => `- ${childrenToMarkdown(item)}`).join('\n');
   if (node.type === 'listItem') return childrenToMarkdown(node);
   if (node.type === 'hardBreak') return '\n';
@@ -69,13 +86,26 @@ function childrenToMarkdown(node: TiptapNode): string {
 }
 
 function textToMarkdown(node: TiptapNode): string {
-  const text = node.text ?? '';
-  if (node.marks?.some((mark) => mark.type === 'bold')) return `**${text}**`;
-  return text;
+  return (node.marks ?? []).reduce((value, mark) => {
+    if (mark.type === 'bold') return `**${value}**`;
+    if (mark.type === 'code') return `\`${value}\``;
+    if (mark.type === 'link' && mark.attrs?.href) return `[${value}](${mark.attrs.href})`;
+    return value;
+  }, node.text ?? '');
+}
+
+function codeBlockToMarkdown(node: TiptapNode): string {
+  const content = childrenToMarkdown(node);
+  if (content.startsWith('---\n') && content.endsWith('\n---')) return content;
+  const language = node.attrs?.language ?? '';
+  return `\`\`\`${language}\n${content}\n\`\`\``;
 }
 
 function inlineMarkdownToHtml(value: string): string {
-  return escapeHtml(value).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  return escapeHtml(value)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2">$1</a>');
 }
 
 function escapeHtml(value: string): string {
@@ -89,4 +119,15 @@ function escapeHtml(value: string): string {
 function clampHeadingLevel(value: number | undefined): number {
   if (value === 1 || value === 2 || value === 3) return value;
   return 2;
+}
+
+function collectUntil(lines: string[], startIndex: number, terminator: RegExp): { content: string[]; nextIndex: number } {
+  const content = [lines[startIndex]];
+  let index = startIndex + 1;
+  while (index < lines.length) {
+    content.push(lines[index]);
+    index += 1;
+    if (terminator.test(lines[index - 1])) break;
+  }
+  return { content, nextIndex: index };
 }

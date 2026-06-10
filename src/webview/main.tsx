@@ -8,6 +8,9 @@ import Bold from '@tiptap/extension-bold';
 import Heading from '@tiptap/extension-heading';
 import BulletList from '@tiptap/extension-bullet-list';
 import ListItem from '@tiptap/extension-list-item';
+import CodeBlock from '@tiptap/extension-code-block';
+import Code from '@tiptap/extension-code';
+import Link from '@tiptap/extension-link';
 import { Background, Controls, MiniMap, ReactFlow, ReactFlowProvider, addEdge, useReactFlow, type Connection, type Edge, type Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './styles.css';
@@ -219,7 +222,7 @@ function TiptapMarkdownEditor({ value, references, onChange }: { value: string; 
   ];
   const lastMarkdown = useRef(value);
   const editor = useEditor({
-    extensions: [Document, Paragraph, Text, Bold, Heading.configure({ levels: [1, 2, 3] }), BulletList, ListItem],
+    extensions: [Document, Paragraph, Text, Bold, Code, Link, Heading.configure({ levels: [1, 2, 3] }), BulletList, ListItem, CodeBlock],
     content: markdownToTiptapHtml(value),
     editorProps: {
       attributes: {
