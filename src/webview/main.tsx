@@ -24,6 +24,7 @@ interface State {
   risk: RiskScore;
   mermaid: string;
   generatedFiles: Array<{ path: string; kind: string }>;
+  toolOptions: string[];
 }
 
 type BottomTab = 'validation' | 'files' | 'mermaid' | 'tools' | 'risk';
@@ -33,7 +34,6 @@ declare global { interface Window { __AGENTFLOW_STATE__: State; acquireVsCodeApi
 const vscode = window.acquireVsCodeApi?.();
 const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-charts-green)', artifact: 'var(--vscode-descriptionForeground)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)' };
 const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'artifact', 'gate', 'hook'];
-const toolOptions = ['codebase', 'usages', 'vscodeAPI', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'openSimpleBrowser', 'fetch', 'findTestFiles', 'searchResults', 'githubRepo', 'extensions', 'editFiles', 'runCommands', 'runTasks', 'runTests', 'search', 'terminal', 'agent', 'vscode/memory'];
 
 function deriveState(pipeline: AgentPipeline, previous: State): State {
   return {
@@ -42,7 +42,8 @@ function deriveState(pipeline: AgentPipeline, previous: State): State {
     findings: validatePipeline(pipeline),
     risk: calculateRiskScore(pipeline),
     mermaid: generateMermaid(pipeline),
-    generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind }))
+    generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })),
+    toolOptions: previous.toolOptions
   };
 }
 
@@ -146,7 +147,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'}`}>
     <header className="toolbar"><strong>AgentFlow</strong><span>{draft.name}</span><button onClick={savePipeline}>Save Pipeline</button><div className="node-buttons">{nodeTypes.map((type) => <button key={type} onClick={() => addNode(type)} title={`Create ${type} node`}>+ {type}</button>)}</div></header>
     <main className="canvas"><ReactFlow nodes={nodes} edges={edges} onNodeClick={(_: unknown, node: Node) => setSelectedId(node.id)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><MiniMap /><Controls /><Background /></ReactFlow></main>
-    <aside className="inspector"><Inspector node={selected} pipeline={draft} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>
+    <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>
     <section className="bottom"><button className="collapse" onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} />}</section>
   </div>;
 }
@@ -167,7 +168,7 @@ function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: {
   return { ...base, type };
 }
 
-function Inspector({ node, pipeline, findings, onChange }: { node?: PipelineNode; pipeline: AgentPipeline; findings: ValidationFinding[]; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void }) {
+function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?: PipelineNode; pipeline: AgentPipeline; toolOptions: string[]; findings: ValidationFinding[]; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void }) {
   if (!node) return <p>Select a node.</p>;
   const agents = pipeline.nodes.filter((item) => item.type === 'agent' && item.id !== node.id);
   const references = buildReferenceItems(pipeline);
@@ -176,11 +177,11 @@ function Inspector({ node, pipeline, findings, onChange }: { node?: PipelineNode
     const current = Array.isArray((node as any)[field]) ? (node as any)[field] as string[] : [];
     onChange(node.id, { [field]: checked ? [...new Set([...current, item])] : current.filter((value) => value !== item) } as Partial<PipelineNode>);
   };
-  const visibleTools = [...new Set([...toolOptions, ...((node.type === 'agent' || node.type === 'prompt') ? (node.tools ?? []) : [])])].sort();
+  const visibleTools = toolOptions;
   return <div className="config"><h2>{node.label}</h2><span className="pill">{node.type}</span>
     <label>Label<input value={node.label} onChange={(event: any) => onChange(node.id, { label: event.target.value } as Partial<PipelineNode>)} /></label>
     <label>Description<textarea value={node.description ?? ''} onChange={(event: any) => onChange(node.id, { description: event.target.value } as Partial<PipelineNode>)} /></label>
-    {(node.type === 'agent' || node.type === 'prompt') && <><h3>Tools</h3><div className="checks">{visibleTools.map((tool) => <label key={tool}><input type="checkbox" checked={(node.tools ?? []).includes(tool)} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div></>}
+    {(node.type === 'agent' || node.type === 'prompt') && <><h3>Tools</h3>{visibleTools.length ? <div className="checks">{visibleTools.map((tool) => <label key={tool}><input type="checkbox" checked={(node.tools ?? []).includes(tool)} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div> : <p className="hint">No VS Code language model tools are registered.</p>}</>}
     {node.type === 'agent' && <><h3>Subagents</h3><div className="checks">{agents.map((agent) => <label key={agent.id}><input type="checkbox" checked={(node.calls ?? []).includes(agent.id)} onChange={(event: any) => toggleListItem('calls', agent.id, event.target.checked)} />{agent.label}</label>)}</div><label>Input artifacts<textarea value={(node.inputs ?? []).join('\n')} onChange={(event: any) => setArray('inputs', event.target.value)} /></label><label>Output artifacts<textarea value={(node.outputs ?? []).join('\n')} onChange={(event: any) => setArray('outputs', event.target.value)} /></label></>}
     {node.type === 'prompt' && <label>Start agent<select value={node.startAgent ?? ''} onChange={(event: any) => onChange(node.id, { startAgent: event.target.value || undefined } as Partial<PipelineNode>)}><option value="">None</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}</select></label>}
     {node.type === 'instruction' && <label>applyTo<input value={node.applyTo} onChange={(event: any) => onChange(node.id, { applyTo: event.target.value } as Partial<PipelineNode>)} /></label>}
