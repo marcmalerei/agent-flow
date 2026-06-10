@@ -20,16 +20,21 @@ declare module 'vscode' {
   export namespace Uri { export function file(path: string): Uri }
   export enum ViewColumn { One = 1 }
   export interface Webview { html: string; cspSource: string; asWebviewUri(uri: Uri): Uri; onDidReceiveMessage(listener: (message: any) => any): Disposable; postMessage(message: any): Thenable<boolean> }
+  export interface WebviewPanel { webview: Webview; onDidDispose(listener: () => any): Disposable }
+  export interface ConfigurationChangeEvent { affectsConfiguration(section: string): boolean }
+  export interface WorkspaceConfiguration { get<T>(section: string): T | undefined }
   export namespace window {
     export function showInformationMessage(message: string, ...items: any[]): Thenable<any>;
     export function showWarningMessage(message: string, ...items: any[]): Thenable<any>;
     export function showErrorMessage(message: string): Thenable<any>;
-    export function createWebviewPanel(viewType: string, title: string, column: ViewColumn, options: any): { webview: Webview };
+    export function createWebviewPanel(viewType: string, title: string, column: ViewColumn, options: any): WebviewPanel;
     export function showTextDocument(document: any, options?: any): Thenable<any>;
   }
   export namespace workspace {
     export const workspaceFolders: Array<{ uri: Uri }> | undefined;
     export function openTextDocument(options: { language?: string; content: string }): Thenable<any>;
+    export function onDidChangeConfiguration(listener: (event: ConfigurationChangeEvent) => any): Disposable;
+    export function getConfiguration(section?: string): WorkspaceConfiguration;
   }
   export namespace commands {
     export function registerCommand(command: string, callback: (...args: any[]) => any): Disposable;
@@ -40,7 +45,7 @@ declare module 'vscode' {
 
 declare module 'react' { export function useCallback<T extends (...args: any[]) => any>(callback: T, deps: unknown[]): T; export function useEffect(effect: () => void | (() => void), deps?: unknown[]): void; export function useMemo<T>(factory: () => T, deps: unknown[]): T; export function useRef<T>(initial: T): { current: T }; export function useState<T>(initial: T): [T, (value: T | ((previous: T) => T)) => void]; const React: any; export default React; }
 declare module 'react-dom/client' { export function createRoot(element: Element): { render(node: unknown): void } }
-declare module '@xyflow/react' { export interface Node { id: string; position: { x: number; y: number }; data?: any; style?: any } export interface Edge { id: string; source: string; target: string; label?: string; animated?: boolean } export interface Connection { source?: string | null; target?: string | null; sourceHandle?: string | null; targetHandle?: string | null } export function addEdge(connection: Connection, edges: Edge[]): Edge[]; export function useReactFlow(): { screenToFlowPosition(position: { x: number; y: number }): { x: number; y: number } }; export const Background: any; export const Controls: any; export const MiniMap: any; export const ReactFlow: any; export const ReactFlowProvider: any; }
+declare module '@xyflow/react' { export interface Node { id: string; position: { x: number; y: number }; type?: string; data?: any; style?: any; draggable?: boolean } export interface Edge { id: string; source: string; target: string; label?: string; animated?: boolean } export interface Connection { source?: string | null; target?: string | null; sourceHandle?: string | null; targetHandle?: string | null } export function addEdge(connection: Connection, edges: Edge[]): Edge[]; export function useReactFlow(): { screenToFlowPosition(position: { x: number; y: number }): { x: number; y: number } }; export const Background: any; export const Controls: any; export const MiniMap: any; export const ReactFlow: any; export const ReactFlowProvider: any; }
 declare module 'react/jsx-runtime' { export const jsx: any; export const jsxs: any; export const Fragment: any }
 declare module '*.css';
 
