@@ -19,8 +19,8 @@ AgentFlow validates pipeline structure, Copilot file references, tool risks, art
 
 - `applyTo: "**/*"` is broad and risky.
 - `applyTo: "**/*.md"` can affect agents, prompts, and skills.
-- Agents with both `editFiles` and `runCommands` are marked risky.
-- Agents with `runCommands` should define command safety policies.
+- Agents with both `edit` and `execute` are marked risky.
+- Agents with `execute` should define command safety policies.
 - Docs agents should restrict edits to documentation.
 - Review agents should be read-only.
 
@@ -36,7 +36,7 @@ The score considers:
 
 - long always-on Copilot instructions
 - broad `applyTo` patterns
-- agents with `runCommands`
+- agents with `execute`
 - generic skill descriptions
 - example-heavy skills
 - missing context budgets

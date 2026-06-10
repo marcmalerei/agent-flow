@@ -1,4 +1,5 @@
 import { PromptNode } from '../types';
+import { normalizeToolsForVsCode } from '../toolNormalization';
 import { GENERATED_MARKER, ensureTrailingNewline, list, yamlList, yamlString, yamlStringLine } from './shared';
 
 export function promptFilePath(node: PromptNode): string {
@@ -13,7 +14,7 @@ export function generatePromptMarkdown(node: PromptNode): string {
 name: ${yamlString(node.label)}
 description: ${yamlString(node.description ?? node.label)}
 ${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('agent', node.startAgent)}${yamlStringLine('model', node.model)}
-${yamlList('tools', node.tools)}
+${yamlList('tools', normalizeToolsForVsCode(node.tools))}
 ---
 
 # ${node.label}

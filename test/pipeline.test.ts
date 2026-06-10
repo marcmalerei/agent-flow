@@ -53,7 +53,7 @@ describe('markdown generators', () => {
       type: 'agent',
       label: 'Reviewer',
       description: 'Reviews changes.',
-      tools: ['search/codebase'],
+      tools: ['search'],
       calls: ['implementer'],
       argumentHint: '[pull request]',
       model: 'GPT-5.2 (copilot)',
@@ -87,13 +87,13 @@ describe('markdown generators', () => {
       startAgent: 'ask',
       argumentHint: '[endpoint]',
       model: 'Claude Sonnet 4',
-      tools: ['search/codebase']
+      tools: ['search']
     });
     expect(prompt).toContain('name: "Security Review"');
     expect(prompt).toContain('argument-hint: "[endpoint]"');
     expect(prompt).toContain('agent: "ask"');
     expect(prompt).toContain('model: "Claude Sonnet 4"');
-    expect(prompt).toContain('tools:\n  - "search/codebase"');
+    expect(prompt).toContain('tools:\n  - "search"');
   });
 
   it('generates instruction markdown', () => {
@@ -326,7 +326,7 @@ describe('validation rules', () => {
       version: 1,
       name: 'Risky',
       nodes: [
-        { id: 'a', type: 'agent', label: 'A', tools: ['editFiles', 'runCommands'], calls: ['missing'], outputs: [] },
+        { id: 'a', type: 'agent', label: 'A', tools: ['edit', 'execute'], calls: ['missing'], outputs: [] },
         { id: 'p', type: 'prompt', label: 'P', startAgent: 'missing-agent' },
         { id: 'i', type: 'instruction', label: 'I', applyTo: '**/*' },
         { id: 's', type: 'skill', label: 'S', description: 'general' }

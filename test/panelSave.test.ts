@@ -7,7 +7,7 @@ describe('webview save handling', () => {
     const pipeline: AgentPipeline = {
       version: 1,
       name: 'Save only',
-      nodes: [{ id: 'agent', type: 'agent', label: 'Agent', calls: ['"Worker"'], outputs: [] }, { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }],
+      nodes: [{ id: 'agent', type: 'agent', label: 'Agent', tools: ['codebase'], calls: ['"Worker"'], outputs: [] }, { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }],
       edges: []
     };
     const calls: string[] = [];
@@ -16,7 +16,7 @@ describe('webview save handling', () => {
       message: { command: 'savePipeline', pipeline, selectedId: 'agent' },
       workspace: '/workspace',
       writePipeline: async (_workspace, saved) => {
-        calls.push(`pipeline:${saved.nodes[0].type === 'agent' ? saved.nodes[0].calls?.[0] : ''}`);
+        calls.push(`pipeline:${saved.nodes[0].type === 'agent' ? `${saved.nodes[0].calls?.[0]}:${saved.nodes[0].tools?.join(',')}` : ''}`);
       },
       postState: async () => {
         calls.push('state');
@@ -26,7 +26,7 @@ describe('webview save handling', () => {
       }
     });
 
-    expect(calls).toEqual(['pipeline:worker', 'state', 'message']);
+    expect(calls).toEqual(['pipeline:worker:read,search', 'state', 'message']);
   });
 
   it('writes generated Markdown files after confirmation', async () => {
