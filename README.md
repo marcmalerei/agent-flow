@@ -31,9 +31,10 @@ npm install
 npm run compile
 npm run build:webview
 npm test
+npm run test:smoke
 ```
 
-Pull requests and pushes to `main` run CI with `npm ci`, `npm run check`, `npm run build:webview`, and `npm audit`.
+Pull requests and pushes to `main` run CI with `npm ci`, `npm run check`, an Extension Host smoke test, `npm run build:webview`, and `npm audit`.
 
 In restricted environments, package installation may be blocked. The TypeScript sources include lightweight local declaration shims so core type-checking can still be run with a globally available `tsc`.
 

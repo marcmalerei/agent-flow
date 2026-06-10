@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-smoke/
 webview-dist/
 .vscode-test/
 *.vsix
