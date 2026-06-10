@@ -10,7 +10,6 @@ AgentFlow does **not** integrate with Copilot internals, execute agent pipelines
 - `AgentFlow: Create Default Pipeline` writes a safe default `.agent-pipeline/pipeline.json` preset.
 - `AgentFlow: Scan Workspace` loads `pipeline.json` or infers a graph from `.github/agents`, `.github/prompts`, `.github/instructions`, `.github/skills`, and `.agent-output`.
 - `AgentFlow: Validate Pipeline` reports pipeline findings and context risk score.
-- `AgentFlow: Export Mermaid` copies and previews a Mermaid graph.
 - `AgentFlow: Generate Files` previews generated files and asks for confirmation before writing.
 
 ## Architecture
@@ -19,7 +18,6 @@ AgentFlow does **not** integrate with Copilot internals, execute agent pipelines
 .agent-pipeline/pipeline.json = visual editor source of truth
 .github/**                    = generated Copilot customization files
 .agent-output/**              = explicit artifact handoff files
-AGENT_PIPELINE.md             = generated human-readable diagram
 ```
 
 The implementation is split into testable pure modules under `src/pipeline` and VS Code/webview integration under `src/extension.ts` and `src/webview`.
@@ -108,8 +106,7 @@ In the **Extension Development Host** window, open the Command Palette and run:
 1. `AgentFlow: Create Default Pipeline`
 2. `AgentFlow: Open Pipeline`
 3. `AgentFlow: Validate Pipeline`
-4. `AgentFlow: Export Mermaid`
-5. `AgentFlow: Generate Files`
+4. `AgentFlow: Generate Files`
 
 Use a disposable workspace for `AgentFlow: Generate Files` while testing. The command shows a generated-file preview and asks for confirmation before writing files, but the generated files are still intended to modify the active workspace after confirmation.
 
@@ -134,9 +131,9 @@ AgentFlow requires VS Code `1.120.0` or newer because the inspector reads availa
 3. Run `AgentFlow: Open Pipeline` to view the pipeline graph.
 4. Click a node to edit its label, description, tools, subagents, artifacts, and Markdown override in the inspector.
 5. Drag nodes on the canvas to update their saved positions.
-6. Use `Save & reload flow` to persist graph/configuration edits and refresh validation, generated files, Mermaid, and the tool matrix.
+6. Use `Save & reload flow` to persist graph/configuration edits and refresh validation, generated files, and the tool matrix.
 7. Use the WYSIWYG Markdown editor toolbar for headings/lists/bold text, type `@` to reference agents, skills, prompts, artifacts, or files, and type `/` for snippets such as dates and checklists.
-8. Expand the diagnostics drawer only when you need validation, generated files, Mermaid, tool matrix, or context risk details.
+8. Expand the diagnostics drawer only when you need validation, generated files, tool matrix, or context risk details.
 9. Run `AgentFlow: Generate Files` and confirm only after reviewing the preview.
 
 ## Keeping context costs low
