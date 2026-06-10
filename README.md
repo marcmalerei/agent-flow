@@ -22,6 +22,8 @@ AgentFlow does **not** integrate with Copilot internals, execute agent pipelines
 
 The implementation is split into testable pure modules under `src/pipeline` and VS Code/webview integration under `src/extension.ts` and `src/webview`.
 
+Supported Copilot customization frontmatter is documented in [docs/customization-frontmatter.md](docs/customization-frontmatter.md).
+
 ## Development
 
 ```bash

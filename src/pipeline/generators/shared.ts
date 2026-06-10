@@ -9,9 +9,21 @@ export function frontmatterValue(value: string): string {
   return value.replace(/\n/g, ' ').replace(/"/g, '\\"');
 }
 
+export function yamlString(value: string): string {
+  return `"${frontmatterValue(value)}"`;
+}
+
+export function yamlStringLine(name: string, value: string | undefined): string {
+  return value ? `${name}: ${yamlString(value)}\n` : '';
+}
+
+export function yamlBooleanLine(name: string, value: boolean | undefined): string {
+  return typeof value === 'boolean' ? `${name}: ${value}\n` : '';
+}
+
 export function yamlList(name: string, items: string[] | undefined): string {
   if (!items || items.length === 0) return `${name}: []`;
-  return `${name}:\n${items.map((item) => `  - ${item}`).join('\n')}`;
+  return `${name}:\n${items.map((item) => `  - ${yamlString(item)}`).join('\n')}`;
 }
 
 export function ensureTrailingNewline(content: string): string {

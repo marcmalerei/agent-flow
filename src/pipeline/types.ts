@@ -3,8 +3,18 @@ export const PIPELINE_VERSION = 1;
 export type PipelineNodeType = 'agent' | 'prompt' | 'instruction' | 'skill' | 'artifact' | 'gate' | 'hook';
 export type PipelineEdgeKind = 'flow' | 'artifact' | 'prompt' | 'skill' | 'gate';
 export type ToolPermission = 'codebase' | 'editFiles' | 'runCommands' | 'search' | 'terminal' | string;
+export type CustomizationTarget = 'vscode' | 'github-copilot' | string;
+export type SkillContext = 'inline' | 'fork' | string;
 
 export interface Position { x: number; y: number }
+
+export interface AgentHandoff {
+  label: string;
+  agent: string;
+  prompt?: string;
+  send?: boolean;
+  model?: string;
+}
 
 export interface BaseNode {
   id: string;
@@ -19,6 +29,12 @@ export interface BaseNode {
 export interface AgentNode extends BaseNode {
   type: 'agent';
   agentFile?: string;
+  argumentHint?: string;
+  model?: string;
+  target?: CustomizationTarget;
+  userInvocable?: boolean;
+  disableModelInvocation?: boolean;
+  handoffs?: AgentHandoff[];
   tools?: ToolPermission[];
   calls?: string[];
   inputs?: string[];
@@ -35,6 +51,8 @@ export interface AgentNode extends BaseNode {
 export interface PromptNode extends BaseNode {
   type: 'prompt';
   promptFile?: string;
+  argumentHint?: string;
+  model?: string;
   startAgent?: string;
   tools?: ToolPermission[];
   workflow?: string[];
@@ -47,6 +65,7 @@ export interface InstructionNode extends BaseNode {
   type: 'instruction';
   instructionFile?: string;
   applyTo: string;
+  excludeAgent?: 'code-review' | 'cloud-agent' | string;
   rules?: string[];
 }
 
@@ -54,6 +73,9 @@ export interface SkillNode extends BaseNode {
   type: 'skill';
   skillFile?: string;
   argumentHint?: string;
+  userInvocable?: boolean;
+  disableModelInvocation?: boolean;
+  context?: SkillContext;
   activationCriteria?: string[];
   doNotUseWhen?: string[];
   procedure?: string[];

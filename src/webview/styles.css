@@ -22,6 +22,8 @@ button.secondary { background: var(--vscode-button-secondaryBackground, var(--vs
 pre { white-space: pre-wrap; font-size: 12px; background: var(--vscode-textCodeBlock-background, var(--vscode-editor-background)); padding: 8px; border-radius: 6px; }
 .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
 .config label { display: block; margin: 12px 0; font-weight: 600; }
+.config label.inline-check { display: flex; align-items: center; gap: 8px; font-weight: 400; }
+.config label.inline-check input { width: auto; margin: 0; }
 .config details { margin: 12px 0; padding: 8px 0; border-top: 1px solid var(--agentflow-border); }
 .config summary { cursor: pointer; font-weight: 700; color: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground)); }
 .config h4 { margin: 12px 0 8px; }

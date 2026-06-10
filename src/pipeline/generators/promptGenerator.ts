@@ -1,5 +1,5 @@
 import { PromptNode } from '../types';
-import { GENERATED_MARKER, ensureTrailingNewline, frontmatterValue, list, yamlList } from './shared';
+import { GENERATED_MARKER, ensureTrailingNewline, list, yamlList, yamlString, yamlStringLine } from './shared';
 
 export function promptFilePath(node: PromptNode): string {
   return node.promptFile ?? `.github/prompts/${node.id}.prompt.md`;
@@ -10,7 +10,9 @@ export function generatePromptMarkdown(node: PromptNode): string {
 
   return ensureTrailingNewline(`${GENERATED_MARKER}
 ---
-description: ${frontmatterValue(node.description ?? node.label)}
+name: ${yamlString(node.label)}
+description: ${yamlString(node.description ?? node.label)}
+${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('agent', node.startAgent)}${yamlStringLine('model', node.model)}
 ${yamlList('tools', node.tools)}
 ---
 
