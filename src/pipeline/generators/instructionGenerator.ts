@@ -1,5 +1,5 @@
 import { InstructionNode } from '../types';
-import { GENERATED_MARKER, ensureTrailingNewline, frontmatterValue, list } from './shared';
+import { GENERATED_MARKER, ensureTrailingNewline, list, yamlString, yamlStringLine } from './shared';
 
 export function instructionFilePath(node: InstructionNode): string {
   return node.instructionFile ?? `.github/instructions/${node.id}.instructions.md`;
@@ -10,8 +10,10 @@ export function generateInstructionMarkdown(node: InstructionNode): string {
 
   return ensureTrailingNewline(`${GENERATED_MARKER}
 ---
-applyTo: "${frontmatterValue(node.applyTo)}"
-description: "${frontmatterValue(node.description ?? node.label)}"
+name: ${yamlString(node.label)}
+description: ${yamlString(node.description ?? node.label)}
+applyTo: ${yamlString(node.applyTo)}
+${yamlStringLine('excludeAgent', node.excludeAgent)}
 ---
 
 # ${node.label}

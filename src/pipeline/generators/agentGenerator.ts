@@ -1,5 +1,5 @@
 import { AgentNode } from '../types';
-import { GENERATED_MARKER, ensureTrailingNewline, frontmatterValue, list, yamlList } from './shared';
+import { GENERATED_MARKER, ensureTrailingNewline, list, yamlBooleanLine, yamlList, yamlString, yamlStringLine } from './shared';
 
 export function agentFilePath(node: AgentNode): string {
   return node.agentFile ?? `.github/agents/${node.id}.agent.md`;
@@ -10,8 +10,9 @@ export function generateAgentMarkdown(node: AgentNode): string {
 
   const content = `${GENERATED_MARKER}
 ---
-name: ${frontmatterValue(node.label)}
-description: ${frontmatterValue(node.description ?? node.label)}
+name: ${yamlString(node.label)}
+description: ${yamlString(node.description ?? node.label)}
+${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('model', node.model)}${yamlStringLine('target', node.target)}${yamlBooleanLine('user-invocable', node.userInvocable)}${yamlBooleanLine('disable-model-invocation', node.disableModelInvocation)}${yamlAgentHandoffs(node.handoffs)}
 ${yamlList('tools', node.tools)}
 ${yamlList('agents', node.calls)}
 ---
@@ -57,4 +58,15 @@ ${list(node.verificationRules)}
 ${list((node.outputs ?? []).map((output) => `Write \`${output}\`.`))}
 `;
   return ensureTrailingNewline(content);
+}
+
+function yamlAgentHandoffs(handoffs: AgentNode['handoffs']): string {
+  if (!handoffs || handoffs.length === 0) return '';
+  return `handoffs:\n${handoffs.map((handoff) => {
+    const lines = [`  - label: ${yamlString(handoff.label)}`, `    agent: ${yamlString(handoff.agent)}`];
+    if (handoff.prompt) lines.push(`    prompt: ${yamlString(handoff.prompt)}`);
+    if (typeof handoff.send === 'boolean') lines.push(`    send: ${handoff.send}`);
+    if (handoff.model) lines.push(`    model: ${yamlString(handoff.model)}`);
+    return lines.join('\n');
+  }).join('\n')}\n`;
 }

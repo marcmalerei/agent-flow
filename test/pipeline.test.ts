@@ -45,20 +45,87 @@ describe('markdown generators', () => {
     expect(first).toContain('Write `.agent-output/results/frontend-result.md`.');
   });
 
+  it('generates current custom agent frontmatter fields', () => {
+    const agent = generateAgentMarkdown({
+      id: 'reviewer',
+      type: 'agent',
+      label: 'Reviewer',
+      description: 'Reviews changes.',
+      tools: ['search/codebase'],
+      calls: ['implementer'],
+      argumentHint: '[pull request]',
+      model: 'GPT-5.2 (copilot)',
+      target: 'vscode',
+      userInvocable: false,
+      disableModelInvocation: true,
+      handoffs: [{ label: 'Start Implementation', agent: 'implementer', prompt: 'Implement the review findings.', send: false }]
+    });
+    expect(agent).toContain('name: "Reviewer"');
+    expect(agent).toContain('argument-hint: "[pull request]"');
+    expect(agent).toContain('model: "GPT-5.2 (copilot)"');
+    expect(agent).toContain('target: "vscode"');
+    expect(agent).toContain('user-invocable: false');
+    expect(agent).toContain('disable-model-invocation: true');
+    expect(agent).toContain('agents:\n  - "implementer"');
+    expect(agent).toContain('handoffs:\n  - label: "Start Implementation"\n    agent: "implementer"\n    prompt: "Implement the review findings."\n    send: false');
+  });
+
   it('generates prompt markdown', () => {
     const prompt = pipeline.nodes.find((node) => node.type === 'prompt');
     expect(prompt?.type).toBe('prompt');
     expect(generatePromptMarkdown(prompt!)).toContain('Start with `router`.');
   });
 
+  it('generates current prompt file frontmatter fields', () => {
+    const prompt = generatePromptMarkdown({
+      id: 'security-review',
+      type: 'prompt',
+      label: 'Security Review',
+      description: 'Review a REST API.',
+      startAgent: 'ask',
+      argumentHint: '[endpoint]',
+      model: 'Claude Sonnet 4',
+      tools: ['search/codebase']
+    });
+    expect(prompt).toContain('name: "Security Review"');
+    expect(prompt).toContain('argument-hint: "[endpoint]"');
+    expect(prompt).toContain('agent: "ask"');
+    expect(prompt).toContain('model: "Claude Sonnet 4"');
+    expect(prompt).toContain('tools:\n  - "search/codebase"');
+  });
+
   it('generates instruction markdown', () => {
-    expect(generateInstructionMarkdown({ id: 'docs', type: 'instruction', label: 'Docs', applyTo: '**/*.md', rules: ['Keep docs short.'] })).toContain('applyTo: "**/*.md"');
+    const instruction = generateInstructionMarkdown({ id: 'docs', type: 'instruction', label: 'Docs', description: 'Markdown standards.', applyTo: '**/*.md', excludeAgent: 'code-review', rules: ['Keep docs short.'] });
+    expect(instruction).toContain('name: "Docs"');
+    expect(instruction).toContain('description: "Markdown standards."');
+    expect(instruction).toContain('applyTo: "**/*.md"');
+    expect(instruction).toContain('excludeAgent: "code-review"');
   });
 
   it('generates skill markdown with activation criteria', () => {
     const skill = pipeline.nodes.find((node) => node.type === 'skill');
     expect(skill?.type).toBe('skill');
     expect(generateSkillMarkdown(skill!)).toContain('## Activation criteria');
+  });
+
+  it('generates current skill frontmatter fields', () => {
+    const skill = generateSkillMarkdown({
+      id: 'review-pr',
+      type: 'skill',
+      label: 'Review PR',
+      description: 'Review a pull request.',
+      argumentHint: '[pr-number]',
+      userInvocable: false,
+      disableModelInvocation: true,
+      context: 'fork',
+      procedure: ['Inspect diff.']
+    });
+    expect(skill).toContain('name: "review-pr"');
+    expect(skill).toContain('description: "Review a pull request."');
+    expect(skill).toContain('argument-hint: "[pr-number]"');
+    expect(skill).toContain('user-invocable: false');
+    expect(skill).toContain('disable-model-invocation: true');
+    expect(skill).toContain('context: "fork"');
   });
 
   it('uses a node markdown override when edited from the webview', () => {
