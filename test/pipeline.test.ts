@@ -121,6 +121,52 @@ describe('webview graph projection', () => {
       ['router-to-worker', 'router', 'worker', 'pipeline.edges']
     ]);
   });
+
+  it('hides stored agent-to-agent edges when the subagent reference is removed', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Unchecked refs',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'Router', calls: [], outputs: [] },
+        { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }
+      ],
+      edges: [{ id: 'router-to-worker', from: 'router', to: 'worker', kind: 'flow' }]
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline)).toEqual([]);
+  });
+
+  it('hides stored prompt edges when the start agent reference is removed', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Prompt refs',
+      nodes: [
+        { id: 'prompt', type: 'prompt', label: 'Prompt' },
+        { id: 'router', type: 'agent', label: 'Router', outputs: [] }
+      ],
+      edges: [{ id: 'prompt-to-router', from: 'prompt', to: 'router', kind: 'prompt' }]
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline)).toEqual([]);
+  });
+
+  it('hides stored artifact-node edges when input or output references are removed', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Artifact refs',
+      nodes: [
+        { id: 'producer', type: 'agent', label: 'Producer', outputs: [] },
+        { id: 'artifact', type: 'artifact', label: 'Artifact', path: '.agent-output/result.md' },
+        { id: 'consumer', type: 'agent', label: 'Consumer', inputs: [], outputs: [] }
+      ],
+      edges: [
+        { id: 'producer-to-artifact', from: 'producer', to: 'artifact', kind: 'artifact', artifact: '.agent-output/result.md' },
+        { id: 'artifact-to-consumer', from: 'artifact', to: 'consumer', kind: 'artifact', artifact: '.agent-output/result.md' }
+      ]
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline)).toEqual([]);
+  });
 });
 
 describe('agent reference normalization', () => {
