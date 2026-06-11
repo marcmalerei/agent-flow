@@ -42,8 +42,9 @@ ${list(node.resourceReferences)}
 }
 
 function skillFrontmatter(node: SkillNode): string {
+  const skillName = skillFilePath(node).split('/').at(-2) ?? nodeFileStem(node.id, node.label, 'skill');
   return `---
-name: ${yamlString(node.id)}
+name: ${yamlString(skillName)}
 description: ${yamlString(node.description ?? node.label)}
 ${yamlStringLine('argument-hint', node.argumentHint)}${yamlBooleanLine('user-invocable', node.userInvocable)}${yamlBooleanLine('disable-model-invocation', node.disableModelInvocation)}${yamlStringLine('context', node.context)}---`;
 }

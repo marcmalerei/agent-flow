@@ -113,6 +113,7 @@ function App() {
       const next = { ...pipeline, nodes: [...pipeline.nodes, node] };
       return connectFrom ? connectPipelineNodes(next, connectFrom, node.id) : next;
     }, node.id);
+    setInspectorOpen(true);
   };
   const savePipeline = () => vscode?.postMessage({ command: 'savePipeline', pipeline: draft, selectedId: selected?.id });
   const writeMarkdownFiles = () => vscode?.postMessage({ command: 'writeMarkdownFiles', pipeline: draft, selectedId: selected?.id });
@@ -152,7 +153,7 @@ function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: {
   let suffix = 1;
   while (existing.has(`${baseId}-${suffix}`)) suffix += 1;
   const id = `${baseId}-${suffix}`;
-  const base = { id, type, label: `New ${type}`, description: '', markdown: `# New ${type}\n\nDescribe this ${type} node.`, position };
+  const base = { id, type, label: `New ${type}`, description: '', position };
   if (type === 'agent') return { ...base, type, agentFile: `.github/agents/${id}.agent.md`, tools: ['read', 'search'], calls: [], inputs: [], outputs: [] };
   if (type === 'prompt') return { ...base, type, promptFile: `.github/prompts/${id}.prompt.md`, tools: [], workflow: [], constraints: [] };
   if (type === 'instruction') return { ...base, type, instructionFile: `.github/instructions/${id}.instructions.md`, applyTo: '**/*', rules: [] };

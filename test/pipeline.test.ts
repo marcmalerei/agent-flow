@@ -274,6 +274,26 @@ Keep this prose.`
     expect(files).toContain('.github/skills/review-pr/SKILL.md');
   });
 
+  it('uses renamed new node labels in generated markdown content', () => {
+    const files = generateFiles({
+      version: 1,
+      name: 'New node content',
+      nodes: [
+        { id: 'new-agent-1', type: 'agent', label: 'Security Reviewer', agentFile: '.github/agents/new-agent-1.agent.md', tools: [], calls: [], outputs: [] },
+        { id: 'new-prompt-1', type: 'prompt', label: 'Release Notes', promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: [] },
+        { id: 'new-instruction-1', type: 'instruction', label: 'Docs Scope', instructionFile: '.github/instructions/new-instruction-1.instructions.md', applyTo: '**/*.md' },
+        { id: 'new-skill-1', type: 'skill', label: 'Review PR', skillFile: '.github/skills/new-skill-1/SKILL.md' }
+      ],
+      edges: []
+    });
+
+    expect(files.find((file) => file.path === '.github/agents/security-reviewer.agent.md')?.content).toContain('name: "Security Reviewer"');
+    expect(files.find((file) => file.path === '.github/prompts/release-notes.prompt.md')?.content).toContain('# Release Notes');
+    expect(files.find((file) => file.path === '.github/instructions/docs-scope.instructions.md')?.content).toContain('# Docs Scope');
+    expect(files.find((file) => file.path === '.github/skills/review-pr/SKILL.md')?.content).toContain('name: "review-pr"');
+    expect(files.find((file) => file.path === '.github/skills/review-pr/SKILL.md')?.content).toContain('# Review PR');
+  });
+
   it('generates all files in deterministic path order', () => {
     const files = generateFiles(pipeline);
     expect(files.map((file) => file.path)).toEqual([...files.map((file) => file.path)].sort());
