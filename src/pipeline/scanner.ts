@@ -7,6 +7,7 @@ import { agentFilePath } from './generators/agentGenerator';
 import { promptFilePath } from './generators/promptGenerator';
 import { instructionFilePath } from './generators/instructionGenerator';
 import { skillFilePath } from './generators/skillGenerator';
+import { GENERATED_MARKER } from './generators/shared';
 
 async function exists(file: string): Promise<boolean> {
   try { await fs.access(file); return true; } catch { return false; }
@@ -40,13 +41,15 @@ function titleFromId(id: string): string {
 type FrontmatterValue = string | boolean | string[] | AgentHandoff[];
 
 function frontmatter(source: string): Record<string, FrontmatterValue> {
-  if (!source.startsWith('---')) return {};
-  const end = source.indexOf('\n---', 3);
+  let content = source.trimStart();
+  if (content.startsWith(GENERATED_MARKER)) content = content.slice(GENERATED_MARKER.length).replace(/^(?:\r?\n)+/, '');
+  if (!content.startsWith('---')) return {};
+  const end = content.indexOf('\n---', 3);
   if (end < 0) return {};
   const data: Record<string, FrontmatterValue> = {};
   let current: string | undefined;
   let currentObject: Record<string, string | boolean> | undefined;
-  for (const line of source.slice(3, end).split(/\r?\n/)) {
+  for (const line of content.slice(3, end).split(/\r?\n/)) {
     const key = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
     if (key) { current = key[1]; currentObject = undefined; data[current] = key[2] ? parseYamlScalar(key[2]) : []; continue; }
     const objectItem = line.match(/^\s*-\s+([A-Za-z0-9_-]+):\s*(.*)$/);

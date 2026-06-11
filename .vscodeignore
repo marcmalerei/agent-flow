@@ -3,9 +3,11 @@
 .github/**
 .vscode/**
 docs/**
+examples/**
 scripts/**
 smoke/**
 test/**
+test-results/**
 src/**
 node_modules/.cache/**
 dist-smoke/**
@@ -15,5 +17,6 @@ webview-dist/**/*.map
 tsconfig.smoke.json
 vitest.config.*
 vite.webview.config.*
+vite.webview.dev.config.*
 tsconfig.json
 package-lock.json
