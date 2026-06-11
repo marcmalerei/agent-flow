@@ -450,7 +450,7 @@ function addReferencedCustomizationNodes(nodes: PipelineNode[], edges: PipelineE
         continue;
       }
       const edge = customizationReferenceEdge(source, target, ref.kind);
-      if (!edges.some((item) => item.id === edge.id)) edges.push(edge);
+      if (!edges.some((item) => item.from === edge.from && item.to === edge.to)) edges.push(edge);
     }
   }
 }
