@@ -14,6 +14,26 @@ export function connectPipelineNodes(pipeline: AgentPipeline, sourceId: string, 
   return { ...pipeline, nodes, edges };
 }
 
+export function renameNodeLabel(node: PipelineNode, label: string): PipelineNode {
+  if (node.type === 'agent') {
+    return { ...node, label, agentFile: managedPath(node.agentFile, '.github/agents/', '.agent.md') ? `.github/agents/${slugFileStem(label, node.id)}.agent.md` : node.agentFile };
+  }
+  if (node.type === 'prompt') {
+    return { ...node, label, promptFile: managedPath(node.promptFile, '.github/prompts/', '.prompt.md') ? `.github/prompts/${slugFileStem(label, node.id)}.prompt.md` : node.promptFile };
+  }
+  if (node.type === 'instruction') {
+    return { ...node, label, instructionFile: managedPath(node.instructionFile, '.github/instructions/', '.instructions.md') ? `.github/instructions/${slugFileStem(label, node.id)}.instructions.md` : node.instructionFile };
+  }
+  if (node.type === 'skill') {
+    return { ...node, label, skillFile: managedSkillPath(node.skillFile) ? `.github/skills/${slugFileStem(label, node.id)}/SKILL.md` : node.skillFile };
+  }
+  if (node.type === 'artifact') {
+    const extension = fileExtension(node.path) || '.md';
+    return { ...node, label, path: managedPath(node.path, '.agent-output/', extension) ? `.agent-output/${slugFileStem(label, node.id)}${extension}` : node.path };
+  }
+  return { ...node, label } as PipelineNode;
+}
+
 function edgeForConnection(source: PipelineNode, target: PipelineNode): PipelineEdge {
   const instructionEdge = instructionConnectionEdge(source, target);
   if (instructionEdge) return instructionEdge;
@@ -174,4 +194,22 @@ function inferReferenceEdgeKind(sourceId: string, targetId: string, nodes: Pipel
   if (source?.type === 'artifact' || target?.type === 'artifact') return 'artifact';
   if (source?.type === 'prompt' && target?.type === 'agent') return 'prompt';
   return 'flow';
+}
+
+function managedPath(value: string | undefined, prefix: string, suffix: string): boolean {
+  return Boolean(value?.startsWith(prefix) && value.endsWith(suffix) && value.slice(prefix.length, -suffix.length).length > 0 && !value.slice(prefix.length, -suffix.length).includes('/'));
+}
+
+function managedSkillPath(value: string | undefined): boolean {
+  return Boolean(value?.startsWith('.github/skills/') && value.endsWith('/SKILL.md') && value.slice('.github/skills/'.length, -'/SKILL.md'.length).length > 0 && !value.slice('.github/skills/'.length, -'/SKILL.md'.length).includes('/'));
+}
+
+function fileExtension(value: string): string {
+  const name = value.split('/').at(-1) ?? '';
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(dot) : '';
+}
+
+function slugFileStem(label: string, fallback: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
 }
