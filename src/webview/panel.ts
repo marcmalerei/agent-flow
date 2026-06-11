@@ -14,6 +14,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspace) { vscode.window.showErrorMessage('Open a workspace folder before opening AgentFlow.'); return; }
   let pipeline = await loadOrInferPipeline(workspace);
+  let selectedId: string | undefined;
   const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'AgentFlow Pipeline', vscode.ViewColumn.One, {
     enableScripts: true,
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
@@ -21,11 +22,19 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
   panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline));
   const configurationListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
     if (!event.affectsConfiguration('agentflow.flow.layout')) return;
-    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId: undefined });
+    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId });
   });
-  panel.onDidDispose(() => configurationListener.dispose());
+  const fileWatchers = createPipelineFileWatchers(workspace, async () => {
+    pipeline = await loadOrInferPipeline(workspace);
+    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId });
+  });
+  panel.onDidDispose(() => {
+    configurationListener.dispose();
+    fileWatchers.dispose();
+  });
   panel.webview.onDidReceiveMessage(async (message) => {
     if (message?.command === 'savePipeline') {
+      selectedId = typeof message.selectedId === 'string' ? message.selectedId : selectedId;
       pipeline = await handleSavePipelineMessage({
         message,
         workspace,
@@ -39,6 +48,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
       });
     }
     if (message?.command === 'writeMarkdownFiles') {
+      selectedId = typeof message.selectedId === 'string' ? message.selectedId : selectedId;
       const nextPipeline = await handleWriteMarkdownFilesMessage({
         message,
         workspace,
@@ -56,6 +66,39 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
       });
       if (nextPipeline) pipeline = nextPipeline;
     }
+  });
+}
+
+
+function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<void>): vscode.Disposable {
+  const patterns = [
+    '.agent-pipeline/pipeline.json',
+    '.github/agents/**/*.agent.md',
+    '.github/prompts/**/*.prompt.md',
+    '.github/instructions/**/*.instructions.md',
+    '.github/skills/**/SKILL.md',
+    '.agent-output/**/*.{md,json,txt}'
+  ];
+  const watchers = patterns.map((pattern) => vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(workspace, pattern)));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let disposed = false;
+  const schedule = () => {
+    if (disposed) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = undefined;
+      onRefresh().catch((error) => vscode.window.showWarningMessage(`AgentFlow could not refresh the pipeline after file changes: ${(error as Error).message}`));
+    }, 250);
+  };
+  for (const watcher of watchers) {
+    watcher.onDidCreate(schedule);
+    watcher.onDidChange(schedule);
+    watcher.onDidDelete(schedule);
+  }
+  return new vscode.Disposable(() => {
+    disposed = true;
+    if (timer) clearTimeout(timer);
+    watchers.forEach((watcher) => watcher.dispose());
   });
 }
 

@@ -10,15 +10,22 @@ export function stripYamlQuotes(value: string): string {
   return current.replace(/\\(["'])/g, '$1').trim();
 }
 
+
+function agentReferenceName(value: string): string {
+  const stripped = stripYamlQuotes(value);
+  const pathMatch = stripped.match(/(?:^|\/)([^/]+)\.agent\.md$/);
+  return pathMatch ? pathMatch[1] : stripped;
+}
+
 export function slugifyAgentReference(value: string): string {
-  return stripYamlQuotes(value)
+  return agentReferenceName(value)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
 
 export function resolveAgentReference(reference: string, nodes: PipelineNode[]): string | undefined {
-  const normalizedReference = stripYamlQuotes(reference);
+  const normalizedReference = agentReferenceName(reference);
   const slug = slugifyAgentReference(reference);
   const agents = nodes.filter((node) => node.type === 'agent');
   const match = agents.find((node) => {
