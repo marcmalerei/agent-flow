@@ -116,10 +116,11 @@ function parseYamlScalar(value: string): string | boolean {
 }
 
 
-function customizationKind(filePath: string): 'agent' | 'prompt' | 'instruction' | undefined {
+function customizationKind(filePath: string): 'agent' | 'prompt' | 'instruction' | 'skill' | undefined {
   if (filePath.endsWith('.agent.md')) return 'agent';
   if (filePath.endsWith('.prompt.md')) return 'prompt';
   if (filePath.endsWith('.instructions.md')) return 'instruction';
+  if (/^\.github\/skills\/[^/]+\/SKILL\.md$/i.test(filePath)) return 'skill';
   return undefined;
 }
 
@@ -131,12 +132,13 @@ function customizationNodeId(filePath: string): string {
   if (filePath.endsWith('.agent.md')) return path.basename(filePath, '.agent.md');
   if (filePath.endsWith('.prompt.md')) return path.basename(filePath, '.prompt.md');
   if (filePath.endsWith('.instructions.md')) return path.basename(filePath, '.instructions.md');
+  if (/^\.github\/skills\/[^/]+\/SKILL\.md$/i.test(filePath)) return path.basename(path.dirname(filePath));
   return filePath.replace(/[^A-Za-z0-9_-]/g, '-');
 }
 
-function parseCustomizationRefs(source: string): Array<{ path: string; kind: 'agent' | 'prompt' | 'instruction' }> {
-  const refs: Array<{ path: string; kind: 'agent' | 'prompt' | 'instruction' }> = [];
-  const pattern = /`([^`]+\.(?:agent|prompt|instructions)\.md)`/gi;
+function parseCustomizationRefs(source: string): Array<{ path: string; kind: 'agent' | 'prompt' | 'instruction' | 'skill' }> {
+  const refs: Array<{ path: string; kind: 'agent' | 'prompt' | 'instruction' | 'skill' }> = [];
+  const pattern = /`([^`]+(?:\.(?:agent|prompt|instructions)\.md|\/SKILL\.md))`/gi;
   for (const match of source.matchAll(pattern)) {
     const kind = customizationKind(match[1]);
     if (kind) refs.push({ path: match[1], kind });
@@ -188,6 +190,10 @@ function mergeArtifactUsages(...groups: Array<ArtifactUsage[] | undefined>): Art
     byKey.set(key, { ...usage, instruction: byKey.get(key)?.instruction ?? usage.instruction });
   }
   return byKey.size ? [...byKey.values()] : undefined;
+}
+
+function parsePromptStartAgent(fm: Record<string, FrontmatterValue>, source: string): string | undefined {
+  return typeof fm.agent === 'string' ? stripYamlQuotes(fm.agent) : source.match(/Start with `([^`]+)`/)?.[1];
 }
 
 function parseInstructionRefs(source: string): ReferenceInstruction[] | undefined {
@@ -300,7 +306,7 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
       description: typeof fm.description === 'string' ? fm.description : node.description,
       argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : node.argumentHint,
       model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : node.model,
-      startAgent: markdown.match(/Start with `([^`]+)`/)?.[1] ?? node.startAgent,
+      startAgent: parsePromptStartAgent(fm, markdown) ?? node.startAgent,
       requiredArtifacts: artifactUsages?.map((usage) => usage.path) ?? node.requiredArtifacts,
       artifactUsages: artifactUsages ?? node.artifactUsages,
       instructionRefs: parseInstructionRefs(markdown) ?? node.instructionRefs,
@@ -381,11 +387,12 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const id = path.basename(file, '.prompt.md');
     const content = await fs.readFile(file, 'utf8');
     const fm = frontmatter(content);
-    const startAgent = content.match(/Start with `([^`]+)`/)?.[1];
+    const startAgent = parsePromptStartAgent(fm, content);
+    const normalizedStartAgent = startAgent ? normalizeAgentCalls([startAgent], nodes)[0] : undefined;
     const artifactUsages = parseArtifactUsages(content, 'Required artifacts');
     const instructionRefs = parseInstructionRefs(content);
-    nodes.push({ id, type: 'prompt', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), promptFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, markdown: content, startAgent, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, position: addPosition() });
-    if (startAgent) edges.push({ id: `${id}-starts-${startAgent}`, from: id, to: startAgent, kind: 'prompt' });
+    nodes.push({ id, type: 'prompt', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), promptFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, markdown: content, startAgent: normalizedStartAgent, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, position: addPosition() });
+    if (normalizedStartAgent) edges.push({ id: `${id}-starts-${normalizedStartAgent}`, from: id, to: normalizedStartAgent, kind: 'prompt' });
   }
 
   const instructionFiles = await findFiles(path.join(workspace, '.github/instructions'), (file) => file.endsWith('.instructions.md'));
@@ -455,20 +462,21 @@ function addReferencedCustomizationNodes(nodes: PipelineNode[], edges: PipelineE
   }
 }
 
-function placeholderCustomizationNode(ref: { path: string; kind: 'agent' | 'prompt' | 'instruction' }, position: { x: number; y: number }): PipelineNode {
+function placeholderCustomizationNode(ref: { path: string; kind: 'agent' | 'prompt' | 'instruction' | 'skill' }, position: { x: number; y: number }): PipelineNode {
   const id = customizationNodeId(ref.path);
   const base = { id, label: titleFromId(id), markdown: '', position };
   if (ref.kind === 'agent') return { ...base, type: 'agent', agentFile: ref.path, tools: [], calls: [], inputs: [], outputs: [] };
   if (ref.kind === 'prompt') return { ...base, type: 'prompt', promptFile: ref.path, tools: [], workflow: [], constraints: [] };
+  if (ref.kind === 'skill') return { ...base, type: 'skill', skillFile: ref.path, activationCriteria: [], procedure: [] };
   return { ...base, type: 'instruction', instructionFile: ref.path, applyTo: '**/*', rules: [] };
 }
 
-function customizationReferenceEdge(source: PipelineNode, target: PipelineNode, kind: 'agent' | 'prompt' | 'instruction'): PipelineEdge {
+function customizationReferenceEdge(source: PipelineNode, target: PipelineNode, kind: 'agent' | 'prompt' | 'instruction' | 'skill'): PipelineEdge {
   return {
     id: `${source.id}-references-${target.id}`,
     from: source.id,
     to: target.id,
-    kind: kind === 'instruction' ? 'instruction' : 'flow',
+    kind: kind === 'instruction' || kind === 'skill' ? kind : 'flow',
     label: 'references'
   };
 }

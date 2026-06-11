@@ -34,10 +34,11 @@ describe('repository .github example data', () => {
     expect(pipeline.nodes.some((node) => node.type === 'handoff' && node.id === 'orchestrator-handoff-quality-review')).toBe(true);
     expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.agent-output/example-plan.md')).toBe(true);
 
-    expect(pipeline.nodes.some((node) => node.type === 'artifact' && ['.github/agents/worker.agent.md', '.github/prompts/implementation.prompt.md', '.github/instructions/shared.instructions.md'].includes(node.path))).toBe(false);
+    expect(pipeline.nodes.some((node) => node.type === 'artifact' && ['.github/agents/worker.agent.md', '.github/prompts/implementation.prompt.md', '.github/instructions/shared.instructions.md', '.github/skills/repo-audit/SKILL.md'].includes(node.path))).toBe(false);
     expect(pipeline.edges).toContainEqual({ id: 'orchestrator-calls-worker', from: 'orchestrator', to: 'worker', kind: 'flow' });
     expect(pipeline.edges.some((edge) => edge.from === 'implementation' && edge.to === 'orchestrator' && edge.kind === 'prompt')).toBe(true);
     expect(pipeline.edges).toContainEqual({ id: 'orchestrator-references-implementation', from: 'orchestrator', to: 'implementation', kind: 'flow', label: 'references' });
+    expect(pipeline.edges).toContainEqual({ id: 'orchestrator-references-repo-audit', from: 'orchestrator', to: 'repo-audit', kind: 'skill', label: 'references' });
 
     const visible = deriveVisibleFlowEdges(pipeline);
     expect(visible.filter((edge) => edge.source === 'shared' && edge.target === 'orchestrator')).toHaveLength(1);

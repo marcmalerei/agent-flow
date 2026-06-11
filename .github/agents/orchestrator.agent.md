@@ -42,4 +42,6 @@ Read `.github/instructions/shared.instructions.md` for repository rules.
 
 Read `.github/agents/worker.agent.md` for worker scope.
 
-Use `@repo-audit` when the request involves repository-wide analysis.
+Read `.github/skills/repo-audit/SKILL.md` when the request involves repository-wide analysis.
+
+Use `@repo-audit` for repository-wide analysis.

@@ -241,3 +241,52 @@ Read \`.github/instructions/manual.instructions.md\`.
   expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.agent-output/manual.md')).toBe(true);
   expect(pipeline.nodes.find((node) => node.id === 'manual')?.type).toBe('instruction');
 });
+
+it('treats referenced .github skills directory SKILL.md files as skill nodes, not artifacts', async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-skill-ref-'));
+  await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+  await fs.writeFile(path.join(workspace, '.github/agents/router.agent.md'), `---
+name: Router
+---
+
+# Router
+
+Read \`.github/skills/repo-audit/SKILL.md\`.
+Read \`.github/skills/not-a-skill.skill.md\`.
+`, 'utf8');
+
+  const pipeline = await inferPipelineFromWorkspace(workspace);
+
+  expect(pipeline.nodes.find((node) => node.id === 'repo-audit')?.type).toBe('skill');
+  expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.github/skills/repo-audit/SKILL.md')).toBe(false);
+  expect(pipeline.nodes.some((node) => node.type === 'skill' && 'skillFile' in node && node.skillFile === '.github/skills/not-a-skill.skill.md')).toBe(false);
+});
+
+it('uses prompt frontmatter agent references for prompt-to-agent edges', async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-prompt-agent-'));
+  await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+  await fs.mkdir(path.join(workspace, '.github/prompts'), { recursive: true });
+  await fs.writeFile(path.join(workspace, '.github/agents/router.agent.md'), `---
+name: Router
+---
+
+# Router
+`, 'utf8');
+  await fs.writeFile(path.join(workspace, '.github/prompts/kickoff.prompt.md'), `---
+name: Kickoff
+agent: .github/agents/router.agent.md
+---
+
+# Kickoff
+
+No body start line here.
+`, 'utf8');
+
+  const pipeline = await inferPipelineFromWorkspace(workspace);
+  const prompt = pipeline.nodes.find((node) => node.id === 'kickoff' && node.type === 'prompt');
+
+  expect(prompt?.type).toBe('prompt');
+  expect(prompt?.startAgent).toBe('router');
+  expect(pipeline.edges).toContainEqual({ id: 'kickoff-starts-router', from: 'kickoff', to: 'router', kind: 'prompt' });
+  expect(deriveVisibleFlowEdges(pipeline).filter((edge) => edge.source === 'kickoff' && edge.target === 'router')).toHaveLength(1);
+});
