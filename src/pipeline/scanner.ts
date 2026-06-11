@@ -258,9 +258,84 @@ async function hydrateMarkdownContent(workspace: string, pipeline: AgentPipeline
     const markdownPath = markdownFileForNode(node);
     if (!markdownPath) return node;
     const markdown = await readIfExists(path.join(workspace, markdownPath));
-    return markdown === undefined ? node : { ...node, markdown };
+    return markdown === undefined ? node : applyMarkdownToNode(node, markdown);
   }));
-  return { ...pipeline, nodes };
+  const edges = [...pipeline.edges];
+  addReferencedCustomizationNodes(nodes, edges, () => nextHydratedPosition(nodes));
+  addReferencedArtifactNodes(nodes, () => nextHydratedPosition(nodes));
+  addAgentConfigurationNodes(nodes, edges, () => nextHydratedPosition(nodes));
+  return normalizePipelineAgentReferences({ ...pipeline, nodes, edges });
+}
+
+function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode {
+  const fm = frontmatter(markdown);
+  if (node.type === 'agent') {
+    const artifactUsages = parseArtifactUsages(markdown, 'Artifact work');
+    return {
+      ...node,
+      label: typeof fm.name === 'string' && fm.name ? fm.name : node.label,
+      description: typeof fm.description === 'string' ? fm.description : node.description,
+      argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : node.argumentHint,
+      model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : node.model,
+      target: typeof fm.target === 'string' ? fm.target : node.target,
+      userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : node.userInvocable,
+      disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : node.disableModelInvocation,
+      hooks: isHooks(fm.hooks) ? fm.hooks : node.hooks,
+      mcpServers: Array.isArray(fm['mcp-servers']) ? fm['mcp-servers'] as McpServerConfig[] : node.mcpServers,
+      tools: Array.isArray(fm.tools) ? fm.tools as string[] : node.tools,
+      calls: Array.isArray(fm.agents) ? fm.agents as string[] : node.calls,
+      handoffs: frontmatterHandoffs(fm.handoffs) ?? node.handoffs,
+      outputs: artifactUsages?.filter((usage) => usage.action === 'write' || usage.action === 'append').map((usage) => usage.path) ?? node.outputs,
+      inputs: artifactUsages?.filter((usage) => usage.action === 'read' || usage.action === 'validate').map((usage) => usage.path) ?? node.inputs,
+      artifactUsages: artifactUsages ?? node.artifactUsages,
+      instructionRefs: parseInstructionRefs(markdown) ?? node.instructionRefs,
+      markdown
+    };
+  }
+  if (node.type === 'prompt') {
+    const artifactUsages = parseArtifactUsages(markdown, 'Required artifacts');
+    return {
+      ...node,
+      label: typeof fm.name === 'string' ? fm.name : node.label,
+      description: typeof fm.description === 'string' ? fm.description : node.description,
+      argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : node.argumentHint,
+      model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : node.model,
+      startAgent: markdown.match(/Start with `([^`]+)`/)?.[1] ?? node.startAgent,
+      requiredArtifacts: artifactUsages?.map((usage) => usage.path) ?? node.requiredArtifacts,
+      artifactUsages: artifactUsages ?? node.artifactUsages,
+      instructionRefs: parseInstructionRefs(markdown) ?? node.instructionRefs,
+      markdown
+    };
+  }
+  if (node.type === 'instruction') {
+    return {
+      ...node,
+      label: typeof fm.name === 'string' ? fm.name : node.label,
+      description: typeof fm.description === 'string' ? stripYamlQuotes(fm.description) : node.description,
+      applyTo: typeof fm.applyTo === 'string' ? stripYamlQuotes(fm.applyTo) : node.applyTo,
+      excludeAgent: typeof fm.excludeAgent === 'string' ? stripYamlQuotes(fm.excludeAgent) : node.excludeAgent,
+      instructionRefs: parseInstructionRefs(markdown) ?? node.instructionRefs,
+      markdown
+    };
+  }
+  if (node.type === 'skill') {
+    return {
+      ...node,
+      label: typeof fm.name === 'string' ? fm.name : node.label,
+      description: typeof fm.description === 'string' ? fm.description : markdown.match(/## Description\s+([\s\S]*?)(\n##|$)/)?.[1]?.trim() ?? node.description,
+      argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : node.argumentHint,
+      userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : node.userInvocable,
+      disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : node.disableModelInvocation,
+      context: typeof fm.context === 'string' ? fm.context : node.context,
+      markdown
+    };
+  }
+  return { ...node, markdown };
+}
+
+function nextHydratedPosition(nodes: PipelineNode[]): { x: number; y: number } {
+  const index = nodes.length;
+  return { x: 80 + Math.floor(index / 4) * 180, y: 160 + (index % 4) * 120 };
 }
 
 function markdownFileForNode(node: PipelineNode): string | undefined {
@@ -423,23 +498,28 @@ function addAgentConfigurationNodes(nodes: PipelineNode[], edges: PipelineEdge[]
     for (const handoff of agent.handoffs ?? []) {
       const handoffId = `${agent.id}-handoff-${slugPart(handoff.label)}`;
       if (!nodes.some((node) => node.id === handoffId)) nodes.push({ id: handoffId, type: 'handoff', label: handoff.label, sourceAgent: agent.id, targetAgent: handoff.agent, prompt: handoff.prompt, send: handoff.send, model: handoff.model, position: addPosition() });
-      edges.push({ id: `${agent.id}-handoff-node-${handoffId}`, from: agent.id, to: handoffId, kind: 'handoff', label: handoff.label });
+      pushEdgeUnique(edges, { id: `${agent.id}-handoff-node-${handoffId}`, from: agent.id, to: handoffId, kind: 'handoff', label: handoff.label });
       const target = normalizeAgentCalls([handoff.agent], nodes)[0];
-      if (target) edges.push({ id: `${handoffId}-handoff-target-${target}`, from: handoffId, to: target, kind: 'handoff', label: handoff.label });
+      if (target) pushEdgeUnique(edges, { id: `${handoffId}-handoff-target-${target}`, from: handoffId, to: target, kind: 'handoff', label: handoff.label });
     }
     for (const [trigger, commands] of Object.entries(agent.hooks ?? {})) {
       commands.forEach((command, index) => {
         const hookId = `${agent.id}-hook-${slugPart(trigger)}-${index + 1}`;
         if (!nodes.some((node) => node.id === hookId)) nodes.push({ id: hookId, type: 'hook', label: `${trigger} hook`, trigger, action: command.command, position: addPosition() });
-        edges.push({ id: `${agent.id}-hook-${hookId}`, from: agent.id, to: hookId, kind: 'hook', label: trigger });
+        pushEdgeUnique(edges, { id: `${agent.id}-hook-${hookId}`, from: agent.id, to: hookId, kind: 'hook', label: trigger });
       });
     }
     for (const server of agent.mcpServers ?? []) {
       const serverId = `${agent.id}-mcp-${slugPart(server.name)}`;
       if (!nodes.some((node) => node.id === serverId)) nodes.push({ id: serverId, type: 'mcp-server', label: server.name, ownerAgent: agent.id, command: server.command, args: server.args, position: addPosition() });
-      edges.push({ id: `${agent.id}-mcp-${serverId}`, from: agent.id, to: serverId, kind: 'mcp-server', label: server.name });
+      pushEdgeUnique(edges, { id: `${agent.id}-mcp-${serverId}`, from: agent.id, to: serverId, kind: 'mcp-server', label: server.name });
     }
   }
+}
+
+
+function pushEdgeUnique(edges: PipelineEdge[], edge: PipelineEdge): void {
+  if (!edges.some((item) => item.id === edge.id)) edges.push(edge);
 }
 
 function slugPart(value: string): string {

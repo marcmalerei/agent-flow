@@ -206,3 +206,35 @@ Read \`.agent-output/result.md\`.
   expect(pipeline.nodes.some((node) => node.type === 'artifact' && ['.github/agents/worker.agent.md', '.github/prompts/build.prompt.md', '.github/instructions/template.instructions.md'].includes(node.path))).toBe(false);
   expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.agent-output/result.md')).toBe(true);
 });
+
+it('reloads file-backed pipeline nodes from manual markdown edits when pipeline JSON exists', async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-hydrate-refs-'));
+  await fs.mkdir(path.join(workspace, '.agent-pipeline'), { recursive: true });
+  await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+  await fs.writeFile(path.join(workspace, '.agent-pipeline/pipeline.json'), stringifyPipeline({
+    version: 1,
+    name: 'Hydrate markdown refs',
+    nodes: [
+      { id: 'router', type: 'agent', label: 'Router', agentFile: '.github/agents/router.agent.md', tools: [], calls: [], inputs: [], outputs: [] }
+    ],
+    edges: []
+  }), 'utf8');
+  await fs.writeFile(path.join(workspace, '.github/agents/router.agent.md'), `---
+name: Router
+---
+
+# Router
+
+Read \`.agent-output/manual.md\`.
+Read \`.github/instructions/manual.instructions.md\`.
+`, 'utf8');
+
+  const pipeline = await loadOrInferPipeline(workspace);
+  const router = pipeline.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+
+  expect(router?.type).toBe('agent');
+  expect(router?.inputs).toEqual(['.agent-output/manual.md']);
+  expect(router?.instructionRefs).toEqual([{ target: '.github/instructions/manual.instructions.md' }]);
+  expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.agent-output/manual.md')).toBe(true);
+  expect(pipeline.nodes.find((node) => node.id === 'manual')?.type).toBe('instruction');
+});
