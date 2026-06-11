@@ -37,7 +37,8 @@ export function yamlString(value: string): string {
   return `"${frontmatterValue(value)}"`;
 }
 
-export function yamlStringLine(name: string, value: string | undefined): string {
+export function yamlStringLine(name: string, value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return yamlList(name, value) + '\n';
   return value ? `${name}: ${yamlString(value)}\n` : '';
 }
 

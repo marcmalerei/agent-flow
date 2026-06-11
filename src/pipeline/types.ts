@@ -1,7 +1,7 @@
 export const PIPELINE_VERSION = 1;
 
-export type PipelineNodeType = 'agent' | 'prompt' | 'instruction' | 'skill' | 'artifact' | 'gate' | 'hook';
-export type PipelineEdgeKind = 'flow' | 'artifact' | 'prompt' | 'skill' | 'gate' | 'handoff';
+export type PipelineNodeType = 'agent' | 'prompt' | 'instruction' | 'skill' | 'artifact' | 'gate' | 'hook' | 'handoff' | 'mcp-server';
+export type PipelineEdgeKind = 'flow' | 'artifact' | 'prompt' | 'skill' | 'gate' | 'handoff' | 'hook' | 'mcp-server' | 'instruction';
 export type ToolPermission = 'agent' | 'browser' | 'edit' | 'execute' | 'read' | 'search' | 'todo' | 'vscode' | 'web' | string;
 export type CustomizationTarget = 'vscode' | 'github-copilot' | string;
 export type SkillContext = 'inline' | 'fork' | string;
@@ -14,6 +14,21 @@ export interface AgentHandoff {
   prompt?: string;
   send?: boolean;
   model?: string;
+}
+
+export interface AgentHookCommand {
+  type: string;
+  command?: string;
+  [key: string]: string | boolean | number | undefined;
+}
+
+export type AgentHooks = Record<string, AgentHookCommand[]>;
+
+export interface McpServerConfig {
+  name: string;
+  command?: string;
+  args?: string | string[];
+  [key: string]: string | string[] | boolean | number | undefined;
 }
 
 export type ArtifactAction = 'read' | 'write' | 'append' | 'validate' | string;
@@ -43,11 +58,13 @@ export interface AgentNode extends BaseNode {
   type: 'agent';
   agentFile?: string;
   argumentHint?: string;
-  model?: string;
+  model?: string | string[];
   target?: CustomizationTarget;
   userInvocable?: boolean;
   disableModelInvocation?: boolean;
   handoffs?: AgentHandoff[];
+  hooks?: AgentHooks;
+  mcpServers?: McpServerConfig[];
   tools?: ToolPermission[];
   calls?: string[];
   inputs?: string[];
@@ -67,7 +84,7 @@ export interface PromptNode extends BaseNode {
   type: 'prompt';
   promptFile?: string;
   argumentHint?: string;
-  model?: string;
+  model?: string | string[];
   startAgent?: string;
   tools?: ToolPermission[];
   workflow?: string[];
@@ -83,6 +100,7 @@ export interface InstructionNode extends BaseNode {
   instructionFile?: string;
   applyTo: string;
   excludeAgent?: 'code-review' | 'cloud-agent' | string;
+  instructionRefs?: ReferenceInstruction[];
   rules?: string[];
 }
 
@@ -123,7 +141,23 @@ export interface HookNode extends BaseNode {
   action?: string;
 }
 
-export type PipelineNode = AgentNode | PromptNode | InstructionNode | SkillNode | ArtifactNode | GateNode | HookNode;
+export interface HandoffNode extends BaseNode {
+  type: 'handoff';
+  sourceAgent?: string;
+  targetAgent?: string;
+  prompt?: string;
+  send?: boolean;
+  model?: string;
+}
+
+export interface McpServerNode extends BaseNode {
+  type: 'mcp-server';
+  ownerAgent?: string;
+  command?: string;
+  args?: string | string[];
+}
+
+export type PipelineNode = AgentNode | PromptNode | InstructionNode | SkillNode | ArtifactNode | GateNode | HookNode | HandoffNode | McpServerNode;
 
 export interface PipelineEdge {
   id: string;
