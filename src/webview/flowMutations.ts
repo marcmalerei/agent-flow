@@ -1,4 +1,4 @@
-import { AgentPipeline, ArtifactAction, ArtifactUsage, PipelineEdge, PipelineNode, ReferenceInstruction } from '../pipeline/types';
+import { AgentPipeline, ArtifactAction, ArtifactUsage, PipelineEdge, PipelineNode, ReferenceInstruction, ReferenceRole } from '../pipeline/types';
 import { deriveVisibleFlowEdges } from './graph';
 
 export function connectPipelineNodes(pipeline: AgentPipeline, sourceId: string, targetId: string): AgentPipeline {
@@ -27,6 +27,9 @@ export function renameNodeLabel(node: PipelineNode, label: string): PipelineNode
   if (node.type === 'skill') {
     return { ...node, label, skillFile: managedSkillPath(node.skillFile) ? `.github/skills/${slugFileStem(label, node.id)}/SKILL.md` : node.skillFile };
   }
+  if (node.type === 'role') {
+    return { ...node, label, roleFile: managedPath(node.roleFile, '.github/roles/', '.md') ? `.github/roles/${slugFileStem(label, node.id)}.md` : node.roleFile };
+  }
   if (node.type === 'artifact') {
     const extension = fileExtension(node.path) || '.md';
     return { ...node, label, path: managedPath(node.path, '.agent-output/', extension) ? `.agent-output/${slugFileStem(label, node.id)}${extension}` : node.path };
@@ -37,6 +40,8 @@ export function renameNodeLabel(node: PipelineNode, label: string): PipelineNode
 function edgeForConnection(source: PipelineNode, target: PipelineNode): PipelineEdge {
   const instructionEdge = instructionConnectionEdge(source, target);
   if (instructionEdge) return instructionEdge;
+  const roleEdge = roleConnectionEdge(source, target);
+  if (roleEdge) return roleEdge;
   const kind = source.type === 'prompt' && target.type === 'agent'
     ? 'prompt'
     : source.type === 'artifact' || target.type === 'artifact'
@@ -51,6 +56,10 @@ function updateNodeReferences(node: PipelineNode, source: PipelineNode, target: 
   const instructionReference = instructionReferenceForConnection(source, target);
   if (instructionReference && node.id === instructionReference.referencingNode.id && supportsInstructionRefs(node)) {
     return { ...node, instructionRefs: upsertInstructionRef(node.instructionRefs, instructionReference.target) };
+  }
+  const roleReference = roleReferenceForConnection(source, target);
+  if (roleReference && node.id === roleReference.referencingNode.id && supportsRoleRefs(node)) {
+    return { ...node, roleRefs: upsertRoleRef(node.roleRefs, roleReference.target) };
   }
   if (node.id === source.id && source.type === 'agent' && target.type === 'agent') {
     return { ...source, calls: addUnique(source.calls, target.id) };
@@ -89,15 +98,22 @@ function upsertInstructionRef(refs: ReferenceInstruction[] | undefined, target: 
   return [...current, { target }];
 }
 
+function upsertRoleRef(refs: ReferenceRole[] | undefined, target: string): ReferenceRole[] {
+  const current = refs ?? [];
+  if (current.some((ref) => ref.target === target)) return current;
+  return [...current, { target }];
+}
+
 export function deletePipelineNodes(pipeline: AgentPipeline, nodeIds: string[]): AgentPipeline {
   const deleted = new Set(nodeIds);
   const deletedNodes = pipeline.nodes.filter((node) => deleted.has(node.id));
   const deletedArtifactPaths = new Set(deletedNodes.filter((node): node is Extract<PipelineNode, { type: 'artifact' }> => node.type === 'artifact').map((node) => node.path));
   const deletedInstructionTargets = new Set(deletedNodes.filter((node): node is Extract<PipelineNode, { type: 'instruction' }> => node.type === 'instruction').flatMap((node) => [node.id, node.label, node.instructionFile ?? `.github/instructions/${node.id}.instructions.md`]));
+  const deletedRoleTargets = new Set(deletedNodes.filter((node): node is Extract<PipelineNode, { type: 'role' }> => node.type === 'role').flatMap((node) => [node.id, node.label, node.roleFile ?? `.github/roles/${node.id}.md`]));
 
   return {
     ...pipeline,
-    nodes: pipeline.nodes.filter((node) => !deleted.has(node.id)).map((node) => removeNodeReferences(node, deleted, deletedArtifactPaths, deletedInstructionTargets)),
+    nodes: pipeline.nodes.filter((node) => !deleted.has(node.id)).map((node) => removeNodeReferences(node, deleted, deletedArtifactPaths, deletedInstructionTargets, deletedRoleTargets)),
     edges: pipeline.edges.filter((edge) => !deleted.has(edge.from) && !deleted.has(edge.to))
   };
 }
@@ -112,7 +128,7 @@ export function deletePipelineEdges(pipeline: AgentPipeline, edgeIds: string[]):
   return { ...pipeline, nodes, edges: pipeline.edges.filter((edge) => !deleted.has(edge.id)) };
 }
 
-function removeNodeReferences(node: PipelineNode, deletedNodeIds: Set<string>, deletedArtifactPaths: Set<string>, deletedInstructionTargets: Set<string>): PipelineNode {
+function removeNodeReferences(node: PipelineNode, deletedNodeIds: Set<string>, deletedArtifactPaths: Set<string>, deletedInstructionTargets: Set<string>, deletedRoleTargets: Set<string>): PipelineNode {
   if (node.type === 'agent') {
     return {
       ...node,
@@ -121,7 +137,8 @@ function removeNodeReferences(node: PipelineNode, deletedNodeIds: Set<string>, d
       inputs: node.inputs?.filter((path) => !deletedArtifactPaths.has(path)),
       outputs: node.outputs?.filter((path) => !deletedArtifactPaths.has(path)),
       artifactUsages: node.artifactUsages?.filter((usage) => !deletedArtifactPaths.has(usage.path)),
-      instructionRefs: node.instructionRefs?.filter((ref) => !deletedInstructionTargets.has(ref.target))
+      instructionRefs: node.instructionRefs?.filter((ref) => !deletedInstructionTargets.has(ref.target)),
+      roleRefs: node.roleRefs?.filter((ref) => !deletedRoleTargets.has(ref.target))
     };
   }
   if (node.type === 'prompt') {
@@ -130,7 +147,8 @@ function removeNodeReferences(node: PipelineNode, deletedNodeIds: Set<string>, d
       startAgent: node.startAgent && deletedNodeIds.has(node.startAgent) ? undefined : node.startAgent,
       requiredArtifacts: node.requiredArtifacts?.filter((path) => !deletedArtifactPaths.has(path)),
       artifactUsages: node.artifactUsages?.filter((usage) => !deletedArtifactPaths.has(usage.path)),
-      instructionRefs: node.instructionRefs?.filter((ref) => !deletedInstructionTargets.has(ref.target))
+      instructionRefs: node.instructionRefs?.filter((ref) => !deletedInstructionTargets.has(ref.target)),
+      roleRefs: node.roleRefs?.filter((ref) => !deletedRoleTargets.has(ref.target))
     };
   }
   if (node.type === 'instruction') {
@@ -147,6 +165,8 @@ function removeEdgeReference(node: PipelineNode, edge: PipelineEdge, nodes: Pipe
   const target = nodes.find((item) => item.id === edge.to);
   if (source?.type === 'instruction' && supportsInstructionRefs(target) && supportsInstructionRefs(node) && node.id === target.id) return { ...node, instructionRefs: removeInstructionRef(node.instructionRefs, instructionReferenceTarget(source)) } as PipelineNode;
   if (target?.type === 'instruction' && supportsInstructionRefs(source) && supportsInstructionRefs(node) && node.id === source.id) return { ...node, instructionRefs: removeInstructionRef(node.instructionRefs, instructionReferenceTarget(target)) } as PipelineNode;
+  if (source?.type === 'role' && supportsRoleRefs(target) && supportsRoleRefs(node) && node.id === target.id) return { ...node, roleRefs: removeRoleRef(node.roleRefs, roleReferenceTarget(source)) } as PipelineNode;
+  if (target?.type === 'role' && supportsRoleRefs(source) && supportsRoleRefs(node) && node.id === source.id) return { ...node, roleRefs: removeRoleRef(node.roleRefs, roleReferenceTarget(target)) } as PipelineNode;
   if (node.type === 'agent' && node.id === edge.from && target?.type === 'agent') return { ...node, calls: node.calls?.filter((id) => id !== target.id), handoffs: node.handoffs?.filter((handoff) => handoff.agent !== target.id) };
   if (node.type === 'prompt' && node.id === edge.from && target?.type === 'agent') return { ...node, startAgent: node.startAgent === target.id ? undefined : node.startAgent };
   if (node.type === 'agent' && node.id === edge.from && target?.type === 'artifact') return { ...node, outputs: node.outputs?.filter((path) => path !== target.path), artifactUsages: node.artifactUsages?.filter((usage) => usage.path !== target.path) };
@@ -169,6 +189,19 @@ function instructionConnectionEdge(source: PipelineNode, target: PipelineNode): 
   };
 }
 
+function roleConnectionEdge(source: PipelineNode, target: PipelineNode): PipelineEdge | undefined {
+  const reference = roleReferenceForConnection(source, target);
+  if (!reference) return undefined;
+  return {
+    id: `${reference.roleNode.id}-role-${reference.referencingNode.id}`,
+    from: reference.roleNode.id,
+    to: reference.referencingNode.id,
+    kind: 'role',
+    label: 'role',
+    artifact: undefined
+  };
+}
+
 function instructionReferenceForConnection(source: PipelineNode, target: PipelineNode): { instructionNode: Extract<PipelineNode, { type: 'instruction' }>; referencingNode: PipelineNode; target: string } | undefined {
   if (source.type === 'instruction' && supportsInstructionRefs(target)) return { instructionNode: source, referencingNode: target, target: instructionReferenceTarget(source) };
   if (target.type === 'instruction' && supportsInstructionRefs(source)) return { instructionNode: target, referencingNode: source, target: instructionReferenceTarget(target) };
@@ -179,11 +212,29 @@ function supportsInstructionRefs(node: PipelineNode | undefined): node is Extrac
   return node?.type === 'agent' || node?.type === 'prompt' || node?.type === 'instruction';
 }
 
+function roleReferenceForConnection(source: PipelineNode, target: PipelineNode): { roleNode: Extract<PipelineNode, { type: 'role' }>; referencingNode: PipelineNode; target: string } | undefined {
+  if (source.type === 'role' && supportsRoleRefs(target)) return { roleNode: source, referencingNode: target, target: roleReferenceTarget(source) };
+  if (target.type === 'role' && supportsRoleRefs(source)) return { roleNode: target, referencingNode: source, target: roleReferenceTarget(target) };
+  return undefined;
+}
+
+function supportsRoleRefs(node: PipelineNode | undefined): node is Extract<PipelineNode, { type: 'agent' | 'prompt' }> {
+  return node?.type === 'agent' || node?.type === 'prompt';
+}
+
 function instructionReferenceTarget(node: Extract<PipelineNode, { type: 'instruction' }>): string {
   return node.instructionFile ?? `.github/instructions/${node.id}.instructions.md`;
 }
 
+function roleReferenceTarget(node: Extract<PipelineNode, { type: 'role' }>): string {
+  return node.roleFile ?? `.github/roles/${node.id}.md`;
+}
+
 function removeInstructionRef(refs: ReferenceInstruction[] | undefined, target: string): ReferenceInstruction[] {
+  return refs?.filter((ref) => ref.target !== target) ?? [];
+}
+
+function removeRoleRef(refs: ReferenceRole[] | undefined, target: string): ReferenceRole[] {
   return refs?.filter((ref) => ref.target !== target) ?? [];
 }
 
@@ -191,6 +242,7 @@ function inferReferenceEdgeKind(sourceId: string, targetId: string, nodes: Pipel
   const source = nodes.find((node) => node.id === sourceId);
   const target = nodes.find((node) => node.id === targetId);
   if (source?.type === 'instruction' || target?.type === 'instruction') return 'instruction';
+  if (source?.type === 'role' || target?.type === 'role') return 'role';
   if (source?.type === 'artifact' || target?.type === 'artifact') return 'artifact';
   if (source?.type === 'prompt' && target?.type === 'agent') return 'prompt';
   return 'flow';

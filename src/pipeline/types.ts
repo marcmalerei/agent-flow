@@ -1,7 +1,7 @@
 export const PIPELINE_VERSION = 1;
 
-export type PipelineNodeType = 'agent' | 'prompt' | 'instruction' | 'skill' | 'artifact' | 'gate' | 'hook' | 'handoff' | 'mcp-server';
-export type PipelineEdgeKind = 'flow' | 'artifact' | 'prompt' | 'skill' | 'gate' | 'handoff' | 'hook' | 'mcp-server' | 'instruction';
+export type PipelineNodeType = 'agent' | 'prompt' | 'instruction' | 'skill' | 'role' | 'artifact' | 'gate' | 'hook' | 'handoff' | 'mcp-server';
+export type PipelineEdgeKind = 'flow' | 'artifact' | 'prompt' | 'skill' | 'role' | 'gate' | 'handoff' | 'hook' | 'mcp-server' | 'instruction';
 export type ToolPermission = 'agent' | 'browser' | 'edit' | 'execute' | 'read' | 'search' | 'todo' | 'vscode' | 'web' | string;
 export type CustomizationTarget = 'vscode' | 'github-copilot' | string;
 export type SkillContext = 'inline' | 'fork' | string;
@@ -44,6 +44,10 @@ export interface ReferenceInstruction {
   instruction?: string;
 }
 
+export interface ReferenceRole {
+  target: string;
+}
+
 export interface BaseNode {
   id: string;
   type: PipelineNodeType;
@@ -71,6 +75,7 @@ export interface AgentNode extends BaseNode {
   outputs?: string[];
   artifactUsages?: ArtifactUsage[];
   instructionRefs?: ReferenceInstruction[];
+  roleRefs?: ReferenceRole[];
   allowedSkills?: string[];
   rules?: string[];
   contextBudget?: string[];
@@ -92,6 +97,7 @@ export interface PromptNode extends BaseNode {
   requiredArtifacts?: string[];
   artifactUsages?: ArtifactUsage[];
   instructionRefs?: ReferenceInstruction[];
+  roleRefs?: ReferenceRole[];
   definitionOfDone?: string[];
 }
 
@@ -115,6 +121,11 @@ export interface SkillNode extends BaseNode {
   doNotUseWhen?: string[];
   procedure?: string[];
   resourceReferences?: string[];
+}
+
+export interface RoleNode extends BaseNode {
+  type: 'role';
+  roleFile?: string;
 }
 
 export interface ArtifactNode extends BaseNode {
@@ -157,7 +168,7 @@ export interface McpServerNode extends BaseNode {
   args?: string | string[];
 }
 
-export type PipelineNode = AgentNode | PromptNode | InstructionNode | SkillNode | ArtifactNode | GateNode | HookNode | HandoffNode | McpServerNode;
+export type PipelineNode = AgentNode | PromptNode | InstructionNode | SkillNode | RoleNode | ArtifactNode | GateNode | HookNode | HandoffNode | McpServerNode;
 
 export interface PipelineEdge {
   id: string;
@@ -178,7 +189,7 @@ export interface AgentPipeline {
 export interface GeneratedFile {
   path: string;
   content: string;
-  kind: 'agent' | 'prompt' | 'instruction' | 'skill' | 'artifact' | 'documentation' | 'pipeline';
+  kind: 'agent' | 'prompt' | 'instruction' | 'skill' | 'role' | 'artifact' | 'documentation' | 'pipeline';
 }
 
 export type FindingSeverity = 'error' | 'warning' | 'risk' | 'info';

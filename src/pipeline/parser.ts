@@ -21,8 +21,8 @@ function assertOptionalString(value: unknown, field: string): string | undefined
   return value.trim() ? value : undefined;
 }
 
-const nodeTypes = new Set(['agent', 'prompt', 'instruction', 'skill', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server']);
-const edgeKinds = new Set(['flow', 'artifact', 'prompt', 'skill', 'gate', 'handoff', 'hook', 'mcp-server', 'instruction']);
+const nodeTypes = new Set(['agent', 'prompt', 'instruction', 'skill', 'role', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server']);
+const edgeKinds = new Set(['flow', 'artifact', 'prompt', 'skill', 'role', 'gate', 'handoff', 'hook', 'mcp-server', 'instruction']);
 
 export function parsePipelineJson(source: string): AgentPipeline {
   let parsed: unknown;
@@ -60,6 +60,8 @@ function parseNode(value: unknown, field: string, seen: Set<string>): PipelineNo
       return { ...base, type, applyTo: assertOptionalString(value.applyTo, `${field}.applyTo`), rules: assertStringArray(value.rules, `${field}.rules`) } as PipelineNode;
     case 'skill':
       return { ...base, type, activationCriteria: assertStringArray(value.activationCriteria, `${field}.activationCriteria`), procedure: assertStringArray(value.procedure, `${field}.procedure`) } as PipelineNode;
+    case 'role':
+      return { ...base, type, roleFile: assertOptionalString(value.roleFile, `${field}.roleFile`) } as PipelineNode;
     case 'artifact':
       return { ...base, type, path: assertString(value.path, `${field}.path`) } as PipelineNode;
     case 'gate':

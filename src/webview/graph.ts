@@ -1,4 +1,4 @@
-import { AgentPipeline, ArtifactUsage, PipelineEdgeKind, PipelineNode, ReferenceInstruction } from '../pipeline/types';
+import { AgentPipeline, ArtifactUsage, PipelineEdgeKind, PipelineNode, ReferenceInstruction, ReferenceRole } from '../pipeline/types';
 import { normalizePipelineAgentReferences, resolveAgentReference, stripYamlQuotes } from '../pipeline/referenceResolver';
 
 interface FlowEdgeMarker {
@@ -17,7 +17,7 @@ export interface VisibleFlowEdge {
   style?: Record<string, string | number>;
   markerEnd?: FlowEdgeMarker;
   data: {
-    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'handoff.targetAgent' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'instruction.instructionRefs' | 'agent.hooks' | 'agent.mcpServers';
+    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'handoff.targetAgent' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'instruction.instructionRefs' | 'agent.roleRefs' | 'prompt.roleRefs' | 'agent.hooks' | 'agent.mcpServers';
     kind: PipelineEdgeKind | 'reference';
     artifact?: string;
   };
@@ -30,6 +30,7 @@ const handoffStyle = { stroke: 'var(--vscode-charts-purple)', strokeDasharray: '
 const artifactStyle = { stroke: 'var(--vscode-charts-green)', strokeWidth: 2, opacity: 0.88 };
 const gateStyle = { stroke: 'var(--vscode-charts-yellow)', strokeDasharray: '8 3', strokeWidth: 2.2, opacity: 0.92 };
 const skillStyle = { stroke: 'var(--vscode-testing-iconPassed, #2ea043)', strokeDasharray: '1 4', strokeWidth: 2, opacity: 0.88 };
+const roleStyle = { stroke: 'var(--vscode-charts-cyan, #00b7c3)', strokeDasharray: '4 4', strokeWidth: 2, opacity: 0.9 };
 const hookStyle = { stroke: 'var(--vscode-charts-red)', strokeDasharray: '2 4', strokeWidth: 2, opacity: 0.9 };
 const mcpStyle = { stroke: 'var(--vscode-charts-cyan, #00b7c3)', strokeDasharray: '6 2', strokeWidth: 2, opacity: 0.9 };
 const instructionStyle = { stroke: 'var(--vscode-charts-orange)', strokeDasharray: '4 2', strokeWidth: 2, opacity: 0.88 };
@@ -63,6 +64,7 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
       .map((node) => [node.path, node.id])
   );
   const instructionsByTarget = instructionTargets(normalized.nodes);
+  const rolesByTarget = roleTargets(normalized.nodes);
   const hookNodesByAgent = hookNodesByAgentId(normalized.nodes);
   const mcpNodesByAgent = mcpNodesByAgentId(normalized.nodes);
 
@@ -107,6 +109,7 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
         });
       }
       addInstructionReferenceEdges(visible, explicitPairs, node.id, node.instructionRefs, 'prompt.instructionRefs', instructionsByTarget);
+      addRoleReferenceEdges(visible, explicitPairs, node.id, node.roleRefs, 'prompt.roleRefs', rolesByTarget);
     }
 
     if (node.type === 'instruction') {
@@ -170,6 +173,7 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
     }
 
     addInstructionReferenceEdges(visible, explicitPairs, node.id, node.instructionRefs, 'agent.instructionRefs', instructionsByTarget);
+    addRoleReferenceEdges(visible, explicitPairs, node.id, node.roleRefs, 'agent.roleRefs', rolesByTarget);
 
     for (const hookNode of hookNodesByAgent.get(node.id) ?? []) {
       addPreviewEdge(visible, explicitPairs, { id: `ref:agent.hooks:${node.id}:${hookNode.id}`, source: node.id, target: hookNode.id, label: hookNode.trigger ?? 'hook', style: hookStyle, data: { derivedFrom: 'agent.hooks', kind: 'hook' } });
@@ -240,6 +244,28 @@ function addInstructionReferenceEdges(
   }
 }
 
+function addRoleReferenceEdges(
+  edges: VisibleFlowEdge[],
+  explicitPairs: Set<string>,
+  nodeId: string,
+  refs: ReferenceRole[] | undefined,
+  derivedFrom: 'agent.roleRefs' | 'prompt.roleRefs',
+  rolesByTarget: Map<string, string>
+): void {
+  for (const ref of refs ?? []) {
+    const roleNodeId = rolesByTarget.get(ref.target);
+    if (!roleNodeId) continue;
+    addPreviewEdge(edges, explicitPairs, {
+      id: `ref:${derivedFrom}:${roleNodeId}:${nodeId}`,
+      source: roleNodeId,
+      target: nodeId,
+      label: 'role',
+      style: roleStyle,
+      data: { derivedFrom, kind: 'reference' }
+    });
+  }
+}
+
 function instructionTargets(nodes: PipelineNode[]): Map<string, string> {
   const targets = new Map<string, string>();
   for (const node of nodes) {
@@ -247,6 +273,17 @@ function instructionTargets(nodes: PipelineNode[]): Map<string, string> {
     targets.set(node.id, node.id);
     targets.set(node.label, node.id);
     targets.set(node.instructionFile ?? `.github/instructions/${node.id}.instructions.md`, node.id);
+  }
+  return targets;
+}
+
+function roleTargets(nodes: PipelineNode[]): Map<string, string> {
+  const targets = new Map<string, string>();
+  for (const node of nodes) {
+    if (node.type !== 'role') continue;
+    targets.set(node.id, node.id);
+    targets.set(node.label, node.id);
+    targets.set(node.roleFile ?? `.github/roles/${node.id}.md`, node.id);
   }
   return targets;
 }
@@ -321,6 +358,7 @@ function edgeStyle(kind: PipelineEdgeKind): Record<string, string | number> {
   if (kind === 'hook') return hookStyle;
   if (kind === 'mcp-server') return mcpStyle;
   if (kind === 'instruction') return instructionStyle;
+  if (kind === 'role') return roleStyle;
   if (kind === 'artifact') return artifactStyle;
   if (kind === 'gate') return gateStyle;
   if (kind === 'skill') return skillStyle;
@@ -340,6 +378,7 @@ function markerColor(kind: PipelineEdgeKind | 'reference'): string {
   if (kind === 'prompt' || kind === 'handoff') return 'var(--vscode-charts-purple)';
   if (kind === 'artifact') return 'var(--vscode-charts-green)';
   if (kind === 'instruction') return 'var(--vscode-charts-orange)';
+  if (kind === 'role') return 'var(--vscode-charts-cyan, #00b7c3)';
   if (kind === 'gate') return 'var(--vscode-charts-yellow)';
   if (kind === 'skill') return 'var(--vscode-testing-iconPassed, #2ea043)';
   if (kind === 'hook') return 'var(--vscode-charts-red)';

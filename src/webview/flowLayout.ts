@@ -8,7 +8,7 @@ const nodeHeight = 170;
 const compactNodeWidth = 245;
 const compactNodeHeight = 150;
 const compactMaxColumns = 8;
-const typeOrder = ['prompt', 'agent', 'gate', 'handoff', 'instruction', 'skill', 'artifact', 'hook', 'mcp-server'];
+const typeOrder = ['prompt', 'agent', 'role', 'gate', 'handoff', 'instruction', 'skill', 'artifact', 'hook', 'mcp-server'];
 
 export function coerceFlowLayout(value: unknown): FlowLayout {
   return value === 'vertical' || value === 'horizontal' || value === 'typeColumns' || value === 'compact' ? value : 'compact';

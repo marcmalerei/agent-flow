@@ -3,6 +3,7 @@ import { generateAgentMarkdown, agentFilePath } from './agentGenerator';
 import { generatePromptMarkdown, promptFilePath } from './promptGenerator';
 import { generateInstructionMarkdown, instructionFilePath } from './instructionGenerator';
 import { generateSkillMarkdown, skillFilePath } from './skillGenerator';
+import { generateRoleMarkdown, roleFilePath } from './roleGenerator';
 import { appendGeneratedMarker } from './shared';
 
 export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
@@ -12,6 +13,7 @@ export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
     if (node.type === 'prompt') files.push({ path: promptFilePath(node), content: generatePromptMarkdown(node), kind: 'prompt' });
     if (node.type === 'instruction') files.push({ path: instructionFilePath(node), content: generateInstructionMarkdown(node), kind: 'instruction' });
     if (node.type === 'skill') files.push({ path: skillFilePath(node), content: generateSkillMarkdown(node), kind: 'skill' });
+    if (node.type === 'role') files.push({ path: roleFilePath(node), content: generateRoleMarkdown(node), kind: 'role' });
     if (node.type === 'artifact') files.push({ path: node.path, content: appendGeneratedMarker(`# ${node.label}\n\n${node.template ?? 'Artifact content will be written by agents.'}`), kind: 'artifact' });
   }
   return files.sort((a, b) => a.path.localeCompare(b.path));
@@ -25,9 +27,10 @@ export function generateFileForNode(pipeline: AgentPipeline, nodeId: string): Ge
     if (node.type === 'prompt') return file.path === promptFilePath(node);
     if (node.type === 'instruction') return file.path === instructionFilePath(node);
     if (node.type === 'skill') return file.path === skillFilePath(node);
+    if (node.type === 'role') return file.path === roleFilePath(node);
     if (node.type === 'artifact') return file.path === node.path;
     return false;
   });
 }
 
-export { generateAgentMarkdown, generatePromptMarkdown, generateInstructionMarkdown, generateSkillMarkdown };
+export { generateAgentMarkdown, generatePromptMarkdown, generateInstructionMarkdown, generateSkillMarkdown, generateRoleMarkdown };

@@ -1,12 +1,13 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { AgentHandoff, AgentHookCommand, AgentHooks, AgentPipeline, ArtifactAction, ArtifactUsage, McpServerConfig, PipelineEdge, PipelineNode, ReferenceInstruction, PIPELINE_VERSION } from './types';
+import { AgentHandoff, AgentHookCommand, AgentHooks, AgentPipeline, ArtifactAction, ArtifactUsage, McpServerConfig, PipelineEdge, PipelineNode, ReferenceInstruction, ReferenceRole, PIPELINE_VERSION } from './types';
 import { parsePipelineJson } from './parser';
 import { normalizeAgentCalls, normalizePipelineAgentReferences, stripYamlQuotes } from './referenceResolver';
 import { agentFilePath } from './generators/agentGenerator';
 import { promptFilePath } from './generators/promptGenerator';
 import { instructionFilePath } from './generators/instructionGenerator';
 import { skillFilePath } from './generators/skillGenerator';
+import { roleFilePath } from './generators/roleGenerator';
 import { GENERATED_MARKER } from './generators/shared';
 import { LEGACY_PIPELINE_FILE_PATH } from './paths';
 
@@ -119,11 +120,12 @@ function parseYamlScalar(value: string): string | boolean {
 }
 
 
-function customizationKind(filePath: string): 'agent' | 'prompt' | 'instruction' | 'skill' | undefined {
+function customizationKind(filePath: string): 'agent' | 'prompt' | 'instruction' | 'skill' | 'role' | undefined {
   if (filePath.endsWith('.agent.md')) return 'agent';
   if (filePath.endsWith('.prompt.md')) return 'prompt';
   if (filePath.endsWith('.instructions.md')) return 'instruction';
   if (/^\.github\/skills\/[^/]+\/SKILL\.md$/i.test(filePath)) return 'skill';
+  if (/^\.github\/roles\/.+\.md$/i.test(filePath)) return 'role';
   return undefined;
 }
 
@@ -136,12 +138,13 @@ function customizationNodeId(filePath: string): string {
   if (filePath.endsWith('.prompt.md')) return path.basename(filePath, '.prompt.md');
   if (filePath.endsWith('.instructions.md')) return path.basename(filePath, '.instructions.md');
   if (/^\.github\/skills\/[^/]+\/SKILL\.md$/i.test(filePath)) return path.basename(path.dirname(filePath));
+  if (/^\.github\/roles\/.+\.md$/i.test(filePath)) return path.basename(filePath, '.md');
   return filePath.replace(/[^A-Za-z0-9_-]/g, '-');
 }
 
-function parseCustomizationRefs(source: string): Array<{ path: string; kind: 'agent' | 'prompt' | 'instruction' | 'skill' }> {
-  const refs: Array<{ path: string; kind: 'agent' | 'prompt' | 'instruction' | 'skill' }> = [];
-  const pattern = /`([^`]+(?:\.(?:agent|prompt|instructions)\.md|\/SKILL\.md))`/gi;
+function parseCustomizationRefs(source: string): Array<{ path: string; kind: 'agent' | 'prompt' | 'instruction' | 'skill' | 'role' }> {
+  const refs: Array<{ path: string; kind: 'agent' | 'prompt' | 'instruction' | 'skill' | 'role' }> = [];
+  const pattern = /`([^`]+)`/g;
   for (const match of source.matchAll(pattern)) {
     const kind = customizationKind(match[1]);
     if (kind) refs.push({ path: match[1], kind });
@@ -226,6 +229,13 @@ function mergeInstructionRefs(...groups: Array<ReferenceInstruction[] | undefine
   return byTarget.size ? [...byTarget.values()] : undefined;
 }
 
+function parseRoleRefs(source: string): ReferenceRole[] | undefined {
+  const refs = parseCustomizationRefs(source)
+    .filter((ref) => ref.kind === 'role')
+    .map((ref) => ({ target: ref.path }));
+  return refs.length ? [...new Map(refs.map((ref) => [ref.target, ref])).values()] : undefined;
+}
+
 function markdownSection(source: string, heading: string): string | undefined {
   const content = stripGeneratedMarker(source);
   const pattern = new RegExp(`^# ${escapeRegExp(heading)}\\s*$`, 'm');
@@ -308,6 +318,7 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
       inputs: artifactUsages?.filter((usage) => usage.action === 'read' || usage.action === 'validate').map((usage) => usage.path) ?? node.inputs,
       artifactUsages: artifactUsages ?? node.artifactUsages,
       instructionRefs: parseInstructionRefs(markdown) ?? node.instructionRefs,
+      roleRefs: parseRoleRefs(markdown) ?? node.roleRefs,
       markdown
     };
   }
@@ -323,6 +334,7 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
       requiredArtifacts: artifactUsages?.map((usage) => usage.path) ?? node.requiredArtifacts,
       artifactUsages: artifactUsages ?? node.artifactUsages,
       instructionRefs: parseInstructionRefs(markdown) ?? node.instructionRefs,
+      roleRefs: parseRoleRefs(markdown) ?? node.roleRefs,
       markdown
     };
   }
@@ -349,6 +361,14 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
       markdown
     };
   }
+  if (node.type === 'role') {
+    return {
+      ...node,
+      label: typeof fm.name === 'string' ? fm.name : node.label,
+      description: typeof fm.description === 'string' ? fm.description : node.description,
+      markdown
+    };
+  }
   return { ...node, markdown };
 }
 
@@ -362,6 +382,7 @@ function markdownFileForNode(node: PipelineNode): string | undefined {
   if (node.type === 'prompt') return promptFilePath(node);
   if (node.type === 'instruction') return instructionFilePath(node);
   if (node.type === 'skill') return skillFilePath(node);
+  if (node.type === 'role') return roleFilePath(node);
   return undefined;
 }
 
@@ -370,11 +391,12 @@ function explicitCustomizationFileForNode(node: PipelineNode): string | undefine
   if (node.type === 'prompt') return node.promptFile;
   if (node.type === 'instruction') return node.instructionFile;
   if (node.type === 'skill') return node.skillFile;
+  if (node.type === 'role') return node.roleFile;
   return undefined;
 }
 
-function isCustomizationFileNode(node: PipelineNode): node is Extract<PipelineNode, { type: 'agent' | 'prompt' | 'instruction' | 'skill' }> {
-  return node.type === 'agent' || node.type === 'prompt' || node.type === 'instruction' || node.type === 'skill';
+function isCustomizationFileNode(node: PipelineNode): node is Extract<PipelineNode, { type: 'agent' | 'prompt' | 'instruction' | 'skill' | 'role' }> {
+  return node.type === 'agent' || node.type === 'prompt' || node.type === 'instruction' || node.type === 'skill' || node.type === 'role';
 }
 
 async function mergeWorkspaceCustomizationFiles(workspace: string, nodes: PipelineNode[], edges: PipelineEdge[]): Promise<void> {
@@ -447,7 +469,7 @@ async function mergeWorkspaceCustomizationFiles(workspace: string, nodes: Pipeli
 async function staleRenameCandidates(workspace: string, existingNodes: PipelineNode[], inferredNodes: PipelineNode[]): Promise<Map<string, PipelineNode>> {
   const matches = new Map<string, PipelineNode>();
   const existingFiles = new Set(existingNodes.map(explicitCustomizationFileForNode).filter((file): file is string => Boolean(file)));
-  for (const type of ['agent', 'prompt', 'instruction', 'skill'] as const) {
+  for (const type of ['agent', 'prompt', 'instruction', 'skill', 'role'] as const) {
     const staleExisting: PipelineNode[] = [];
     for (const node of existingNodes) {
       const file = explicitCustomizationFileForNode(node);
@@ -484,7 +506,8 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const handoffs = frontmatterHandoffs(fm.handoffs) ?? [];
     const artifactUsages = parseArtifactUsages(content, 'Artifact work');
     const instructionRefs = parseInstructionRefs(content);
-    nodes.push({ id, type: 'agent', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), agentFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, target: typeof fm.target === 'string' ? fm.target : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, hooks: isHooks(fm.hooks) ? fm.hooks : undefined, mcpServers: Array.isArray(fm['mcp-servers']) ? fm['mcp-servers'] as McpServerConfig[] : undefined, markdown: content, tools: Array.isArray(fm.tools) ? fm.tools as string[] : [], calls: [], handoffs, outputs: artifactUsages?.filter((usage) => usage.action === 'write' || usage.action === 'append').map((usage) => usage.path) ?? [], inputs: artifactUsages?.filter((usage) => usage.action === 'read' || usage.action === 'validate').map((usage) => usage.path) ?? [], artifactUsages, instructionRefs, position: addPosition() });
+    const roleRefs = parseRoleRefs(content);
+    nodes.push({ id, type: 'agent', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), agentFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, target: typeof fm.target === 'string' ? fm.target : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, hooks: isHooks(fm.hooks) ? fm.hooks : undefined, mcpServers: Array.isArray(fm['mcp-servers']) ? fm['mcp-servers'] as McpServerConfig[] : undefined, markdown: content, tools: Array.isArray(fm.tools) ? fm.tools as string[] : [], calls: [], handoffs, outputs: artifactUsages?.filter((usage) => usage.action === 'write' || usage.action === 'append').map((usage) => usage.path) ?? [], inputs: artifactUsages?.filter((usage) => usage.action === 'read' || usage.action === 'validate').map((usage) => usage.path) ?? [], artifactUsages, instructionRefs, roleRefs, position: addPosition() });
     pendingAgentCalls.push({ id, calls: calls as string[], handoffs });
   }
   for (const pending of pendingAgentCalls) {
@@ -507,7 +530,8 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const normalizedStartAgent = startAgent ? normalizeAgentCalls([startAgent], nodes)[0] : undefined;
     const artifactUsages = parseArtifactUsages(content, 'Required artifacts');
     const instructionRefs = parseInstructionRefs(content);
-    nodes.push({ id, type: 'prompt', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), promptFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, tools: Array.isArray(fm.tools) ? fm.tools as string[] : undefined, markdown: content, startAgent: normalizedStartAgent, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, position: addPosition() });
+    const roleRefs = parseRoleRefs(content);
+    nodes.push({ id, type: 'prompt', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), promptFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, tools: Array.isArray(fm.tools) ? fm.tools as string[] : undefined, markdown: content, startAgent: normalizedStartAgent, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, roleRefs, position: addPosition() });
     if (normalizedStartAgent) edges.push({ id: `${id}-starts-${normalizedStartAgent}`, from: id, to: normalizedStartAgent, kind: 'prompt' });
   }
 
@@ -526,6 +550,14 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const content = await fs.readFile(file, 'utf8');
     const fm = frontmatter(content);
     nodes.push({ id, type: 'skill', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), skillFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : content.match(/## Description\s+([\s\S]*?)(\n##|$)/)?.[1]?.trim(), argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, context: typeof fm.context === 'string' ? fm.context : undefined, markdown: content, position: addPosition() });
+  }
+
+  const roleFiles = await findFiles(path.join(workspace, '.github/roles'), (file) => file.endsWith('.md'));
+  for (const file of roleFiles.sort()) {
+    const id = path.basename(file, '.md');
+    const content = await fs.readFile(file, 'utf8');
+    const fm = frontmatter(content);
+    nodes.push({ id, type: 'role', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), roleFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, markdown: content, position: addPosition() });
   }
 
   const outputFiles = await findFiles(path.join(workspace, '.agent-output'), (file) => isArtifactPath(file) && (file.endsWith('.md') || file.endsWith('.json') || file.endsWith('.txt')));
@@ -555,6 +587,7 @@ function addReferencedCustomizationNodes(nodes: PipelineNode[], edges: PipelineE
     if (node.type === 'agent' && node.agentFile) nodesByFile.set(node.agentFile, node);
     if (node.type === 'prompt' && node.promptFile) nodesByFile.set(node.promptFile, node);
     if (node.type === 'instruction' && node.instructionFile) nodesByFile.set(node.instructionFile, node);
+    if (node.type === 'role' && node.roleFile) nodesByFile.set(node.roleFile, node);
   }
 
   for (const source of [...nodes]) {
@@ -572,32 +605,42 @@ function addReferencedCustomizationNodes(nodes: PipelineNode[], edges: PipelineE
         source.instructionRefs = upsertReferenceInstruction(source.instructionRefs, ref.path);
         continue;
       }
+      if ((source.type === 'agent' || source.type === 'prompt') && ref.kind === 'role') {
+        source.roleRefs = upsertReferenceRole(source.roleRefs, ref.path);
+        continue;
+      }
       const edge = customizationReferenceEdge(source, target, ref.kind);
       if (!edges.some((item) => item.from === edge.from && item.to === edge.to)) edges.push(edge);
     }
   }
 }
 
-function placeholderCustomizationNode(ref: { path: string; kind: 'agent' | 'prompt' | 'instruction' | 'skill' }, position: { x: number; y: number }): PipelineNode {
+function placeholderCustomizationNode(ref: { path: string; kind: 'agent' | 'prompt' | 'instruction' | 'skill' | 'role' }, position: { x: number; y: number }): PipelineNode {
   const id = customizationNodeId(ref.path);
   const base = { id, label: titleFromId(id), markdown: '', position };
   if (ref.kind === 'agent') return { ...base, type: 'agent', agentFile: ref.path, tools: [], calls: [], inputs: [], outputs: [] };
   if (ref.kind === 'prompt') return { ...base, type: 'prompt', promptFile: ref.path, tools: [], workflow: [], constraints: [] };
   if (ref.kind === 'skill') return { ...base, type: 'skill', skillFile: ref.path, activationCriteria: [], procedure: [] };
+  if (ref.kind === 'role') return { ...base, type: 'role', roleFile: ref.path };
   return { ...base, type: 'instruction', instructionFile: ref.path, applyTo: '**/*', rules: [] };
 }
 
-function customizationReferenceEdge(source: PipelineNode, target: PipelineNode, kind: 'agent' | 'prompt' | 'instruction' | 'skill'): PipelineEdge {
+function customizationReferenceEdge(source: PipelineNode, target: PipelineNode, kind: 'agent' | 'prompt' | 'instruction' | 'skill' | 'role'): PipelineEdge {
   return {
     id: `${source.id}-references-${target.id}`,
     from: source.id,
     to: target.id,
-    kind: kind === 'instruction' || kind === 'skill' ? kind : 'flow',
+    kind: kind === 'instruction' || kind === 'skill' || kind === 'role' ? kind : 'flow',
     label: 'references'
   };
 }
 
 function upsertReferenceInstruction(refs: ReferenceInstruction[] | undefined, target: string): ReferenceInstruction[] {
+  if (refs?.some((ref) => ref.target === target)) return refs;
+  return [...(refs ?? []), { target }];
+}
+
+function upsertReferenceRole(refs: ReferenceRole[] | undefined, target: string): ReferenceRole[] {
   if (refs?.some((ref) => ref.target === target)) return refs;
   return [...(refs ?? []), { target }];
 }
