@@ -23,6 +23,7 @@ import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
 import { normalizeConfiguredTools, partitionConfiguredTools } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
+import { TokenNode, flowHandlePositions } from './TokenNode';
 
 interface State {
   pipeline: AgentPipeline;
@@ -41,7 +42,7 @@ const vscode = window.acquireVsCodeApi?.();
 const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-charts-green)', artifact: 'var(--vscode-descriptionForeground)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)' };
 const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'artifact', 'gate', 'hook'];
 const nodeTypesConfig = {
-  tokenNode: ({ data }: { data: { label: string; type: string; tokenBadge: string } }) => <div className="flow-node"><span className="token-badge" title="Estimated token count">{data.tokenBadge}</span><span>{data.label}</span><small>{data.type}</small></div>
+  tokenNode: TokenNode
 };
 
 function deriveState(pipeline: AgentPipeline, previous: State): State {
@@ -88,14 +89,15 @@ function App() {
   const selected = draft.nodes.find((node) => node.id === selectedId) ?? draft.nodes[0];
   const risky = new Set(state.findings.filter((finding) => finding.nodeId).map((finding) => finding.nodeId));
   const layoutPositions = useMemo(() => layoutFlowNodes(draft, state.flowLayout), [draft, state.flowLayout]);
+  const handlePositions = useMemo(() => flowHandlePositions(state.flowLayout), [state.flowLayout]);
   const nodes: Node[] = useMemo(() => draft.nodes.map((node) => ({
     id: node.id,
     position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
     draggable: state.flowLayout === 'manual',
     type: 'tokenNode',
-    data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)) },
+    data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), ...handlePositions },
     style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
-  })), [draft, layoutPositions, risky, state.flowLayout]);
+  })), [draft, handlePositions, layoutPositions, risky, state.flowLayout]);
   const edges: Edge[] = useMemo(() => deriveVisibleFlowEdges(draft), [draft]);
 
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
