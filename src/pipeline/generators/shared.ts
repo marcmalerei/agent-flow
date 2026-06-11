@@ -29,3 +29,31 @@ export function yamlList(name: string, items: string[] | undefined): string {
 export function ensureTrailingNewline(content: string): string {
   return content.endsWith('\n') ? content : `${content}\n`;
 }
+
+export function mergeMarkdownWithFrontmatter(markdown: string, frontmatter: string): string {
+  const body = markdownBody(markdown);
+  return ensureTrailingNewline(body.trim()
+    ? `${GENERATED_MARKER}\n${frontmatter.trimEnd()}\n\n${body.trimStart()}`
+    : `${GENERATED_MARKER}\n${frontmatter.trimEnd()}\n`);
+}
+
+export function markdownBody(markdown: string): string {
+  let content = markdown.trimStart();
+  if (content.startsWith(GENERATED_MARKER)) content = content.slice(GENERATED_MARKER.length).replace(/^(?:\r?\n)+/, '');
+  if (!content.startsWith('---')) return content;
+  const end = content.indexOf('\n---', 3);
+  if (end < 0) return content;
+  return content.slice(end + 4).replace(/^(?:\r?\n)+/, '');
+}
+
+export function nodeFileStem(id: string, label: string, type: string): string {
+  return id.startsWith(`new-${type}-`) ? slugifyFileStem(label, id) : id;
+}
+
+export function isDefaultNewNodePath(id: string, type: string, pathValue: string | undefined, defaultPath: string): boolean {
+  return Boolean(pathValue) && id.startsWith(`new-${type}-`) && pathValue === defaultPath;
+}
+
+function slugifyFileStem(value: string, fallback: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
+}

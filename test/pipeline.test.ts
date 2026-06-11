@@ -137,6 +137,53 @@ describe('markdown generators', () => {
     expect(generateAgentMarkdown({ ...frontend!, markdown: '# Custom Agent\n\nEdited in AgentFlow.' })).toContain('# Custom Agent');
   });
 
+  it('updates generated frontmatter when config changes but preserves edited markdown body', () => {
+    const agent = generateAgentMarkdown({
+      id: 'reviewer',
+      type: 'agent',
+      label: 'Reviewer',
+      description: 'Reviews changes.',
+      tools: ['read', 'search'],
+      calls: ['worker'],
+      outputs: [],
+      markdown: `---
+name: "Old Reviewer"
+tools:
+  - "read"
+---
+
+# Custom Body
+
+Keep this prose.`
+    });
+
+    expect(agent).toContain('name: "Reviewer"');
+    expect(agent).toContain('tools:\n  - "read"\n  - "search"');
+    expect(agent).toContain('agents:\n  - "worker"');
+    expect(agent).toContain('# Custom Body');
+    expect(agent).toContain('Keep this prose.');
+    expect(agent).not.toContain('Old Reviewer');
+  });
+
+  it('uses a renamed new node label for generated markdown file names', () => {
+    const files = generateFiles({
+      version: 1,
+      name: 'New nodes',
+      nodes: [
+        { id: 'new-agent-1', type: 'agent', label: 'Security Reviewer', agentFile: '.github/agents/new-agent-1.agent.md', tools: [], calls: [], outputs: [] },
+        { id: 'new-prompt-1', type: 'prompt', label: 'Release Notes', promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: [] },
+        { id: 'new-instruction-1', type: 'instruction', label: 'Docs Scope', instructionFile: '.github/instructions/new-instruction-1.instructions.md', applyTo: '**/*.md' },
+        { id: 'new-skill-1', type: 'skill', label: 'Review PR', skillFile: '.github/skills/new-skill-1/SKILL.md' }
+      ],
+      edges: []
+    }).map((file) => file.path);
+
+    expect(files).toContain('.github/agents/security-reviewer.agent.md');
+    expect(files).toContain('.github/prompts/release-notes.prompt.md');
+    expect(files).toContain('.github/instructions/docs-scope.instructions.md');
+    expect(files).toContain('.github/skills/review-pr/SKILL.md');
+  });
+
   it('generates all files in deterministic path order', () => {
     const files = generateFiles(pipeline);
     expect(files.map((file) => file.path)).toEqual([...files.map((file) => file.path)].sort());
