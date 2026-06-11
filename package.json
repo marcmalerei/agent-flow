@@ -46,15 +46,17 @@
             "manual",
             "vertical",
             "horizontal",
-            "typeColumns"
+            "typeColumns",
+            "compact"
           ],
           "enumDescriptions": [
             "Use saved node positions from the pipeline JSON.",
             "Arrange nodes in top-to-bottom dependency layers.",
             "Arrange nodes in left-to-right dependency layers.",
-            "Arrange nodes in columns by node type."
+            "Arrange nodes in wrapped columns by node type with collision-free spacing.",
+            "Automatically group connected workflow components into compact collision-free shelves for large graphs."
           ],
-          "description": "Controls how AgentFlow displays node positions in the flow view. Non-manual layouts affect the preview only and do not overwrite saved positions."
+          "description": "Controls how AgentFlow displays node positions in the flow view. Non-manual layouts are preview-only and do not overwrite saved positions; use compact for large workflows that need an overview."
         }
       }
     },

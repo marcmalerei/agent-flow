@@ -40,7 +40,7 @@ type BottomTab = 'validation' | 'files' | 'tools' | 'risk';
 declare global { interface Window { __AGENTFLOW_STATE__: State; acquireVsCodeApi?: () => { postMessage(message: unknown): void } } }
 
 const vscode = window.acquireVsCodeApi?.();
-const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-charts-green)', artifact: 'var(--vscode-descriptionForeground)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)', handoff: 'var(--vscode-charts-purple)', 'mcp-server': 'var(--vscode-charts-foreground)' };
+const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-testing-iconPassed, #2ea043)', artifact: 'var(--vscode-charts-green)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)', handoff: 'var(--vscode-editorWarning-foreground, #cca700)', 'mcp-server': 'var(--vscode-charts-cyan, #00b7c3)' };
 const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server'];
 const nodeTypesConfig = {
   tokenNode: TokenNode
@@ -97,7 +97,7 @@ function App() {
     draggable: state.flowLayout === 'manual',
     type: 'tokenNode',
     data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), ...handlePositions },
-    style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
+    style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
   })), [draft, handlePositions, layoutPositions, risky, state.flowLayout]);
   const edges: Edge[] = useMemo(() => deriveVisibleFlowEdges(draft), [draft]);
 

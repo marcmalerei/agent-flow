@@ -15,13 +15,16 @@ export interface VisibleFlowEdge {
   };
 }
 
-const defaultEdgeStyle = { stroke: 'var(--vscode-editor-foreground)', opacity: 0.7 };
+const defaultEdgeStyle = { stroke: 'var(--vscode-charts-blue)', strokeWidth: 1.7, opacity: 0.78 };
+const promptStyle = { stroke: 'var(--vscode-charts-purple)', strokeWidth: 2.1, opacity: 0.9 };
 const previewStyle = { ...defaultEdgeStyle, strokeDasharray: '5 5', opacity: 0.75 };
-const handoffStyle = { stroke: 'var(--vscode-charts-purple)', strokeDasharray: '3 3', strokeWidth: 2, opacity: 0.95 };
-const artifactStyle = { stroke: 'var(--vscode-charts-green)', opacity: 0.85 };
-const hookStyle = { stroke: 'var(--vscode-charts-red)', strokeDasharray: '2 4', opacity: 0.85 };
-const mcpStyle = { stroke: 'var(--vscode-charts-foreground)', strokeDasharray: '6 2', opacity: 0.85 };
-const instructionStyle = { stroke: 'var(--vscode-charts-orange)', strokeDasharray: '4 2', opacity: 0.85 };
+const handoffStyle = { stroke: 'var(--vscode-charts-purple)', strokeDasharray: '3 3', strokeWidth: 2.3, opacity: 0.95 };
+const artifactStyle = { stroke: 'var(--vscode-charts-green)', strokeWidth: 2, opacity: 0.88 };
+const gateStyle = { stroke: 'var(--vscode-charts-yellow)', strokeDasharray: '8 3', strokeWidth: 2.2, opacity: 0.92 };
+const skillStyle = { stroke: 'var(--vscode-testing-iconPassed, #2ea043)', strokeDasharray: '1 4', strokeWidth: 2, opacity: 0.88 };
+const hookStyle = { stroke: 'var(--vscode-charts-red)', strokeDasharray: '2 4', strokeWidth: 2, opacity: 0.9 };
+const mcpStyle = { stroke: 'var(--vscode-charts-cyan, #00b7c3)', strokeDasharray: '6 2', strokeWidth: 2, opacity: 0.9 };
+const instructionStyle = { stroke: 'var(--vscode-charts-orange)', strokeDasharray: '4 2', strokeWidth: 2, opacity: 0.88 };
 
 export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge[] {
   const normalized = normalizePipelineAgentReferences(pipeline);
@@ -284,10 +287,14 @@ function isStoredEdgeVisible(source: string, target: string, nodesById: Map<stri
 }
 
 function edgeStyle(kind: PipelineEdgeKind): Record<string, string | number> {
+  if (kind === 'prompt') return promptStyle;
   if (kind === 'handoff') return handoffStyle;
   if (kind === 'hook') return hookStyle;
   if (kind === 'mcp-server') return mcpStyle;
+  if (kind === 'instruction') return instructionStyle;
   if (kind === 'artifact') return artifactStyle;
+  if (kind === 'gate') return gateStyle;
+  if (kind === 'skill') return skillStyle;
   return defaultEdgeStyle;
 }
 
