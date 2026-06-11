@@ -10,12 +10,14 @@ import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMar
 import { coerceFlowLayout } from './flowLayout';
 import { PIPELINE_FILE_PATH } from '../pipeline/paths';
 import { AgentFlowLog, writeGeneratedFiles, writePipelineViewState } from './filePersistence';
+import { FileWatchSuppression } from './fileWatchSuppression';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspace) { vscode.window.showErrorMessage('Open a workspace folder before opening Agent Flow.'); return; }
   const output = vscode.window.createOutputChannel('Agent Flow');
   const log: AgentFlowLog = (message) => output.appendLine(`[${new Date().toISOString()}] ${message}`);
+  const selfWrites = new FileWatchSuppression();
   log(`opening pipeline panel for ${workspace}`);
   let pipeline = await loadOrInferPipeline(workspace);
   let selectedId: string | undefined;
@@ -34,7 +36,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
     pipeline = await loadOrInferPipeline(workspace);
     log(`reloaded ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges`);
     panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId });
-  }, log);
+  }, log, selfWrites);
   panel.onDidDispose(() => {
     log('pipeline panel disposed');
     configurationListener.dispose();
@@ -51,10 +53,16 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
           message,
           workspace,
           previousPipeline,
-          writePipeline: async (workspace, pipeline) => writePipelineViewState(workspace, pipeline, log),
-          writeMarkdownFiles: async (workspace, pipeline, previousPipeline) => writeGeneratedFiles(workspace, pipeline, previousPipeline, log),
-          postState: async (nextPipeline, selectedId) => {
-            panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
+          writePipeline: async (workspace, pipeline) => {
+            const result = await writePipelineViewState(workspace, pipeline, log);
+            selfWrites.markSelfWrites(result.written);
+          },
+          writeMarkdownFiles: async (workspace, pipeline, previousPipeline) => {
+            const result = await writeGeneratedFiles(workspace, pipeline, previousPipeline, log);
+            selfWrites.markSelfWrites([...result.written, ...result.removed]);
+          },
+          postState: async () => {
+            log('persisted webview changes without echoing stateUpdated');
           }
         });
         log(`persisted ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges`);
@@ -65,7 +73,10 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
         pipeline = await handleSavePipelineMessage({
           message,
           workspace,
-          writePipeline: async (workspace, pipeline) => writePipelineViewState(workspace, pipeline, log),
+          writePipeline: async (workspace, pipeline) => {
+            const result = await writePipelineViewState(workspace, pipeline, log);
+            selfWrites.markSelfWrites(result.written);
+          },
           postState: async (nextPipeline, selectedId) => {
             panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
           },
@@ -80,7 +91,10 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
         const nextPipeline = await handleWriteMarkdownFilesMessage({
           message,
           workspace,
-          writeMarkdownFiles: async (workspace, pipeline) => writeGeneratedFiles(workspace, pipeline, undefined, log),
+          writeMarkdownFiles: async (workspace, pipeline) => {
+            const result = await writeGeneratedFiles(workspace, pipeline, undefined, log);
+            selfWrites.markSelfWrites([...result.written, ...result.removed]);
+          },
           postState: async (nextPipeline, selectedId) => {
             panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
           },
@@ -102,7 +116,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
 }
 
 
-function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<void>, log?: AgentFlowLog): vscode.Disposable {
+function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<void>, log?: AgentFlowLog, selfWrites?: FileWatchSuppression): vscode.Disposable {
   const patterns = [
     PIPELINE_FILE_PATH,
     '.agent-pipeline/pipeline.json',
@@ -116,8 +130,12 @@ function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<
   log?.(`watching ${patterns.join(', ')}`);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
-  const schedule = () => {
+  const schedule = (uri: vscode.Uri) => {
     if (disposed) return;
+    if (selfWrites?.consumeIfSelfWrite(uri.fsPath)) {
+      log?.(`ignored self-triggered filesystem event for ${path.relative(workspace, uri.fsPath).replace(/\\/g, '/')}`);
+      return;
+    }
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = undefined;
