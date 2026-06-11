@@ -1,6 +1,6 @@
 import { PromptNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
-import { appendGeneratedMarker, artifactUsageList, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function promptFilePath(node: PromptNode): string {
   const defaultPath = `.github/prompts/${node.id}.prompt.md`;
@@ -47,8 +47,8 @@ ${list(node.definitionOfDone)}
 function promptFrontmatter(node: PromptNode): string {
   return `---
 name: ${yamlString(node.label)}
-description: ${yamlString(node.description ?? node.label)}
+${yamlStringLine('description', node.description)}
 ${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('agent', node.startAgent)}${yamlStringLine('model', node.model)}
-${yamlList('tools', normalizeToolsForVsCode(node.tools))}
+${yamlOptionalList('tools', normalizeToolsForVsCode(node.tools))}
 ---`;
 }

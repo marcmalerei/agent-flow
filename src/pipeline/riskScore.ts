@@ -6,7 +6,7 @@ export function calculateRiskScore(pipeline: AgentPipeline, options: { copilotIn
   const reasons: string[] = [];
   const alwaysOnLines = options.copilotInstructionsLines ?? 0;
   if (alwaysOnLines > 200) { score += 15; reasons.push(`copilot-instructions.md has ${alwaysOnLines} lines`); }
-  const broadApply = pipeline.nodes.filter((node) => node.type === 'instruction' && ['**/*', '**/*.md'].includes(node.applyTo)).length;
+  const broadApply = pipeline.nodes.filter((node) => node.type === 'instruction' && Boolean(node.applyTo && ['**/*', '**/*.md'].includes(node.applyTo))).length;
   if (broadApply) { score += broadApply * 8; reasons.push(`${broadApply} instructions use broad applyTo patterns`); }
   const runCommandAgents = pipeline.nodes.filter((node) => node.type === 'agent' && (node.tools?.includes('execute') || node.tools?.includes('runCommands'))).length;
   if (runCommandAgents) { score += runCommandAgents * 6; reasons.push(`${runCommandAgents} agents can run commands`); }

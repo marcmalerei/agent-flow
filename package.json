@@ -1,6 +1,6 @@
 {
   "name": "agentflow",
-  "displayName": "AgentFlow",
+  "displayName": "Agent Flow",
   "description": "Visual manager for GitHub Copilot agent pipelines.",
   "version": "0.0.1",
   "publisher": "marcmalerei",
@@ -37,7 +37,7 @@
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": {
-      "title": "AgentFlow",
+      "title": "Agent Flow",
       "properties": {
         "agentflow.flow.layout": {
           "type": "string",
@@ -56,30 +56,30 @@
             "Arrange nodes in wrapped columns by node type with collision-free spacing.",
             "Automatically group connected workflow components into compact collision-free shelves for large graphs."
           ],
-          "description": "Controls how AgentFlow displays node positions in the flow view. Non-manual layouts are preview-only and do not overwrite saved positions; use compact for large workflows that need an overview."
+          "description": "Controls how Agent Flow displays node positions in the flow view. Non-manual layouts are preview-only and do not overwrite saved positions; use compact for large workflows that need an overview."
         }
       }
     },
     "commands": [
       {
         "command": "agentflow.openPipeline",
-        "title": "AgentFlow: Open Pipeline"
+        "title": "Agent Flow: Open Pipeline"
       },
       {
         "command": "agentflow.scanWorkspace",
-        "title": "AgentFlow: Scan Workspace"
+        "title": "Agent Flow: Scan Workspace"
       },
       {
         "command": "agentflow.generateFiles",
-        "title": "AgentFlow: Generate Files"
+        "title": "Agent Flow: Generate Files"
       },
       {
         "command": "agentflow.validatePipeline",
-        "title": "AgentFlow: Validate Pipeline"
+        "title": "Agent Flow: Validate Pipeline"
       },
       {
         "command": "agentflow.createDefaultPipeline",
-        "title": "AgentFlow: Create Default Pipeline"
+        "title": "Agent Flow: Create Default Pipeline"
       }
     ]
   },

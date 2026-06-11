@@ -43,7 +43,7 @@ export function createDefaultPipeline(): AgentPipeline {
       type: 'prompt',
       label: 'Start Implementation Prompt',
       promptFile: '.github/prompts/start-implementation.prompt.md',
-      description: 'Starts the default AgentFlow implementation pipeline.',
+      description: 'Starts the default Agent Flow implementation pipeline.',
       startAgent: 'router',
       tools: ['read', 'search'],
       workflow: ['Collect the request.', 'Run the router agent.', 'Follow generated artifact handoffs.'],

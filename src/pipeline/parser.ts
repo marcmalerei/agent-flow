@@ -15,6 +15,12 @@ function assertStringArray(value: unknown, field: string): string[] | undefined 
   return value;
 }
 
+function assertOptionalString(value: unknown, field: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') throw new Error(`${field} must be a string`);
+  return value.trim() ? value : undefined;
+}
+
 const nodeTypes = new Set(['agent', 'prompt', 'instruction', 'skill', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server']);
 const edgeKinds = new Set(['flow', 'artifact', 'prompt', 'skill', 'gate', 'handoff', 'hook', 'mcp-server', 'instruction']);
 
@@ -51,7 +57,7 @@ function parseNode(value: unknown, field: string, seen: Set<string>): PipelineNo
     case 'prompt':
       return { ...base, type, tools: assertStringArray(value.tools, `${field}.tools`), workflow: assertStringArray(value.workflow, `${field}.workflow`), constraints: assertStringArray(value.constraints, `${field}.constraints`) } as PipelineNode;
     case 'instruction':
-      return { ...base, type, applyTo: assertString(value.applyTo, `${field}.applyTo`), rules: assertStringArray(value.rules, `${field}.rules`) } as PipelineNode;
+      return { ...base, type, applyTo: assertOptionalString(value.applyTo, `${field}.applyTo`), rules: assertStringArray(value.rules, `${field}.rules`) } as PipelineNode;
     case 'skill':
       return { ...base, type, activationCriteria: assertStringArray(value.activationCriteria, `${field}.activationCriteria`), procedure: assertStringArray(value.procedure, `${field}.procedure`) } as PipelineNode;
     case 'artifact':

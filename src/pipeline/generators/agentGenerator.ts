@@ -1,6 +1,6 @@
 import { AgentNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
-import { appendGeneratedMarker, artifactUsageList, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlBooleanLine, yamlList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlBooleanLine, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function agentFilePath(node: AgentNode): string {
   const defaultPath = `.github/agents/${node.id}.agent.md`;
@@ -68,10 +68,9 @@ ${list((node.outputs ?? []).map((output) => `Write \`${output}\`.`))}
 function agentFrontmatter(node: AgentNode): string {
   return `---
 name: ${yamlString(node.label)}
-description: ${yamlString(node.description ?? node.label)}
+${yamlStringLine('description', node.description)}
 ${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('model', node.model)}${yamlStringLine('target', node.target)}${yamlBooleanLine('user-invocable', node.userInvocable)}${yamlBooleanLine('disable-model-invocation', node.disableModelInvocation)}${yamlAgentHandoffs(node.handoffs)}${yamlAgentHooks(node.hooks)}${yamlMcpServers(node.mcpServers)}
-${yamlList('tools', normalizeToolsForVsCode(node.tools))}
-${yamlList('agents', node.calls)}
+${yamlOptionalList('tools', normalizeToolsForVsCode(node.tools))}${yamlOptionalList('agents', node.calls)}
 ---`;
 }
 

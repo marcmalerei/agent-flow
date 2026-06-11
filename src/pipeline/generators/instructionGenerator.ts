@@ -30,7 +30,6 @@ ${list(node.rules)}
 function instructionFrontmatter(node: InstructionNode): string {
   return `---
 name: ${yamlString(node.label)}
-description: ${yamlString(node.description ?? node.label)}
-applyTo: ${yamlString(node.applyTo)}
+${yamlStringLine('description', node.description)}${yamlStringLine('applyTo', node.applyTo)}
 ${yamlStringLine('excludeAgent', node.excludeAgent)}---`;
 }

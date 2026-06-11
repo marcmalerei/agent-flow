@@ -11,6 +11,7 @@ body { margin: 0; font-family: var(--vscode-font-family, system-ui); font-size: 
 .toolbar { grid-column: 1 / 3; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--agentflow-border); background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-titleBar-activeBackground)); color: var(--vscode-foreground); }
 .toolbar strong { font-size: 14px; }
 .toolbar span { flex: 1; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolbar .autosave-status { flex: 0 0 auto; font-size: 12px; }
 .canvas { min-height: 0; background: var(--vscode-editor-background); }
 .flow-node { position: relative; display: grid; min-height: 72px; place-items: center; padding: 22px 12px 12px; text-align: center; white-space: normal; }
 .flow-node small { color: var(--vscode-descriptionForeground); font-size: 12px; }
@@ -19,6 +20,8 @@ body { margin: 0; font-family: var(--vscode-font-family, system-ui); font-size: 
 .bottom { grid-column: 1 / 3; border-top: 1px solid var(--agentflow-border); overflow: hidden; background: var(--vscode-panel-background, var(--vscode-editor-background)); }
 button { display: inline-block; margin: 0; padding: 4px 10px; border-radius: var(--agentflow-control-radius); border: 1px solid var(--vscode-button-border, transparent); background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); font: inherit; line-height: 18px; cursor: pointer; }
 button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground))); }
+button:disabled { opacity: .55; cursor: default; }
+button:disabled:hover { background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background)); }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
 .button-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 .button-primary:hover { background: var(--vscode-button-hoverBackground); }

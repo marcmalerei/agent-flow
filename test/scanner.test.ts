@@ -70,6 +70,129 @@ name: Worker
     expect(agent.type).toBe('agent');
     expect(agent.markdown).toContain('Hydrated body.');
   });
+
+  it('adds newly created .github customization files when a persisted pipeline exists', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-live-new-file-'));
+    await fs.mkdir(path.join(workspace, '.agent-pipeline'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/prompts'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/instructions'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/skills/release-review'), { recursive: true });
+    await fs.writeFile(path.join(workspace, '.agent-pipeline/pipeline.json'), stringifyPipeline({
+      version: 1,
+      name: 'Live sync',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'Router', agentFile: '.github/agents/router.agent.md', tools: [], calls: [], inputs: [], outputs: [] }
+      ],
+      edges: []
+    }), 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/agents/router.agent.md'), `---
+name: Router
+---
+
+# Router
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/agents/worker.agent.md'), `---
+name: Worker
+tools:
+  - read
+---
+
+# Worker
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/prompts/release-notes.prompt.md'), `---
+name: Release Prompt
+agent: worker
+---
+
+# Release
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/instructions/release-policy.instructions.md'), `---
+name: Release Instructions
+applyTo: "**/*.md"
+---
+
+# Release Instructions
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/skills/release-review/SKILL.md'), `---
+name: Release Review
+description: Review releases.
+---
+
+## Description
+Review releases.
+`, 'utf8');
+
+    const pipeline = await loadOrInferPipeline(workspace);
+
+    expect(pipeline.nodes.find((node) => node.id === 'worker' && node.type === 'agent')).toMatchObject({ agentFile: '.github/agents/worker.agent.md', tools: ['read'] });
+    expect(pipeline.nodes.find((node) => node.id === 'release-notes' && node.type === 'prompt')).toMatchObject({ promptFile: '.github/prompts/release-notes.prompt.md' });
+    expect(pipeline.nodes.find((node) => node.id === 'release-policy' && node.type === 'instruction')).toMatchObject({ instructionFile: '.github/instructions/release-policy.instructions.md' });
+    expect(pipeline.nodes.find((node) => node.id === 'release-review' && node.type === 'skill')).toMatchObject({ skillFile: '.github/skills/release-review/SKILL.md' });
+    expect(pipeline.edges).toContainEqual({ id: 'release-notes-starts-worker', from: 'release-notes', to: 'worker', kind: 'prompt' });
+  });
+
+  it('reflects renamed .github backing files on stale persisted nodes', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-live-rename-'));
+    await fs.mkdir(path.join(workspace, '.agent-pipeline'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+    await fs.writeFile(path.join(workspace, '.agent-pipeline/pipeline.json'), stringifyPipeline({
+      version: 1,
+      name: 'Live rename',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'Router', agentFile: '.github/agents/router.agent.md', tools: [], calls: [], inputs: [], outputs: [] }
+      ],
+      edges: []
+    }), 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/agents/review-router.agent.md'), `---
+name: Review Router
+tools:
+  - read
+---
+
+# Review Router
+
+Renamed file body.
+`, 'utf8');
+
+    const pipeline = await loadOrInferPipeline(workspace);
+    const agent = pipeline.nodes.find((node) => node.id === 'review-router' && node.type === 'agent');
+
+    expect(agent?.type).toBe('agent');
+    expect(agent).toMatchObject({
+      label: 'Review Router',
+      agentFile: '.github/agents/review-router.agent.md',
+      tools: ['read']
+    });
+    expect(agent?.markdown).toContain('Renamed file body.');
+    expect(pipeline.nodes.filter((node) => node.type === 'agent')).toHaveLength(1);
+    expect(pipeline.nodes.some((node) => node.id === 'router')).toBe(false);
+  });
+
+  it('applies .github agent-flow view state to live parsed markdown nodes', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-view-state-'));
+    await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+    await fs.writeFile(path.join(workspace, '.github/agent-flow.json'), JSON.stringify({
+      version: 1,
+      name: 'View State Only',
+      nodes: [
+        { id: 'router', type: 'agent', file: '.github/agents/router.agent.md', position: { x: 420, y: 260 } }
+      ]
+    }, null, 2), 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/agents/router.agent.md'), `---
+name: Router
+---
+
+# Router
+`, 'utf8');
+
+    const pipeline = await loadOrInferPipeline(workspace);
+    const router = pipeline.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+
+    expect(pipeline.name).toBe('View State Only');
+    expect(router?.position).toEqual({ x: 420, y: 260 });
+    expect(router?.markdown).toContain('# Router');
+  });
 });
 
 it('parses VS Code agent frontmatter, markdown file references, hooks, and MCP servers', async () => {
@@ -156,7 +279,7 @@ applyTo: "!**/*"
 
 Describe this instruction node.
 
-<!-- Generated by AgentFlow. Manual changes may be overwritten. -->
+<!-- Generated by Agent Flow. Manual changes may be overwritten. -->
 
 If required read \`.github/instructions/template.instructions.md\`.
 `, 'utf8');

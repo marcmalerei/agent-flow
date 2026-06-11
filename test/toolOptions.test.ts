@@ -17,7 +17,7 @@ describe('VS Code tool options', () => {
     ])).toContain('nx_mcp_server/*');
   });
 
-  it('normalizes legacy AgentFlow tool names to VS Code groups', () => {
+  it('normalizes legacy Agent Flow tool names to VS Code groups', () => {
     expect(normalizeConfiguredTools(['codebase', 'editFiles', 'runCommands', 'terminal'])).toEqual(['edit', 'execute', 'read', 'search']);
   });
 

@@ -65,10 +65,13 @@ function App() {
   const [bottomOpen, setBottomOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<BottomTab>('validation');
+  const dirtyRef = useRef(false);
+  const undoStack = useRef<AgentPipeline[]>([]);
 
   useEffect(() => {
     const listener = (event: MessageEvent) => {
       if (event.data?.command === 'stateUpdated') {
+        dirtyRef.current = false;
         setState(event.data.state);
         setDraft(event.data.state.pipeline);
         setSelectedId((current) => event.data.state.pipeline.nodes.some((node: PipelineNode) => node.id === event.data.selectedId) ? event.data.selectedId : event.data.state.pipeline.nodes.some((node: PipelineNode) => node.id === current) ? current : event.data.state.pipeline.nodes[0]?.id ?? '');
@@ -81,10 +84,31 @@ function App() {
   const commitDraft = useCallback((updater: (pipeline: AgentPipeline) => AgentPipeline, nextSelectedId?: string) => {
     setDraft((pipeline) => {
       const next = updater(pipeline);
+      undoStack.current = [...undoStack.current.slice(-49), pipeline];
+      dirtyRef.current = true;
       setState((previous) => deriveState(next, previous));
       if (nextSelectedId) setSelectedId(nextSelectedId);
       return next;
     });
+  }, []);
+
+  useEffect(() => {
+    if (!dirtyRef.current) return;
+    const timer = window.setTimeout(() => {
+      if (!dirtyRef.current) return;
+      dirtyRef.current = false;
+      vscode?.postMessage({ command: 'persistPipeline', pipeline: draft, selectedId });
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [draft, selectedId]);
+
+  const undoLast = useCallback(() => {
+    const previous = undoStack.current.pop();
+    if (!previous) return;
+    dirtyRef.current = true;
+    setDraft(previous);
+    setState((state) => deriveState(previous, state));
+    setSelectedId((current) => previous.nodes.some((node) => node.id === current) ? current : previous.nodes[0]?.id ?? '');
   }, []);
 
   const selected = draft.nodes.find((node) => node.id === selectedId) ?? draft.nodes[0];
@@ -105,7 +129,9 @@ function App() {
     commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? { ...node, ...patch } as PipelineNode : node) }));
   };
   const connectNodes = (sourceId: string, targetId: string) => commitDraft((pipeline) => connectPipelineNodes(pipeline, sourceId, targetId));
-  const deleteNodes = (nodeIds: string[]) => commitDraft((pipeline) => deletePipelineNodes(pipeline, nodeIds));
+  const deleteNodes = (nodeIds: string[]) => {
+    if (nodeIds.length) commitDraft((pipeline) => deletePipelineNodes(pipeline, nodeIds));
+  };
   const deleteEdges = (edgeIds: string[]) => commitDraft((pipeline) => deletePipelineEdges(pipeline, edgeIds));
   const addNode = (type: PipelineNodeType, position = { x: 120, y: 120 }, connectFrom?: string) => {
     const node = createNode(type, draft, position);
@@ -115,15 +141,24 @@ function App() {
     }, node.id);
     setInspectorOpen(true);
   };
-  const savePipeline = () => vscode?.postMessage({ command: 'savePipeline', pipeline: draft, selectedId: selected?.id });
-  const writeMarkdownFiles = () => vscode?.postMessage({ command: 'writeMarkdownFiles', pipeline: draft, selectedId: selected?.id });
-
-  return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} savePipeline={savePipeline} writeMarkdownFiles={writeMarkdownFiles} /></ReactFlowProvider>;
+  return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} canUndo={undoStack.current.length > 0} undoLast={undoLast} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} /></ReactFlowProvider>;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, connectNodes, deleteNodes, deleteEdges, addNode, savePipeline, writeMarkdownFiles }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: Node[]; edges: Edge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void; savePipeline: () => void; writeMarkdownFiles: () => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, canUndo, undoLast, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, connectNodes, deleteNodes, deleteEdges, addNode }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: Node[]; edges: Edge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; canUndo: boolean; undoLast: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void }) {
   const { screenToFlowPosition } = useReactFlow();
   const connectingNodeId = useRef<string | null>(null);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        undoLast();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [undoLast]);
   const onConnect = useCallback((params: Connection) => {
     if (params.source && params.target) connectNodes(params.source, params.target);
   }, [connectNodes]);
@@ -140,7 +175,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
   }, [addNode, screenToFlowPosition]);
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
-    <header className="toolbar"><strong>AgentFlow</strong><span>{draft.name}</span><button className="button-primary" onClick={savePipeline}>Save Pipeline</button><button className="button-secondary" onClick={writeMarkdownFiles}>Write Markdown Files</button><div className="node-buttons">{nodeTypes.map((type) => <button className="button-secondary compact" key={type} onClick={() => addNode(type)} title={`Create ${type} node`}>+ {type}</button>)}</div></header>
+    <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><button className="button-secondary compact" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</button><span className="autosave-status">Auto-save</span><div className="node-buttons">{nodeTypes.map((type) => <button className="button-secondary compact" key={type} onClick={() => addNode(type)} title={`Create ${type} node`}>+ {type}</button>)}</div></header>
     <main className="canvas"><ReactFlow key={state.flowLayout} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><button className="collapse" onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} />}</section>
@@ -153,10 +188,10 @@ function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: {
   let suffix = 1;
   while (existing.has(`${baseId}-${suffix}`)) suffix += 1;
   const id = `${baseId}-${suffix}`;
-  const base = { id, type, label: `New ${type}`, description: '', position };
+  const base = { id, type, label: `New ${type}`, position };
   if (type === 'agent') return { ...base, type, agentFile: `.github/agents/${id}.agent.md`, tools: ['read', 'search'], calls: [], inputs: [], outputs: [] };
   if (type === 'prompt') return { ...base, type, promptFile: `.github/prompts/${id}.prompt.md`, tools: [], workflow: [], constraints: [] };
-  if (type === 'instruction') return { ...base, type, instructionFile: `.github/instructions/${id}.instructions.md`, applyTo: '**/*', rules: [] };
+  if (type === 'instruction') return { ...base, type, instructionFile: `.github/instructions/${id}.instructions.md`, rules: [] };
   if (type === 'skill') return { ...base, type, skillFile: `.github/skills/${id}/SKILL.md`, activationCriteria: [], procedure: [] };
   if (type === 'artifact') return { ...base, type, path: `.agent-output/${id}.md` };
   if (type === 'gate') return { ...base, type, condition: 'Define condition' };
@@ -198,12 +233,12 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
   const toolGroups = (node.type === 'agent' || node.type === 'prompt') ? partitionConfiguredTools({ availableTools: toolOptions, configuredTools: node.tools ?? [] }) : { available: [], unavailable: [] };
   return <div className="config"><h2>{node.label}</h2><span className="pill">{node.type}</span>
     <label>Label<input value={node.label} onChange={(event: any) => onChange(node.id, renameNodeLabel(node, event.target.value) as Partial<PipelineNode>)} /></label>
-    <label>Description<textarea value={node.description ?? ''} onChange={(event: any) => onChange(node.id, { description: event.target.value } as Partial<PipelineNode>)} /></label>
+    <label>Description<textarea value={node.description ?? ''} onChange={(event: any) => setOptionalString('description', event.target.value)} /></label>
     {node.type === 'agent' && <details><summary>Agent metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Target<select value={node.target ?? ''} onChange={(event: any) => setOptionalString('target', event.target.value)}><option value="">Both environments</option><option value="vscode">VS Code</option><option value="github-copilot">GitHub Copilot</option></select></label><label className="inline-check"><input type="checkbox" checked={node.userInvocable ?? true} onChange={(event: any) => onChange(node.id, { userInvocable: event.target.checked ? undefined : false } as Partial<PipelineNode>)} /> User invocable</label><label className="inline-check"><input type="checkbox" checked={node.disableModelInvocation ?? false} onChange={(event: any) => onChange(node.id, { disableModelInvocation: event.target.checked || undefined } as Partial<PipelineNode>)} /> Disable model invocation</label><HandoffEditor handoffs={node.handoffs ?? []} agents={agents} onChange={setHandoffs} /></details>}
     {(node.type === 'agent' || node.type === 'prompt') && <details><summary>Tools</summary>{toolGroups.available.length ? <div className="checks">{toolGroups.available.map((tool) => <label key={tool}><input type="checkbox" checked={(node.tools ?? []).includes(tool)} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div> : <p className="hint">No VS Code language model tools are registered.</p>}{toolGroups.unavailable.length > 0 && <><h4>Selected tools</h4><p className="hint">Selected on this node, but not registered by VS Code right now.</p><div className="checks selected-tools">{toolGroups.unavailable.map((tool) => <label key={tool} title="Selected on this node, but not registered by VS Code right now."><input type="checkbox" checked={true} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div></>}</details>}
     {node.type === 'agent' && <details><summary>Routing and references</summary><h4>Subagents</h4><div className="checks">{agents.map((agent) => <label key={agent.id}><input type="checkbox" checked={(node.calls ?? []).includes(agent.id)} onChange={(event: any) => toggleListItem('calls', agent.id, event.target.checked)} />{agent.label}</label>)}</div><AgentArtifactSelector artifacts={artifacts} inputs={node.inputs ?? []} outputs={node.outputs ?? []} usages={node.artifactUsages ?? []} onInputToggle={(path, checked) => toggleArtifact('inputs', path, checked, 'read')} onOutputToggle={(path, checked) => toggleArtifact('outputs', path, checked, 'write')} onUsageChange={(path, patch, action) => updateArtifactUsage(path, patch, action)} /><InstructionReferenceSelector instructions={instructions} refs={node.instructionRefs ?? []} onToggle={toggleInstructionRef} onInstructionChange={updateInstructionRef} /></details>}
     {node.type === 'prompt' && <details open><summary>Prompt metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Agent<select value={node.startAgent ?? ''} onChange={(event: any) => onChange(node.id, { startAgent: event.target.value || undefined } as Partial<PipelineNode>)}><option value="">Current agent</option><option value="ask">ask</option><option value="agent">agent</option><option value="plan">plan</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}</select></label><ArtifactSelector title="Required artifacts" artifacts={artifacts} selected={node.requiredArtifacts ?? []} usages={node.artifactUsages ?? []} defaultAction="read" actionOptions={['read', 'validate']} onToggle={(path, checked) => toggleArtifact('requiredArtifacts', path, checked, 'read')} onUsageChange={(path, patch) => updateArtifactUsage(path, patch, 'read')} /><InstructionReferenceSelector instructions={instructions} refs={node.instructionRefs ?? []} onToggle={toggleInstructionRef} onInstructionChange={updateInstructionRef} /></details>}
-    {node.type === 'instruction' && <details open><summary>Instruction scope</summary><label>applyTo<input value={node.applyTo} onChange={(event: any) => onChange(node.id, { applyTo: event.target.value } as Partial<PipelineNode>)} /></label><label>Exclude agent<select value={node.excludeAgent ?? ''} onChange={(event: any) => setOptionalString('excludeAgent', event.target.value)}><option value="">None</option><option value="code-review">code-review</option><option value="cloud-agent">cloud-agent</option></select></label></details>}
+    {node.type === 'instruction' && <details open><summary>Instruction scope</summary><label>applyTo<input value={node.applyTo ?? ''} onChange={(event: any) => setOptionalString('applyTo', event.target.value)} /></label><label>Exclude agent<select value={node.excludeAgent ?? ''} onChange={(event: any) => setOptionalString('excludeAgent', event.target.value)}><option value="">None</option><option value="code-review">code-review</option><option value="cloud-agent">cloud-agent</option></select></label></details>}
     {node.type === 'skill' && <details open><summary>Skill metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label className="inline-check"><input type="checkbox" checked={node.userInvocable ?? true} onChange={(event: any) => onChange(node.id, { userInvocable: event.target.checked ? undefined : false } as Partial<PipelineNode>)} /> User invocable</label><label className="inline-check"><input type="checkbox" checked={node.disableModelInvocation ?? false} onChange={(event: any) => onChange(node.id, { disableModelInvocation: event.target.checked || undefined } as Partial<PipelineNode>)} /> Disable model invocation</label><label>Context<select value={node.context ?? ''} onChange={(event: any) => setOptionalString('context', event.target.value)}><option value="">inline</option><option value="fork">fork</option></select></label></details>}
     {node.type === 'artifact' && <details open><summary>Artifact file</summary><label>Path<input value={node.path} onChange={(event: any) => onChange(node.id, { path: event.target.value } as Partial<PipelineNode>)} /></label></details>}
     {node.type === 'gate' && <details open><summary>Gate condition</summary><label>Condition<input value={node.condition} onChange={(event: any) => onChange(node.id, { condition: event.target.value } as Partial<PipelineNode>)} /></label></details>}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AgentFlow Example Webview</title>
+  <title>Agent Flow Example Webview</title>
   <style>
     :root {
       --vscode-editor-background: #1e1e1e;
@@ -47,7 +47,7 @@
     window.acquireVsCodeApi = () => ({
       postMessage(message) {
         window.__AGENTFLOW_DEV_MESSAGES__.push(message);
-        console.log('[AgentFlow example]', message);
+        console.log('[Agent Flow example]', message);
       }
     });
 

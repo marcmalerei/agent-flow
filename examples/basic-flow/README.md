@@ -1,6 +1,6 @@
-# AgentFlow Example Pipeline
+# Agent Flow Example Pipeline
 
-This workspace fixture exercises every AgentFlow node type and the important write paths:
+This workspace fixture exercises every Agent Flow node type and the important write paths:
 
 - pipeline JSON save under `.agent-pipeline/pipeline.json`
 - generated agent, prompt, instruction, skill, and artifact Markdown files
