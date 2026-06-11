@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { optionalTextValue } from '../src/webview/formState';
+import { optionalTextValue, referenceInstructionTextValue } from '../src/webview/formState';
 
 describe('webview form state', () => {
-  it('preserves spaces in optional text inputs while omitting empty values', () => {
-    expect(optionalTextValue('')).toBeUndefined();
-    expect(optionalTextValue('two words')).toBe('two words');
-    expect(optionalTextValue('leading space')).toBe('leading space');
-    expect(optionalTextValue('trailing space ')).toBe('trailing space ');
-    expect(optionalTextValue(' ')).toBe(' ');
+  it('preserves spaces while typing reference instructions', () => {
+    expect(referenceInstructionTextValue('Create a ')).toBe('Create a ');
+    expect(referenceInstructionTextValue('Create a summary with risks.')).toBe('Create a summary with risks.');
+  });
+
+  it('stores blank reference instructions as undefined', () => {
+    expect(referenceInstructionTextValue('')).toBeUndefined();
+    expect(referenceInstructionTextValue('   ')).toBeUndefined();
+  });
+
+  it('preserves optional text input spaces during editing', () => {
+    expect(optionalTextValue('Needs context ')).toBe('Needs context ');
   });
 });

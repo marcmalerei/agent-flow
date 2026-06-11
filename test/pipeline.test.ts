@@ -252,6 +252,44 @@ Keep this prose.`
     expect(agent).toContain('- Follow `.github/instructions/docs-scope.instructions.md`: Apply when reviewing documentation changes.');
   });
 
+  it('updates artifact work in edited agent markdown when config changes', () => {
+    const agent = generateAgentMarkdown({
+      id: 'writer',
+      type: 'agent',
+      label: 'Writer',
+      tools: ['read'],
+      outputs: ['.agent-output/summary.md'],
+      artifactUsages: [
+        { path: '.agent-output/summary.md', action: 'write', instruction: 'Create a summary with risks and next steps.' }
+      ],
+      markdown: `---
+name: "Writer"
+tools:
+  - "read"
+---
+
+# Role
+
+Keep this custom role text.
+
+# Artifact work
+
+None.
+
+# Notes
+
+Keep this custom note.`
+    });
+
+    expect(agent).toContain('# Role');
+    expect(agent).toContain('Keep this custom role text.');
+    expect(agent).toContain('# Artifact work');
+    expect(agent).toContain('- Write `.agent-output/summary.md`: Create a summary with risks and next steps.');
+    expect(agent).toContain('# Notes');
+    expect(agent).toContain('Keep this custom note.');
+    expect(agent).not.toContain('# Artifact work\n\nNone.');
+  });
+
   it('generates actionable artifact and instruction references for prompts', () => {
     const prompt = generatePromptMarkdown({
       id: 'release-notes',
@@ -435,6 +473,43 @@ describe('webview graph projection', () => {
 
     expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label, edge.data.kind, edge.data.derivedFrom, edge.style?.strokeDasharray])).toEqual([
       ['router', 'worker', 'Escalate', 'handoff', 'agent.handoffs', '3 3']
+    ]);
+  });
+
+  it('projects handoff nodes to their target agents', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Handoff node',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'Router', calls: [], outputs: [] },
+        { id: 'handoff', type: 'handoff', label: 'Escalate', sourceAgent: 'router', targetAgent: 'worker' },
+        { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }
+      ],
+      edges: [
+        { id: 'router-handoff-node-handoff', from: 'router', to: 'handoff', kind: 'handoff', label: 'Escalate' },
+        { id: 'handoff-handoff-target-worker', from: 'handoff', to: 'worker', kind: 'handoff', label: 'Escalate' }
+      ]
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.id, edge.source, edge.target, edge.label, edge.data.derivedFrom])).toEqual([
+      ['router-handoff-node-handoff', 'router', 'handoff', 'Escalate', 'pipeline.edges'],
+      ['handoff-handoff-target-worker', 'handoff', 'worker', 'Escalate', 'pipeline.edges']
+    ]);
+  });
+
+  it('projects live handoff node target references and edge direction markers', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Live handoff node',
+      nodes: [
+        { id: 'handoff', type: 'handoff', label: 'Escalate', targetAgent: 'worker' },
+        { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }
+      ],
+      edges: []
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label, edge.data.derivedFrom, edge.markerEnd && typeof edge.markerEnd === 'object' ? edge.markerEnd.type : undefined])).toEqual([
+      ['handoff', 'worker', 'Escalate', 'handoff.targetAgent', 'arrowclosed']
     ]);
   });
 

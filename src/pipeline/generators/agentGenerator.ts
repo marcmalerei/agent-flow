@@ -1,6 +1,6 @@
 import { AgentNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
-import { appendGeneratedMarker, artifactUsageList, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlBooleanLine, yamlOptionalList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, replaceMarkdownSection, yamlBooleanLine, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function agentFilePath(node: AgentNode): string {
   if (node.agentFile) return node.agentFile;
@@ -9,7 +9,14 @@ export function agentFilePath(node: AgentNode): string {
 
 export function generateAgentMarkdown(node: AgentNode): string {
   const frontmatter = agentFrontmatter(node);
-  if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(node.markdown, frontmatter);
+  if (node.markdown?.trim()) {
+    const body = replaceMarkdownSection(
+      replaceMarkdownSection(markdownBody(node.markdown), 'Artifact work', artifactUsageList(node.artifactUsages)),
+      'Referenced instructions',
+      referenceInstructionList(node.instructionRefs)
+    );
+    return mergeMarkdownWithFrontmatter(body, frontmatter);
+  }
 
   const content = `${frontmatter}
 

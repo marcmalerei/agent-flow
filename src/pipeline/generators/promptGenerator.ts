@@ -1,6 +1,6 @@
 import { PromptNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
-import { appendGeneratedMarker, artifactUsageList, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlOptionalList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, replaceMarkdownSection, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function promptFilePath(node: PromptNode): string {
   if (node.promptFile) return node.promptFile;
@@ -9,7 +9,14 @@ export function promptFilePath(node: PromptNode): string {
 
 export function generatePromptMarkdown(node: PromptNode): string {
   const frontmatter = promptFrontmatter(node);
-  if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(node.markdown, frontmatter);
+  if (node.markdown?.trim()) {
+    const body = replaceMarkdownSection(
+      replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
+      'Referenced instructions',
+      referenceInstructionList(node.instructionRefs)
+    );
+    return mergeMarkdownWithFrontmatter(body, frontmatter);
+  }
 
   return appendGeneratedMarker(`${frontmatter}
 

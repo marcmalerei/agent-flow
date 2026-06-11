@@ -72,6 +72,19 @@ export function mergeMarkdownWithFrontmatter(markdown: string, frontmatter: stri
     : `${frontmatter.trimEnd()}\n`);
 }
 
+export function replaceMarkdownSection(body: string, heading: string, content: string): string {
+  const replacement = `# ${heading}\n\n${content.trimEnd() || 'None.'}`;
+  const match = new RegExp(`^# ${escapeRegExp(heading)}\\s*$`, 'm').exec(body);
+  if (!match) return [body.trimEnd(), replacement].filter(Boolean).join('\n\n');
+
+  const afterHeading = match.index + match[0].length;
+  const nextHeading = /^# .+$/m.exec(body.slice(afterHeading));
+  const end = nextHeading ? afterHeading + nextHeading.index : body.length;
+  const before = body.slice(0, match.index).trimEnd();
+  const after = body.slice(end).trimStart();
+  return [before, replacement, after].filter(Boolean).join('\n\n');
+}
+
 export function markdownBody(markdown: string): string {
   const content = stripGeneratedMarker(markdown).trimStart();
   if (!content.startsWith('---')) return content;
@@ -91,6 +104,10 @@ function stripGeneratedMarker(markdown: string): string {
     }
   }
   return content;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function nodeFileStem(id: string, label: string, type: string): string {

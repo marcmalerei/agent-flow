@@ -1,6 +1,13 @@
 import { AgentPipeline, ArtifactUsage, PipelineEdgeKind, PipelineNode, ReferenceInstruction } from '../pipeline/types';
 import { normalizePipelineAgentReferences, resolveAgentReference, stripYamlQuotes } from '../pipeline/referenceResolver';
 
+interface FlowEdgeMarker {
+  type: 'arrowclosed';
+  width: number;
+  height: number;
+  color: string;
+}
+
 export interface VisibleFlowEdge {
   id: string;
   source: string;
@@ -8,8 +15,9 @@ export interface VisibleFlowEdge {
   label?: string;
   animated?: boolean;
   style?: Record<string, string | number>;
+  markerEnd?: FlowEdgeMarker;
   data: {
-    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'instruction.instructionRefs' | 'agent.hooks' | 'agent.mcpServers';
+    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'handoff.targetAgent' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'instruction.instructionRefs' | 'agent.hooks' | 'agent.mcpServers';
     kind: PipelineEdgeKind | 'reference';
     artifact?: string;
   };
@@ -44,6 +52,7 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
       label: deriveStoredEdgeLabel(edge.label, edge.artifact, edge.kind),
       animated: edge.kind === 'artifact',
       style: edgeStyle(edge.kind),
+      markerEnd: edgeMarker(edge.kind),
       data: { derivedFrom: 'pipeline.edges', kind: edge.kind, artifact: edge.artifact }
     });
   }
@@ -66,6 +75,20 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
         label: 'starts',
         data: { derivedFrom: 'prompt.startAgent', kind: 'reference' }
       });
+    }
+
+    if (node.type === 'handoff') {
+      const target = node.targetAgent ? resolveAgentReference(node.targetAgent, normalized.nodes) : undefined;
+      if (target && nodeIds.has(target)) {
+        addPreviewEdge(visible, explicitPairs, {
+          id: `ref:handoff:${node.id}:targetAgent:${target}`,
+          source: node.id,
+          target,
+          label: node.label || 'handoff',
+          style: handoffStyle,
+          data: { derivedFrom: 'handoff.targetAgent', kind: 'handoff' }
+        });
+      }
     }
 
     if (node.type === 'prompt') {
@@ -167,7 +190,7 @@ function addPreviewEdge(
   const key = pairKey(edge.source, edge.target);
   if (explicitPairs.has(key)) return;
   explicitPairs.add(key);
-  edges.push({ ...edge, style: edge.style ?? previewStyle });
+  edges.push({ ...edge, markerEnd: edge.markerEnd ?? edgeMarker(edge.data.kind), style: edge.style ?? previewStyle });
 }
 
 function addArtifactUsageEdges(
@@ -283,6 +306,8 @@ function isStoredEdgeVisible(source: string, target: string, nodesById: Map<stri
   const targetNode = nodesById.get(target);
   const nodes = [...nodesById.values()];
   if (sourceNode?.type === 'agent' && targetNode?.type === 'agent' && kind === 'handoff') return (sourceNode.handoffs ?? []).some((handoff) => resolveAgentReference(handoff.agent, nodes) === target);
+  if (sourceNode?.type === 'agent' && targetNode?.type === 'handoff' && kind === 'handoff') return targetNode.sourceAgent === source;
+  if (sourceNode?.type === 'handoff' && targetNode?.type === 'agent' && kind === 'handoff') return resolveAgentReference(sourceNode.targetAgent ?? '', nodes) === target;
   if (sourceNode?.type === 'agent' && targetNode?.type === 'agent') return (sourceNode.calls ?? []).includes(target);
   if (sourceNode?.type === 'prompt' && targetNode?.type === 'agent') return sourceNode.startAgent === target;
   if (sourceNode?.type === 'agent' && targetNode?.type === 'artifact') return (sourceNode.outputs ?? []).includes(targetNode.path);
@@ -300,6 +325,26 @@ function edgeStyle(kind: PipelineEdgeKind): Record<string, string | number> {
   if (kind === 'gate') return gateStyle;
   if (kind === 'skill') return skillStyle;
   return defaultEdgeStyle;
+}
+
+function edgeMarker(kind: PipelineEdgeKind | 'reference'): FlowEdgeMarker {
+  return {
+    type: 'arrowclosed',
+    width: 18,
+    height: 18,
+    color: markerColor(kind)
+  };
+}
+
+function markerColor(kind: PipelineEdgeKind | 'reference'): string {
+  if (kind === 'prompt' || kind === 'handoff') return 'var(--vscode-charts-purple)';
+  if (kind === 'artifact') return 'var(--vscode-charts-green)';
+  if (kind === 'instruction') return 'var(--vscode-charts-orange)';
+  if (kind === 'gate') return 'var(--vscode-charts-yellow)';
+  if (kind === 'skill') return 'var(--vscode-testing-iconPassed, #2ea043)';
+  if (kind === 'hook') return 'var(--vscode-charts-red)';
+  if (kind === 'mcp-server') return 'var(--vscode-charts-cyan, #00b7c3)';
+  return 'var(--vscode-charts-blue)';
 }
 
 function slugPart(value: string | undefined): string {
