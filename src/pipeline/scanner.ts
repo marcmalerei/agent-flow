@@ -3,6 +3,10 @@ import * as path from 'node:path';
 import { AgentHandoff, AgentPipeline, PipelineEdge, PipelineNode, PIPELINE_VERSION } from './types';
 import { parsePipelineJson } from './parser';
 import { normalizeAgentCalls, normalizePipelineAgentReferences, stripYamlQuotes } from './referenceResolver';
+import { agentFilePath } from './generators/agentGenerator';
+import { promptFilePath } from './generators/promptGenerator';
+import { instructionFilePath } from './generators/instructionGenerator';
+import { skillFilePath } from './generators/skillGenerator';
 
 async function exists(file: string): Promise<boolean> {
   try { await fs.access(file); return true; } catch { return false; }
@@ -91,10 +95,10 @@ async function hydrateMarkdownContent(workspace: string, pipeline: AgentPipeline
 }
 
 function markdownFileForNode(node: PipelineNode): string | undefined {
-  if (node.type === 'agent') return node.agentFile ?? `.github/agents/${node.id}.agent.md`;
-  if (node.type === 'prompt') return node.promptFile ?? `.github/prompts/${node.id}.prompt.md`;
-  if (node.type === 'instruction') return node.instructionFile ?? `.github/instructions/${node.id}.instructions.md`;
-  if (node.type === 'skill') return node.skillFile ?? `.github/skills/${node.id}/SKILL.md`;
+  if (node.type === 'agent') return agentFilePath(node);
+  if (node.type === 'prompt') return promptFilePath(node);
+  if (node.type === 'instruction') return instructionFilePath(node);
+  if (node.type === 'skill') return skillFilePath(node);
   return undefined;
 }
 
