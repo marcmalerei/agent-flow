@@ -24,7 +24,7 @@ import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmat
 import { normalizeConfiguredTools, partitionConfiguredTools } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 import { TokenNode, flowHandlePositions } from './TokenNode';
-import { connectPipelineNodes } from './flowMutations';
+import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes } from './flowMutations';
 
 interface State {
   pipeline: AgentPipeline;
@@ -40,8 +40,8 @@ type BottomTab = 'validation' | 'files' | 'tools' | 'risk';
 declare global { interface Window { __AGENTFLOW_STATE__: State; acquireVsCodeApi?: () => { postMessage(message: unknown): void } } }
 
 const vscode = window.acquireVsCodeApi?.();
-const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-charts-green)', artifact: 'var(--vscode-descriptionForeground)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)' };
-const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'artifact', 'gate', 'hook'];
+const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-charts-green)', artifact: 'var(--vscode-descriptionForeground)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)', handoff: 'var(--vscode-charts-purple)', 'mcp-server': 'var(--vscode-charts-foreground)' };
+const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server'];
 const nodeTypesConfig = {
   tokenNode: TokenNode
 };
@@ -105,6 +105,8 @@ function App() {
     commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? { ...node, ...patch } as PipelineNode : node) }));
   };
   const connectNodes = (sourceId: string, targetId: string) => commitDraft((pipeline) => connectPipelineNodes(pipeline, sourceId, targetId));
+  const deleteNodes = (nodeIds: string[]) => commitDraft((pipeline) => deletePipelineNodes(pipeline, nodeIds));
+  const deleteEdges = (edgeIds: string[]) => commitDraft((pipeline) => deletePipelineEdges(pipeline, edgeIds));
   const addNode = (type: PipelineNodeType, position = { x: 120, y: 120 }, connectFrom?: string) => {
     const node = createNode(type, draft, position);
     commitDraft((pipeline) => {
@@ -115,15 +117,17 @@ function App() {
   const savePipeline = () => vscode?.postMessage({ command: 'savePipeline', pipeline: draft, selectedId: selected?.id });
   const writeMarkdownFiles = () => vscode?.postMessage({ command: 'writeMarkdownFiles', pipeline: draft, selectedId: selected?.id });
 
-  return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} addNode={addNode} savePipeline={savePipeline} writeMarkdownFiles={writeMarkdownFiles} /></ReactFlowProvider>;
+  return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} savePipeline={savePipeline} writeMarkdownFiles={writeMarkdownFiles} /></ReactFlowProvider>;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, connectNodes, addNode, savePipeline, writeMarkdownFiles }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: Node[]; edges: Edge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void; savePipeline: () => void; writeMarkdownFiles: () => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, connectNodes, deleteNodes, deleteEdges, addNode, savePipeline, writeMarkdownFiles }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: Node[]; edges: Edge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void; savePipeline: () => void; writeMarkdownFiles: () => void }) {
   const { screenToFlowPosition } = useReactFlow();
   const connectingNodeId = useRef<string | null>(null);
   const onConnect = useCallback((params: Connection) => {
     if (params.source && params.target) connectNodes(params.source, params.target);
   }, [connectNodes]);
+  const onNodesDelete = useCallback((deletedNodes: Node[]) => deleteNodes(deletedNodes.map((node) => node.id)), [deleteNodes]);
+  const onEdgesDelete = useCallback((deletedEdges: Edge[]) => deleteEdges(deletedEdges.map((edge) => edge.id)), [deleteEdges]);
   const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
     if (!connectingNodeId.current) return;
     const target = event.target as Element | null;
@@ -136,7 +140,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>AgentFlow</strong><span>{draft.name}</span><button className="button-primary" onClick={savePipeline}>Save Pipeline</button><button className="button-secondary" onClick={writeMarkdownFiles}>Write Markdown Files</button><div className="node-buttons">{nodeTypes.map((type) => <button className="button-secondary compact" key={type} onClick={() => addNode(type)} title={`Create ${type} node`}>+ {type}</button>)}</div></header>
-    <main className="canvas"><ReactFlow key={state.flowLayout} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
+    <main className="canvas"><ReactFlow key={state.flowLayout} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><button className="collapse" onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} />}</section>
   </div>;
@@ -155,6 +159,8 @@ function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: {
   if (type === 'skill') return { ...base, type, skillFile: `.github/skills/${id}/SKILL.md`, activationCriteria: [], procedure: [] };
   if (type === 'artifact') return { ...base, type, path: `.agent-output/${id}.md` };
   if (type === 'gate') return { ...base, type, condition: 'Define condition' };
+  if (type === 'handoff') return { ...base, type, label: 'New handoff' };
+  if (type === 'mcp-server') return { ...base, type, label: 'New MCP server' };
   return { ...base, type };
 }
 
@@ -206,6 +212,9 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
     {node.type === 'skill' && <details open><summary>Skill metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label className="inline-check"><input type="checkbox" checked={node.userInvocable ?? true} onChange={(event: any) => onChange(node.id, { userInvocable: event.target.checked ? undefined : false } as Partial<PipelineNode>)} /> User invocable</label><label className="inline-check"><input type="checkbox" checked={node.disableModelInvocation ?? false} onChange={(event: any) => onChange(node.id, { disableModelInvocation: event.target.checked || undefined } as Partial<PipelineNode>)} /> Disable model invocation</label><label>Context<select value={node.context ?? ''} onChange={(event: any) => setOptionalString('context', event.target.value)}><option value="">inline</option><option value="fork">fork</option></select></label></details>}
     {node.type === 'artifact' && <details open><summary>Artifact file</summary><label>Path<input value={node.path} onChange={(event: any) => onChange(node.id, { path: event.target.value } as Partial<PipelineNode>)} /></label></details>}
     {node.type === 'gate' && <details open><summary>Gate condition</summary><label>Condition<input value={node.condition} onChange={(event: any) => onChange(node.id, { condition: event.target.value } as Partial<PipelineNode>)} /></label></details>}
+    {node.type === 'hook' && <details open><summary>Hook metadata</summary><label>Trigger<input value={node.trigger ?? ''} onChange={(event: any) => setOptionalString('trigger', event.target.value)} /></label><label>Action<textarea value={node.action ?? ''} onChange={(event: any) => setOptionalString('action', event.target.value)} /></label></details>}
+    {node.type === 'handoff' && <details open><summary>Handoff metadata</summary><label>Target agent<input value={node.targetAgent ?? ''} onChange={(event: any) => setOptionalString('targetAgent', event.target.value)} /></label><label>Prompt<textarea value={node.prompt ?? ''} onChange={(event: any) => setOptionalString('prompt', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label></details>}
+    {node.type === 'mcp-server' && <details open><summary>MCP server</summary><label>Command<input value={node.command ?? ''} onChange={(event: any) => setOptionalString('command', event.target.value)} /></label><label>Args<input value={Array.isArray(node.args) ? node.args.join(' ') : node.args ?? ''} onChange={(event: any) => setOptionalString('args', event.target.value)} /></label></details>}
     <details><summary>Markdown editor</summary><TiptapMarkdownEditor value={node.markdown ?? ''} references={references} onChange={(value) => onChange(node.id, { markdown: value } as Partial<PipelineNode>)} /></details>
     <details open={findings.length > 0}><summary>Findings</summary>{findings.length ? findings.map((finding) => <p key={`${finding.ruleId}-${finding.message}`} className={finding.severity}>{finding.message}</p>) : <p>No node findings.</p>}</details>
   </div>;
