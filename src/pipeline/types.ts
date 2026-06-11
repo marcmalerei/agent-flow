@@ -16,6 +16,19 @@ export interface AgentHandoff {
   model?: string;
 }
 
+export type ArtifactAction = 'read' | 'write' | 'append' | 'validate' | string;
+
+export interface ArtifactUsage {
+  path: string;
+  action: ArtifactAction;
+  instruction?: string;
+}
+
+export interface ReferenceInstruction {
+  target: string;
+  instruction?: string;
+}
+
 export interface BaseNode {
   id: string;
   type: PipelineNodeType;
@@ -39,6 +52,8 @@ export interface AgentNode extends BaseNode {
   calls?: string[];
   inputs?: string[];
   outputs?: string[];
+  artifactUsages?: ArtifactUsage[];
+  instructionRefs?: ReferenceInstruction[];
   allowedSkills?: string[];
   rules?: string[];
   contextBudget?: string[];
@@ -58,6 +73,8 @@ export interface PromptNode extends BaseNode {
   workflow?: string[];
   constraints?: string[];
   requiredArtifacts?: string[];
+  artifactUsages?: ArtifactUsage[];
+  instructionRefs?: ReferenceInstruction[];
   definitionOfDone?: string[];
 }
 

@@ -209,6 +209,52 @@ Keep this prose.`
     expect(agent).not.toContain('Old Reviewer');
   });
 
+  it('generates actionable artifact and instruction references for agents', () => {
+    const agent = generateAgentMarkdown({
+      id: 'reviewer',
+      type: 'agent',
+      label: 'Reviewer',
+      description: 'Reviews implementation.',
+      tools: ['read'],
+      inputs: ['.agent-output/implementation.md'],
+      outputs: ['.agent-output/review.md'],
+      artifactUsages: [
+        { path: '.agent-output/implementation.md', action: 'read', instruction: 'Use this as the source of truth for the review.' },
+        { path: '.agent-output/review.md', action: 'write', instruction: 'Write blocking findings first.' }
+      ],
+      instructionRefs: [
+        { target: '.github/instructions/docs-scope.instructions.md', instruction: 'Apply when reviewing documentation changes.' }
+      ]
+    });
+
+    expect(agent).toContain('# Artifact work');
+    expect(agent).toContain('- Read `.agent-output/implementation.md`: Use this as the source of truth for the review.');
+    expect(agent).toContain('- Write `.agent-output/review.md`: Write blocking findings first.');
+    expect(agent).toContain('# Referenced instructions');
+    expect(agent).toContain('- Follow `.github/instructions/docs-scope.instructions.md`: Apply when reviewing documentation changes.');
+  });
+
+  it('generates actionable artifact and instruction references for prompts', () => {
+    const prompt = generatePromptMarkdown({
+      id: 'release-notes',
+      type: 'prompt',
+      label: 'Release Notes',
+      description: 'Draft release notes.',
+      requiredArtifacts: ['.agent-output/review.md'],
+      artifactUsages: [
+        { path: '.agent-output/review.md', action: 'read', instruction: 'Summarize only accepted findings.' }
+      ],
+      instructionRefs: [
+        { target: '.github/instructions/docs-scope.instructions.md', instruction: 'Use the docs style rules.' }
+      ]
+    });
+
+    expect(prompt).toContain('# Required artifacts');
+    expect(prompt).toContain('- Read `.agent-output/review.md`: Summarize only accepted findings.');
+    expect(prompt).toContain('# Referenced instructions');
+    expect(prompt).toContain('- Follow `.github/instructions/docs-scope.instructions.md`: Use the docs style rules.');
+  });
+
   it('uses a renamed new node label for generated markdown file names', () => {
     const files = generateFiles({
       version: 1,
