@@ -97,10 +97,6 @@ export function nodeFileStem(id: string, label: string, type: string): string {
   return id.startsWith(`new-${type}-`) ? slugifyFileStem(label, id) : id;
 }
 
-export function isDefaultNewNodePath(id: string, type: string, pathValue: string | undefined, defaultPath: string): boolean {
-  return Boolean(pathValue) && id.startsWith(`new-${type}-`) && pathValue === defaultPath;
-}
-
 function slugifyFileStem(value: string, fallback: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
 }

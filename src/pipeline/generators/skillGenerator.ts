@@ -1,9 +1,8 @@
 import { SkillNode } from '../types';
-import { appendGeneratedMarker, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlBooleanLine, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlBooleanLine, yamlString, yamlStringLine } from './shared';
 
 export function skillFilePath(node: SkillNode): string {
-  const defaultPath = `.github/skills/${node.id}/SKILL.md`;
-  if (node.skillFile && !isDefaultNewNodePath(node.id, 'skill', node.skillFile, defaultPath)) return node.skillFile;
+  if (node.skillFile) return node.skillFile;
   return `.github/skills/${nodeFileStem(node.id, node.label, 'skill')}/SKILL.md`;
 }
 
