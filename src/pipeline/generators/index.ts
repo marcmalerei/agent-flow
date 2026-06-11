@@ -4,7 +4,7 @@ import { generateAgentMarkdown, agentFilePath } from './agentGenerator';
 import { generatePromptMarkdown, promptFilePath } from './promptGenerator';
 import { generateInstructionMarkdown, instructionFilePath } from './instructionGenerator';
 import { generateSkillMarkdown, skillFilePath } from './skillGenerator';
-import { GENERATED_MARKER } from './shared';
+import { appendGeneratedMarker } from './shared';
 
 export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
   const files: GeneratedFile[] = [
@@ -15,7 +15,7 @@ export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
     if (node.type === 'prompt') files.push({ path: promptFilePath(node), content: generatePromptMarkdown(node), kind: 'prompt' });
     if (node.type === 'instruction') files.push({ path: instructionFilePath(node), content: generateInstructionMarkdown(node), kind: 'instruction' });
     if (node.type === 'skill') files.push({ path: skillFilePath(node), content: generateSkillMarkdown(node), kind: 'skill' });
-    if (node.type === 'artifact') files.push({ path: node.path, content: `${GENERATED_MARKER}\n# ${node.label}\n\n${node.template ?? 'Artifact content will be written by agents.'}\n`, kind: 'artifact' });
+    if (node.type === 'artifact') files.push({ path: node.path, content: appendGeneratedMarker(`# ${node.label}\n\n${node.template ?? 'Artifact content will be written by agents.'}`), kind: 'artifact' });
   }
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }

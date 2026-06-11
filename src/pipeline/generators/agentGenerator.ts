@@ -1,6 +1,6 @@
 import { AgentNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
-import { GENERATED_MARKER, ensureTrailingNewline, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlBooleanLine, yamlList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlBooleanLine, yamlList, yamlString, yamlStringLine } from './shared';
 
 export function agentFilePath(node: AgentNode): string {
   const defaultPath = `.github/agents/${node.id}.agent.md`;
@@ -12,8 +12,7 @@ export function generateAgentMarkdown(node: AgentNode): string {
   const frontmatter = agentFrontmatter(node);
   if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(node.markdown, frontmatter);
 
-  const content = `${GENERATED_MARKER}
-${frontmatter}
+  const content = `${frontmatter}
 
 # Role
 
@@ -55,7 +54,7 @@ ${list(node.verificationRules)}
 
 ${list((node.outputs ?? []).map((output) => `Write \`${output}\`.`))}
 `;
-  return ensureTrailingNewline(content);
+  return appendGeneratedMarker(content);
 }
 
 function agentFrontmatter(node: AgentNode): string {

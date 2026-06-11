@@ -1,6 +1,6 @@
 import { PromptNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
-import { GENERATED_MARKER, ensureTrailingNewline, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlList, yamlString, yamlStringLine } from './shared';
 
 export function promptFilePath(node: PromptNode): string {
   const defaultPath = `.github/prompts/${node.id}.prompt.md`;
@@ -12,8 +12,7 @@ export function generatePromptMarkdown(node: PromptNode): string {
   const frontmatter = promptFrontmatter(node);
   if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(node.markdown, frontmatter);
 
-  return ensureTrailingNewline(`${GENERATED_MARKER}
-${frontmatter}
+  return appendGeneratedMarker(`${frontmatter}
 
 # ${node.label}
 

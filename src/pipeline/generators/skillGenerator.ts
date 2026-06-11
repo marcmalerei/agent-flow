@@ -1,5 +1,5 @@
 import { SkillNode } from '../types';
-import { GENERATED_MARKER, ensureTrailingNewline, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlBooleanLine, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlBooleanLine, yamlString, yamlStringLine } from './shared';
 
 export function skillFilePath(node: SkillNode): string {
   const defaultPath = `.github/skills/${node.id}/SKILL.md`;
@@ -11,8 +11,7 @@ export function generateSkillMarkdown(node: SkillNode): string {
   const frontmatter = skillFrontmatter(node);
   if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(node.markdown, frontmatter);
 
-  return ensureTrailingNewline(`${GENERATED_MARKER}
-${frontmatter}
+  return appendGeneratedMarker(`${frontmatter}
 
 # ${node.label}
 

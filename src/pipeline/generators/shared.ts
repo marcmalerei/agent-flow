@@ -30,20 +30,33 @@ export function ensureTrailingNewline(content: string): string {
   return content.endsWith('\n') ? content : `${content}\n`;
 }
 
+export function appendGeneratedMarker(content: string): string {
+  const clean = stripGeneratedMarker(content).trimEnd();
+  return ensureTrailingNewline(clean ? `${clean}\n\n${GENERATED_MARKER}` : GENERATED_MARKER);
+}
+
 export function mergeMarkdownWithFrontmatter(markdown: string, frontmatter: string): string {
   const body = markdownBody(markdown);
-  return ensureTrailingNewline(body.trim()
-    ? `${GENERATED_MARKER}\n${frontmatter.trimEnd()}\n\n${body.trimStart()}`
-    : `${GENERATED_MARKER}\n${frontmatter.trimEnd()}\n`);
+  return appendGeneratedMarker(body.trim()
+    ? `${frontmatter.trimEnd()}\n\n${body.trimStart()}`
+    : `${frontmatter.trimEnd()}\n`);
 }
 
 export function markdownBody(markdown: string): string {
-  let content = markdown.trimStart();
-  if (content.startsWith(GENERATED_MARKER)) content = content.slice(GENERATED_MARKER.length).replace(/^(?:\r?\n)+/, '');
+  const content = stripGeneratedMarker(markdown).trimStart();
   if (!content.startsWith('---')) return content;
   const end = content.indexOf('\n---', 3);
   if (end < 0) return content;
   return content.slice(end + 4).replace(/^(?:\r?\n)+/, '');
+}
+
+function stripGeneratedMarker(markdown: string): string {
+  let content = markdown.trimStart();
+  if (content.startsWith(GENERATED_MARKER)) content = content.slice(GENERATED_MARKER.length).replace(/^(?:\r?\n)+/, '');
+  if (content.trimEnd().endsWith(GENERATED_MARKER)) {
+    content = content.trimEnd().slice(0, -GENERATED_MARKER.length).replace(/(?:\r?\n)+$/, '');
+  }
+  return content;
 }
 
 export function nodeFileStem(id: string, label: string, type: string): string {

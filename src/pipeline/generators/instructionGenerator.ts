@@ -1,5 +1,5 @@
 import { InstructionNode } from '../types';
-import { GENERATED_MARKER, ensureTrailingNewline, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlString, yamlStringLine } from './shared';
 
 export function instructionFilePath(node: InstructionNode): string {
   const defaultPath = `.github/instructions/${node.id}.instructions.md`;
@@ -11,8 +11,7 @@ export function generateInstructionMarkdown(node: InstructionNode): string {
   const frontmatter = instructionFrontmatter(node);
   if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(node.markdown, frontmatter);
 
-  return ensureTrailingNewline(`${GENERATED_MARKER}
-${frontmatter}
+  return appendGeneratedMarker(`${frontmatter}
 
 # ${node.label}
 
