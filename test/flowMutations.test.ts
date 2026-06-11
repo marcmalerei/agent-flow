@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { generateAgentMarkdown, generatePromptMarkdown } from '../src/pipeline/generators';
 import { AgentPipeline } from '../src/pipeline/types';
 import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes } from '../src/webview/flowMutations';
+import { deriveVisibleFlowEdges } from '../src/webview/graph';
 
 function basePipeline(): AgentPipeline {
   return {
@@ -62,6 +64,44 @@ describe('flow mutations', () => {
     expect(prompt?.artifactUsages).toEqual([{ path: '.agent-output/result.md', action: 'read' }]);
   });
 
+  it('syncs instruction canvas connections into referencing node instruction refs', () => {
+    const pipeline: AgentPipeline = {
+      ...basePipeline(),
+      nodes: [
+        ...basePipeline().nodes,
+        { id: 'docs', type: 'instruction', label: 'Docs', instructionFile: '.github/instructions/docs.instructions.md', applyTo: '**/*.md' }
+      ]
+    };
+
+    const next = connectPipelineNodes(pipeline, 'docs', 'router');
+    const router = next.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+
+    expect(router?.type).toBe('agent');
+    expect(router?.instructionRefs).toEqual([{ target: '.github/instructions/docs.instructions.md' }]);
+    expect(next.edges).toContainEqual({ id: 'docs-instruction-router', from: 'docs', to: 'router', kind: 'instruction', label: 'instructs', artifact: undefined });
+    expect(generateAgentMarkdown(router!)).toContain('- Follow `.github/instructions/docs.instructions.md`.');
+    expect(deriveVisibleFlowEdges(next).map((edge) => [edge.source, edge.target, edge.label])).toContainEqual(['docs', 'router', 'instructs']);
+  });
+
+  it('syncs reverse instruction canvas connections into referencing node instruction refs', () => {
+    const pipeline: AgentPipeline = {
+      ...basePipeline(),
+      nodes: [
+        ...basePipeline().nodes,
+        { id: 'docs', type: 'instruction', label: 'Docs', instructionFile: '.github/instructions/docs.instructions.md', applyTo: '**/*.md' }
+      ]
+    };
+
+    const next = connectPipelineNodes(pipeline, 'start', 'docs');
+    const prompt = next.nodes.find((node) => node.id === 'start' && node.type === 'prompt');
+
+    expect(prompt?.type).toBe('prompt');
+    expect(prompt?.instructionRefs).toEqual([{ target: '.github/instructions/docs.instructions.md' }]);
+    expect(next.edges).toContainEqual({ id: 'docs-instruction-start', from: 'docs', to: 'start', kind: 'instruction', label: 'instructs', artifact: undefined });
+    expect(generatePromptMarkdown(prompt!)).toContain('- Follow `.github/instructions/docs.instructions.md`.');
+    expect(deriveVisibleFlowEdges(next).map((edge) => [edge.source, edge.target, edge.label])).toContainEqual(['docs', 'start', 'instructs']);
+  });
+
   it('does not duplicate references or edges when the same connection is made twice', () => {
     const once = connectPipelineNodes(basePipeline(), 'router', 'worker');
     const twice = connectPipelineNodes(once, 'router', 'worker');
@@ -83,6 +123,39 @@ it('removes node references and edges when nodes are deleted from the canvas', (
   expect(router?.outputs).toEqual([]);
   expect(router?.artifactUsages).toEqual([]);
   expect(next.edges).toEqual([]);
+});
+
+it('removes backing references when visible reference edges are deleted from the canvas', () => {
+  const pipeline: AgentPipeline = {
+    version: 1,
+    name: 'Reference deletion',
+    nodes: [
+      { id: 'prompt', type: 'prompt', label: 'Prompt', requiredArtifacts: ['.agent-output/result.md'], artifactUsages: [{ path: '.agent-output/result.md', action: 'read' }], instructionRefs: [{ target: '.github/instructions/docs.instructions.md' }] },
+      { id: 'router', type: 'agent', label: 'Router', calls: ['worker'], inputs: [], outputs: ['.agent-output/result.md'], artifactUsages: [{ path: '.agent-output/result.md', action: 'write' }], instructionRefs: [{ target: '.github/instructions/docs.instructions.md' }] },
+      { id: 'worker', type: 'agent', label: 'Worker', calls: [], inputs: [], outputs: [] },
+      { id: 'artifact', type: 'artifact', label: 'Result', path: '.agent-output/result.md' },
+      { id: 'docs', type: 'instruction', label: 'Docs', instructionFile: '.github/instructions/docs.instructions.md', applyTo: '**/*.md' }
+    ],
+    edges: []
+  };
+
+  const next = deletePipelineEdges(pipeline, [
+    'ref:agent:router:calls:worker',
+    'ref:agent.artifactUsages:router:artifact:write',
+    'ref:prompt.artifactUsages:artifact:prompt:read',
+    'ref:agent.instructionRefs:docs:router',
+    'ref:prompt.instructionRefs:docs:prompt'
+  ]);
+  const prompt = next.nodes.find((node) => node.id === 'prompt' && node.type === 'prompt');
+  const router = next.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+
+  expect(prompt?.requiredArtifacts).toEqual([]);
+  expect(prompt?.artifactUsages).toEqual([]);
+  expect(prompt?.instructionRefs).toEqual([]);
+  expect(router?.calls).toEqual([]);
+  expect(router?.outputs).toEqual([]);
+  expect(router?.artifactUsages).toEqual([]);
+  expect(router?.instructionRefs).toEqual([]);
 });
 
 it('removes backing references when edges are deleted from the canvas', () => {
