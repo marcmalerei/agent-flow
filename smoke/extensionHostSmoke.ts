@@ -39,4 +39,87 @@ export async function run(): Promise<void> {
   assert.equal(pipeline.name, 'Default Agent Pipeline');
   assert.ok(Array.isArray(pipeline.nodes) && pipeline.nodes.length > 0, 'Default pipeline should include nodes.');
   assert.ok(Array.isArray(pipeline.edges) && pipeline.edges.length > 0, 'Default pipeline should include edges.');
+
+  await fs.writeFile(pipelineFile, JSON.stringify({
+    version: 1,
+    name: 'Smoke generated files',
+    nodes: [
+      {
+        id: 'new-prompt-1',
+        type: 'prompt',
+        label: 'Smoke Prompt',
+        promptFile: '.github/prompts/new-prompt-1.prompt.md',
+        startAgent: 'new-agent-1',
+        tools: ['read'],
+        requiredArtifacts: ['.agent-output/smoke.md'],
+        artifactUsages: [{ path: '.agent-output/smoke.md', action: 'read', instruction: 'Read the smoke artifact before routing.' }],
+        instructionRefs: [{ target: '.github/instructions/new-instruction-1.instructions.md', instruction: 'Apply smoke rules.' }]
+      },
+      {
+        id: 'new-agent-1',
+        type: 'agent',
+        label: 'Smoke Agent',
+        agentFile: '.github/agents/new-agent-1.agent.md',
+        tools: ['read', 'search'],
+        calls: [],
+        inputs: ['.agent-output/smoke.md'],
+        outputs: ['.agent-output/smoke.md'],
+        artifactUsages: [{ path: '.agent-output/smoke.md', action: 'write', instruction: 'Write the smoke result.' }],
+        instructionRefs: [{ target: '.github/instructions/new-instruction-1.instructions.md', instruction: 'Follow smoke rules.' }]
+      },
+      {
+        id: 'new-instruction-1',
+        type: 'instruction',
+        label: 'Smoke Instruction',
+        instructionFile: '.github/instructions/new-instruction-1.instructions.md',
+        applyTo: '**/*.md',
+        rules: ['Keep smoke files deterministic.']
+      },
+      {
+        id: 'new-skill-1',
+        type: 'skill',
+        label: 'Smoke Skill',
+        skillFile: '.github/skills/new-skill-1/SKILL.md',
+        description: 'Smoke skill description.',
+        procedure: ['Inspect generated files.']
+      },
+      {
+        id: 'new-artifact-1',
+        type: 'artifact',
+        label: 'Smoke Artifact',
+        path: '.agent-output/smoke.md'
+      }
+    ],
+    edges: []
+  }, null, 2), 'utf8');
+
+  const originalShowWarningMessage = vscode.window.showWarningMessage;
+  (vscode.window as unknown as { showWarningMessage: typeof vscode.window.showWarningMessage }).showWarningMessage = async (_message: string, ...items: unknown[]) => {
+    const flatItems = items.flat().filter((item): item is string => typeof item === 'string');
+    return flatItems.includes('Write Files') ? 'Write Files' : flatItems[0];
+  };
+  try {
+    await vscode.commands.executeCommand('agentflow.generateFiles');
+  } finally {
+    (vscode.window as unknown as { showWarningMessage: typeof vscode.window.showWarningMessage }).showWarningMessage = originalShowWarningMessage;
+  }
+
+  const generatedAgent = await fs.readFile(path.join(workspace, '.github/agents/smoke-agent.agent.md'), 'utf8');
+  const generatedPrompt = await fs.readFile(path.join(workspace, '.github/prompts/smoke-prompt.prompt.md'), 'utf8');
+  const generatedInstruction = await fs.readFile(path.join(workspace, '.github/instructions/smoke-instruction.instructions.md'), 'utf8');
+  const generatedSkill = await fs.readFile(path.join(workspace, '.github/skills/smoke-skill/SKILL.md'), 'utf8');
+  const generatedArtifact = await fs.readFile(path.join(workspace, '.agent-output/smoke.md'), 'utf8');
+
+  assert.match(generatedAgent, /name: "Smoke Agent"/);
+  assert.match(generatedAgent, /- Write `\.agent-output\/smoke\.md`: Write the smoke result\./);
+  assert.match(generatedAgent, /- Follow `\.github\/instructions\/new-instruction-1\.instructions\.md`: Follow smoke rules\./);
+  assert.match(generatedPrompt, /name: "Smoke Prompt"/);
+  assert.match(generatedPrompt, /agent: "new-agent-1"/);
+  assert.match(generatedPrompt, /- Read `\.agent-output\/smoke\.md`: Read the smoke artifact before routing\./);
+  assert.match(generatedPrompt, /- Follow `\.github\/instructions\/new-instruction-1\.instructions\.md`: Apply smoke rules\./);
+  assert.match(generatedInstruction, /name: "Smoke Instruction"/);
+  assert.match(generatedInstruction, /applyTo: "\*\*\/\*\.md"/);
+  assert.match(generatedSkill, /name: "smoke-skill"/);
+  assert.match(generatedSkill, /# Smoke Skill/);
+  assert.match(generatedArtifact, /# Smoke Artifact/);
 }
