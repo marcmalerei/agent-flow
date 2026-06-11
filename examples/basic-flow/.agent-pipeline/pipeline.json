@@ -25,6 +25,19 @@
       "requiredArtifacts": [
         ".agent-output/triage.md"
       ],
+      "artifactUsages": [
+        {
+          "path": ".agent-output/triage.md",
+          "action": "read",
+          "instruction": "Use this artifact to decide whether the request is ready for implementation."
+        }
+      ],
+      "instructionRefs": [
+        {
+          "target": ".github/instructions/docs-scope.instructions.md",
+          "instruction": "Apply when the prompt asks for documentation changes."
+        }
+      ],
       "definitionOfDone": [
         "Router has written the triage artifact."
       ],
@@ -62,6 +75,19 @@
       "outputs": [
         ".agent-output/triage.md"
       ],
+      "artifactUsages": [
+        {
+          "path": ".agent-output/triage.md",
+          "action": "write",
+          "instruction": "Write the selected route, involved agents, and open risks."
+        }
+      ],
+      "instructionRefs": [
+        {
+          "target": ".github/instructions/docs-scope.instructions.md",
+          "instruction": "Apply if the route includes documentation work."
+        }
+      ],
       "rules": [
         "Prefer the smallest useful agent set."
       ],
@@ -90,6 +116,18 @@
       "outputs": [
         ".agent-output/implementation.md"
       ],
+      "artifactUsages": [
+        {
+          "path": ".agent-output/triage.md",
+          "action": "read",
+          "instruction": "Use this as the implementation scope."
+        },
+        {
+          "path": ".agent-output/implementation.md",
+          "action": "write",
+          "instruction": "Summarize changed files and verification output."
+        }
+      ],
       "editRules": [
         "Keep changes scoped to the files required by the task."
       ],
@@ -116,6 +154,18 @@
       ],
       "outputs": [
         ".agent-output/review.md"
+      ],
+      "artifactUsages": [
+        {
+          "path": ".agent-output/implementation.md",
+          "action": "validate",
+          "instruction": "Check the implementation summary against the original triage scope."
+        },
+        {
+          "path": ".agent-output/review.md",
+          "action": "write",
+          "instruction": "Write blocking findings first, then residual risk."
+        }
       ],
       "position": {
         "x": 870,

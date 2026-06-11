@@ -14,7 +14,7 @@ import Link from '@tiptap/extension-link';
 import { Background, Controls, ReactFlow, ReactFlowProvider, useReactFlow, type Connection, type Edge, type Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './styles.css';
-import { AgentPipeline, PipelineNode, PipelineNodeType, ValidationFinding, RiskScore } from '../pipeline/types';
+import { AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationFinding, RiskScore } from '../pipeline/types';
 import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
@@ -162,6 +162,7 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
   if (!node) return <p>Select a node.</p>;
   const agents = pipeline.nodes.filter((item) => item.type === 'agent' && item.id !== node.id);
   const artifacts = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'artifact' }> => item.type === 'artifact');
+  const instructions = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'instruction' }> => item.type === 'instruction');
   const references = buildReferenceItems(pipeline);
   const setOptionalString = (field: string, value: string) => onChange(node.id, { [field]: value.trim() || undefined } as Partial<PipelineNode>);
   const setHandoffs = (value: string) => onChange(node.id, {
@@ -176,14 +177,31 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
     const current = field === 'tools' ? normalizeConfiguredTools(rawCurrent) : rawCurrent;
     onChange(node.id, { [field]: checked ? [...new Set([...current, item])] : current.filter((value) => value !== item) } as Partial<PipelineNode>);
   };
+  const toggleArtifact = (field: 'inputs' | 'outputs' | 'requiredArtifacts', path: string, checked: boolean, action: ArtifactAction) => {
+    const current = Array.isArray((node as any)[field]) ? (node as any)[field] as string[] : [];
+    const artifactUsages = checked
+      ? upsertArtifactUsage((node as any).artifactUsages, path, action)
+      : removeArtifactUsageIfUnselected((node as any).artifactUsages, path, current.filter((value) => value !== path), node);
+    onChange(node.id, { [field]: checked ? [...new Set([...current, path])] : current.filter((value) => value !== path), artifactUsages } as Partial<PipelineNode>);
+  };
+  const updateArtifactUsage = (path: string, patch: Partial<ArtifactUsage>, action: ArtifactAction) => {
+    onChange(node.id, { artifactUsages: upsertArtifactUsage((node as any).artifactUsages, path, action, patch) } as Partial<PipelineNode>);
+  };
+  const toggleInstructionRef = (target: string, checked: boolean) => {
+    const instructionRefs = checked ? upsertInstructionRef((node as any).instructionRefs, target) : ((node as any).instructionRefs as ReferenceInstruction[] | undefined)?.filter((ref) => ref.target !== target);
+    onChange(node.id, { instructionRefs } as Partial<PipelineNode>);
+  };
+  const updateInstructionRef = (target: string, instruction: string) => {
+    onChange(node.id, { instructionRefs: upsertInstructionRef((node as any).instructionRefs, target, instruction) } as Partial<PipelineNode>);
+  };
   const toolGroups = (node.type === 'agent' || node.type === 'prompt') ? partitionConfiguredTools({ availableTools: toolOptions, configuredTools: node.tools ?? [] }) : { available: [], unavailable: [] };
   return <div className="config"><h2>{node.label}</h2><span className="pill">{node.type}</span>
     <label>Label<input value={node.label} onChange={(event: any) => onChange(node.id, { label: event.target.value } as Partial<PipelineNode>)} /></label>
     <label>Description<textarea value={node.description ?? ''} onChange={(event: any) => onChange(node.id, { description: event.target.value } as Partial<PipelineNode>)} /></label>
     {node.type === 'agent' && <details><summary>Agent metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Target<select value={node.target ?? ''} onChange={(event: any) => setOptionalString('target', event.target.value)}><option value="">Both environments</option><option value="vscode">VS Code</option><option value="github-copilot">GitHub Copilot</option></select></label><label className="inline-check"><input type="checkbox" checked={node.userInvocable ?? true} onChange={(event: any) => onChange(node.id, { userInvocable: event.target.checked ? undefined : false } as Partial<PipelineNode>)} /> User invocable</label><label className="inline-check"><input type="checkbox" checked={node.disableModelInvocation ?? false} onChange={(event: any) => onChange(node.id, { disableModelInvocation: event.target.checked || undefined } as Partial<PipelineNode>)} /> Disable model invocation</label><label>Handoffs<textarea value={(node.handoffs ?? []).map((handoff) => [handoff.label, handoff.agent, handoff.prompt ?? '', typeof handoff.send === 'boolean' ? String(handoff.send) : ''].join(' | ')).join('\n')} placeholder="Label | agent-id | optional prompt | false" onChange={(event: any) => setHandoffs(event.target.value)} /></label></details>}
     {(node.type === 'agent' || node.type === 'prompt') && <details><summary>Tools</summary>{toolGroups.available.length ? <div className="checks">{toolGroups.available.map((tool) => <label key={tool}><input type="checkbox" checked={(node.tools ?? []).includes(tool)} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div> : <p className="hint">No VS Code language model tools are registered.</p>}{toolGroups.unavailable.length > 0 && <><h4>Selected tools</h4><p className="hint">Selected on this node, but not registered by VS Code right now.</p><div className="checks selected-tools">{toolGroups.unavailable.map((tool) => <label key={tool} title="Selected on this node, but not registered by VS Code right now."><input type="checkbox" checked={true} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div></>}</details>}
-    {node.type === 'agent' && <details><summary>Routing and artifacts</summary><h4>Subagents</h4><div className="checks">{agents.map((agent) => <label key={agent.id}><input type="checkbox" checked={(node.calls ?? []).includes(agent.id)} onChange={(event: any) => toggleListItem('calls', agent.id, event.target.checked)} />{agent.label}</label>)}</div><ArtifactSelector title="Input artifacts" artifacts={artifacts} selected={node.inputs ?? []} onToggle={(path, checked) => toggleListItem('inputs', path, checked)} /><ArtifactSelector title="Output artifacts" artifacts={artifacts} selected={node.outputs ?? []} onToggle={(path, checked) => toggleListItem('outputs', path, checked)} /></details>}
-    {node.type === 'prompt' && <details open><summary>Prompt metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Agent<select value={node.startAgent ?? ''} onChange={(event: any) => onChange(node.id, { startAgent: event.target.value || undefined } as Partial<PipelineNode>)}><option value="">Current agent</option><option value="ask">ask</option><option value="agent">agent</option><option value="plan">plan</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}</select></label></details>}
+    {node.type === 'agent' && <details><summary>Routing and references</summary><h4>Subagents</h4><div className="checks">{agents.map((agent) => <label key={agent.id}><input type="checkbox" checked={(node.calls ?? []).includes(agent.id)} onChange={(event: any) => toggleListItem('calls', agent.id, event.target.checked)} />{agent.label}</label>)}</div><ArtifactSelector title="Input artifacts" artifacts={artifacts} selected={node.inputs ?? []} usages={node.artifactUsages ?? []} defaultAction="read" actionOptions={['read', 'validate']} onToggle={(path, checked) => toggleArtifact('inputs', path, checked, 'read')} onUsageChange={(path, patch) => updateArtifactUsage(path, patch, 'read')} /><ArtifactSelector title="Output artifacts" artifacts={artifacts} selected={node.outputs ?? []} usages={node.artifactUsages ?? []} defaultAction="write" actionOptions={['write', 'append']} onToggle={(path, checked) => toggleArtifact('outputs', path, checked, 'write')} onUsageChange={(path, patch) => updateArtifactUsage(path, patch, 'write')} /><InstructionReferenceSelector instructions={instructions} refs={node.instructionRefs ?? []} onToggle={toggleInstructionRef} onInstructionChange={updateInstructionRef} /></details>}
+    {node.type === 'prompt' && <details open><summary>Prompt metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Agent<select value={node.startAgent ?? ''} onChange={(event: any) => onChange(node.id, { startAgent: event.target.value || undefined } as Partial<PipelineNode>)}><option value="">Current agent</option><option value="ask">ask</option><option value="agent">agent</option><option value="plan">plan</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}</select></label><ArtifactSelector title="Required artifacts" artifacts={artifacts} selected={node.requiredArtifacts ?? []} usages={node.artifactUsages ?? []} defaultAction="read" actionOptions={['read', 'validate']} onToggle={(path, checked) => toggleArtifact('requiredArtifacts', path, checked, 'read')} onUsageChange={(path, patch) => updateArtifactUsage(path, patch, 'read')} /><InstructionReferenceSelector instructions={instructions} refs={node.instructionRefs ?? []} onToggle={toggleInstructionRef} onInstructionChange={updateInstructionRef} /></details>}
     {node.type === 'instruction' && <details open><summary>Instruction scope</summary><label>applyTo<input value={node.applyTo} onChange={(event: any) => onChange(node.id, { applyTo: event.target.value } as Partial<PipelineNode>)} /></label><label>Exclude agent<select value={node.excludeAgent ?? ''} onChange={(event: any) => setOptionalString('excludeAgent', event.target.value)}><option value="">None</option><option value="code-review">code-review</option><option value="cloud-agent">cloud-agent</option></select></label></details>}
     {node.type === 'skill' && <details open><summary>Skill metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label className="inline-check"><input type="checkbox" checked={node.userInvocable ?? true} onChange={(event: any) => onChange(node.id, { userInvocable: event.target.checked ? undefined : false } as Partial<PipelineNode>)} /> User invocable</label><label className="inline-check"><input type="checkbox" checked={node.disableModelInvocation ?? false} onChange={(event: any) => onChange(node.id, { disableModelInvocation: event.target.checked || undefined } as Partial<PipelineNode>)} /> Disable model invocation</label><label>Context<select value={node.context ?? ''} onChange={(event: any) => setOptionalString('context', event.target.value)}><option value="">inline</option><option value="fork">fork</option></select></label></details>}
     {node.type === 'artifact' && <details open><summary>Artifact file</summary><label>Path<input value={node.path} onChange={(event: any) => onChange(node.id, { path: event.target.value } as Partial<PipelineNode>)} /></label></details>}
@@ -193,14 +211,44 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
   </div>;
 }
 
-function ArtifactSelector({ artifacts, onToggle, selected, title }: { artifacts: Array<Extract<PipelineNode, { type: 'artifact' }>>; onToggle: (path: string, checked: boolean) => void; selected: string[]; title: string }) {
+function ArtifactSelector({ actionOptions, artifacts, defaultAction, onToggle, onUsageChange, selected, title, usages }: { actionOptions: ArtifactAction[]; artifacts: Array<Extract<PipelineNode, { type: 'artifact' }>>; defaultAction: ArtifactAction; onToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>) => void; selected: string[]; title: string; usages: ArtifactUsage[] }) {
   const artifactPaths = new Set(artifacts.map((artifact) => artifact.path));
   const selectedWithoutNode = selected.filter((path) => !artifactPaths.has(path));
+  const rows = artifacts.map((artifact) => ({ id: artifact.id, label: artifact.label, path: artifact.path }));
   return <section className="artifact-picker">
     <h4>{title}</h4>
-    {artifacts.length ? <div className="checks">{artifacts.map((artifact) => <label key={artifact.id} title={artifact.path}><input type="checkbox" checked={selected.includes(artifact.path)} onChange={(event: any) => onToggle(artifact.path, event.target.checked)} /><span className="artifact-option"><span>{artifact.label}</span><small>{artifact.path}</small></span></label>)}</div> : <p className="hint">Create an artifact node to select it here.</p>}
-    {selectedWithoutNode.length > 0 && <><p className="hint">Selected paths without an artifact node.</p><div className="checks selected-tools">{selectedWithoutNode.map((path) => <label key={path}><input type="checkbox" checked={true} onChange={(event: any) => onToggle(path, event.target.checked)} /><span>{path}</span></label>)}</div></>}
+    {rows.length ? <div className="reference-list">{rows.map((artifact) => <ArtifactUsageRow key={artifact.id} actionOptions={actionOptions} checked={selected.includes(artifact.path)} defaultAction={defaultAction} label={artifact.label} path={artifact.path} usage={usages.find((usage) => usage.path === artifact.path)} onToggle={onToggle} onUsageChange={onUsageChange} />)}</div> : <p className="hint">Create an artifact node to select it here.</p>}
+    {selectedWithoutNode.length > 0 && <><p className="hint">Selected paths without an artifact node.</p><div className="reference-list selected-tools">{selectedWithoutNode.map((path) => <ArtifactUsageRow key={path} actionOptions={actionOptions} checked={true} defaultAction={defaultAction} label={path} path={path} usage={usages.find((usage) => usage.path === path)} onToggle={onToggle} onUsageChange={onUsageChange} />)}</div></>}
   </section>;
+}
+
+function ArtifactUsageRow({ actionOptions, checked, defaultAction, label, onToggle, onUsageChange, path, usage }: { actionOptions: ArtifactAction[]; checked: boolean; defaultAction: ArtifactAction; label: string; onToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>) => void; path: string; usage?: ArtifactUsage }) {
+  const currentAction = usage?.action ?? defaultAction;
+  return <div className={`reference-row${checked ? ' selected' : ''}`}>
+    <label className="reference-check" title={path}><input type="checkbox" checked={checked} onChange={(event: any) => onToggle(path, event.target.checked)} /><span className="artifact-option"><span>{label}</span><small>{path}</small></span></label>
+    {checked && <div className="reference-fields"><label>Action<select value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value })}>{actionOptions.map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label><label>Instruction<textarea value={usage?.instruction ?? ''} placeholder={`What should this node do with ${path}?`} onChange={(event: any) => onUsageChange(path, { instruction: event.target.value.trim() || undefined })} /></label></div>}
+  </div>;
+}
+
+function InstructionReferenceSelector({ instructions, onInstructionChange, onToggle, refs }: { instructions: Array<Extract<PipelineNode, { type: 'instruction' }>>; onInstructionChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; refs: ReferenceInstruction[] }) {
+  const targets = new Set(instructions.map(instructionReferenceTarget));
+  const missing = refs.filter((ref) => !targets.has(ref.target));
+  return <section className="reference-picker">
+    <h4>Instruction references</h4>
+    {instructions.length ? <div className="reference-list">{instructions.map((instruction) => {
+      const target = instructionReferenceTarget(instruction);
+      const ref = refs.find((item) => item.target === target);
+      return <InstructionReferenceRow key={target} checked={Boolean(ref)} instruction={instruction} reference={ref} target={target} onToggle={onToggle} onInstructionChange={onInstructionChange} />;
+    })}</div> : <p className="hint">Create an instruction node to reference it here.</p>}
+    {missing.length > 0 && <><p className="hint">Selected instruction references without an instruction node.</p><div className="reference-list selected-tools">{missing.map((ref) => <InstructionReferenceRow key={ref.target} checked={true} reference={ref} target={ref.target} onToggle={onToggle} onInstructionChange={onInstructionChange} />)}</div></>}
+  </section>;
+}
+
+function InstructionReferenceRow({ checked, instruction, onInstructionChange, onToggle, reference, target }: { checked: boolean; instruction?: Extract<PipelineNode, { type: 'instruction' }>; onInstructionChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; reference?: ReferenceInstruction; target: string }) {
+  return <div className={`reference-row${checked ? ' selected' : ''}`}>
+    <label className="reference-check" title={target}><input type="checkbox" checked={checked} onChange={(event: any) => onToggle(target, event.target.checked)} /><span className="artifact-option"><span>{instruction?.label ?? target}</span><small>{target}</small></span></label>
+    {checked && <div className="reference-fields"><label>Purpose<textarea value={reference?.instruction ?? ''} placeholder={`How should this node apply ${target}?`} onChange={(event: any) => onInstructionChange(target, event.target.value.trim())} /></label></div>}
+  </div>;
 }
 
 interface ReferenceItem { label: string; value: string; type: string }
@@ -212,12 +260,43 @@ function buildReferenceItems(pipeline: AgentPipeline): ReferenceItem[] {
       items.push(...(node.inputs ?? []).map((path) => ({ label: path, value: `@file:${path}`, type: 'input' })));
       items.push(...(node.outputs ?? []).map((path) => ({ label: path, value: `@file:${path}`, type: 'output' })));
     }
+    if (node.type === 'instruction') items.push({ label: node.instructionFile ?? `.github/instructions/${node.id}.instructions.md`, value: `@instruction:${node.id}`, type: 'instruction' });
     if (node.type === 'skill') items.push({ label: node.skillFile ?? `.github/skills/${node.id}/SKILL.md`, value: `@skill:${node.id}`, type: 'skill' });
     if (node.type === 'prompt') items.push({ label: node.promptFile ?? `.github/prompts/${node.id}.prompt.md`, value: `@prompt:${node.id}`, type: 'prompt' });
     if (node.type === 'artifact') items.push({ label: node.path, value: `@file:${node.path}`, type: 'artifact' });
     return items;
   });
   return [...new Map(generated.map((item) => [item.value, item])).values()].sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function upsertArtifactUsage(usages: ArtifactUsage[] | undefined, path: string, action: ArtifactAction, patch: Partial<ArtifactUsage> = {}): ArtifactUsage[] {
+  const next = { path, action, ...patch };
+  const existing = usages ?? [];
+  return existing.some((usage) => usage.path === path)
+    ? existing.map((usage) => usage.path === path ? { ...usage, ...next } : usage)
+    : [...existing, next];
+}
+
+function removeArtifactUsageIfUnselected(usages: ArtifactUsage[] | undefined, path: string, nextSelected: string[], node: PipelineNode): ArtifactUsage[] | undefined {
+  const stillSelected = nextSelected.includes(path)
+    || (node.type === 'agent' && [...(node.inputs ?? []), ...(node.outputs ?? [])].filter((value) => value === path).length > 1)
+    || (node.type === 'prompt' && (node.requiredArtifacts ?? []).filter((value) => value === path).length > 1);
+  const next = stillSelected ? usages : usages?.filter((usage) => usage.path !== path);
+  return next?.length ? next : undefined;
+}
+
+function upsertInstructionRef(refs: ReferenceInstruction[] | undefined, target: string, instruction?: string): ReferenceInstruction[] {
+  const existing = refs ?? [];
+  if (existing.some((ref) => ref.target === target)) return existing.map((ref) => ref.target === target ? { target, instruction: instruction === undefined ? ref.instruction : instruction.trim() || undefined } : ref);
+  return [...existing, { target, instruction: instruction?.trim() || undefined }];
+}
+
+function instructionReferenceTarget(instruction: Extract<PipelineNode, { type: 'instruction' }>): string {
+  return instruction.instructionFile ?? `.github/instructions/${instruction.id}.instructions.md`;
+}
+
+function artifactActionLabel(action: string): string {
+  return ({ read: 'Read', write: 'Write', append: 'Append', validate: 'Validate' } as Record<string, string>)[action] ?? action;
 }
 
 function TiptapMarkdownEditor({ value, references, onChange }: { value: string; references: ReferenceItem[]; onChange: (value: string) => void }) {

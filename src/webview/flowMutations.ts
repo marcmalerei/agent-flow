@@ -1,4 +1,4 @@
-import { AgentPipeline, PipelineEdge, PipelineNode } from '../pipeline/types';
+import { AgentPipeline, ArtifactAction, ArtifactUsage, PipelineEdge, PipelineNode } from '../pipeline/types';
 
 export function connectPipelineNodes(pipeline: AgentPipeline, sourceId: string, targetId: string): AgentPipeline {
   const source = pipeline.nodes.find((node) => node.id === sourceId);
@@ -16,7 +16,7 @@ export function connectPipelineNodes(pipeline: AgentPipeline, sourceId: string, 
 function edgeForConnection(source: PipelineNode, target: PipelineNode): PipelineEdge {
   const kind = source.type === 'prompt' && target.type === 'agent'
     ? 'prompt'
-    : (source.type === 'agent' && target.type === 'artifact') || (source.type === 'artifact' && target.type === 'agent')
+    : source.type === 'artifact' || target.type === 'artifact'
       ? 'artifact'
       : 'flow';
   const id = `${source.id}-${kind}-${target.id}`;
@@ -32,14 +32,26 @@ function updateNodeReferences(node: PipelineNode, source: PipelineNode, target: 
     return { ...source, startAgent: target.id };
   }
   if (node.id === source.id && source.type === 'agent' && target.type === 'artifact') {
-    return { ...source, outputs: addUnique(source.outputs, target.path) };
+    return { ...source, outputs: addUnique(source.outputs, target.path), artifactUsages: upsertArtifactUsage(source.artifactUsages, target.path, 'write') };
   }
   if (node.id === target.id && source.type === 'artifact' && target.type === 'agent') {
-    return { ...target, inputs: addUnique(target.inputs, source.path) };
+    return { ...target, inputs: addUnique(target.inputs, source.path), artifactUsages: upsertArtifactUsage(target.artifactUsages, source.path, 'read') };
+  }
+  if (node.id === source.id && source.type === 'prompt' && target.type === 'artifact') {
+    return { ...source, requiredArtifacts: addUnique(source.requiredArtifacts, target.path), artifactUsages: upsertArtifactUsage(source.artifactUsages, target.path, 'read') };
+  }
+  if (node.id === target.id && source.type === 'artifact' && target.type === 'prompt') {
+    return { ...target, requiredArtifacts: addUnique(target.requiredArtifacts, source.path), artifactUsages: upsertArtifactUsage(target.artifactUsages, source.path, 'read') };
   }
   return node;
 }
 
 function addUnique(values: string[] | undefined, value: string): string[] {
   return [...new Set([...(values ?? []), value])];
+}
+
+function upsertArtifactUsage(usages: ArtifactUsage[] | undefined, path: string, action: ArtifactAction): ArtifactUsage[] {
+  const current = usages ?? [];
+  if (current.some((usage) => usage.path === path)) return current;
+  return [...current, { path, action }];
 }

@@ -44,11 +44,22 @@ describe('flow mutations', () => {
     expect(router?.type).toBe('agent');
     expect(worker?.type).toBe('agent');
     expect(router?.outputs).toEqual(['.agent-output/result.md']);
+    expect(router?.artifactUsages).toEqual([{ path: '.agent-output/result.md', action: 'write' }]);
     expect(worker?.inputs).toEqual(['.agent-output/result.md']);
+    expect(worker?.artifactUsages).toEqual([{ path: '.agent-output/result.md', action: 'read' }]);
     expect(consumed.edges.map((edge) => [edge.id, edge.from, edge.to, edge.kind, edge.artifact])).toEqual([
       ['router-artifact-artifact', 'router', 'artifact', 'artifact', '.agent-output/result.md'],
       ['artifact-artifact-worker', 'artifact', 'worker', 'artifact', '.agent-output/result.md']
     ]);
+  });
+
+  it('syncs prompt artifact connections into required artifacts', () => {
+    const next = connectPipelineNodes(basePipeline(), 'start', 'artifact');
+    const prompt = next.nodes.find((node) => node.id === 'start' && node.type === 'prompt');
+
+    expect(prompt?.type).toBe('prompt');
+    expect(prompt?.requiredArtifacts).toEqual(['.agent-output/result.md']);
+    expect(prompt?.artifactUsages).toEqual([{ path: '.agent-output/result.md', action: 'read' }]);
   });
 
   it('does not duplicate references or edges when the same connection is made twice', () => {

@@ -3,7 +3,7 @@
   --agentflow-border: var(--vscode-panel-border, var(--vscode-editorWidget-border, #454545));
   --agentflow-control-radius: 2px;
 }
-body { margin: 0; font-family: var(--vscode-font-family, system-ui); font-size: var(--vscode-font-size, 13px); background: var(--vscode-editor-background); color: var(--vscode-foreground); }
+body { margin: 0; font-family: var(--vscode-font-family, system-ui); font-size: var(--vscode-font-size, 13px); background: var(--vscode-editor-background); color: var(--vscode-foreground, var(--vscode-editor-foreground)); }
 .app { display: grid; grid-template-columns: 1fr 390px; grid-template-rows: 56px 1fr 42px; height: 100vh; background: var(--vscode-editor-background); }
 .app.bottom-open { grid-template-rows: 56px 1fr 250px; }
 .app.inspector-closed { grid-template-columns: 1fr; }
@@ -41,8 +41,18 @@ pre { white-space: pre-wrap; font-size: 12px; background: var(--vscode-textCodeB
 input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, var(--vscode-button-background)); }
 .checks input { width: auto; margin: 0; }
 .checks small { display: block; color: var(--vscode-descriptionForeground); font-size: 11px; overflow-wrap: anywhere; }
-.artifact-option { min-width: 0; }
+.artifact-option { display: grid; gap: 2px; min-width: 0; }
+.artifact-option small { display: block; color: var(--vscode-descriptionForeground); font-size: 11px; overflow-wrap: anywhere; }
 .artifact-picker { margin: 12px 0; }
+.reference-picker { margin: 12px 0; }
+.reference-list { display: grid; gap: 8px; }
+.reference-row { padding: 8px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, transparent); }
+.reference-row.selected { background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--agentflow-panel)) 78%, var(--vscode-list-hoverBackground, transparent)); }
+.reference-check { display: flex !important; align-items: flex-start; gap: 8px; margin: 0 !important; font-weight: 400 !important; }
+.reference-check input { width: auto; margin-top: 2px; }
+.reference-fields { display: grid; grid-template-columns: minmax(96px, 120px) 1fr; gap: 8px; margin-top: 8px; }
+.reference-fields label { margin: 0; }
+.reference-fields textarea { min-height: 58px; }
 .selected-tools label { color: var(--vscode-descriptionForeground); }
 .markdown-shell { position: relative; border: 1px solid var(--agentflow-border); border-radius: 6px; background: var(--vscode-editor-background); overflow: hidden; }
 .editor-toolbar { display: flex; align-items: center; gap: 2px; min-height: 42px; padding: 4px 8px; border-bottom: 1px solid var(--agentflow-border); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--agentflow-panel)) 92%, transparent); }

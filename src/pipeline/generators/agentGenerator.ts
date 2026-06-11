@@ -1,6 +1,6 @@
 import { AgentNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
-import { appendGeneratedMarker, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlBooleanLine, yamlList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlBooleanLine, yamlList, yamlString, yamlStringLine } from './shared';
 
 export function agentFilePath(node: AgentNode): string {
   const defaultPath = `.github/agents/${node.id}.agent.md`;
@@ -21,6 +21,14 @@ ${node.description ?? `You are responsible for ${node.label}.`}
 # Required input
 
 ${list((node.inputs ?? []).map((input) => `Read \`${input}\` first.`))}
+
+# Artifact work
+
+${artifactUsageList(node.artifactUsages)}
+
+# Referenced instructions
+
+${referenceInstructionList(node.instructionRefs)}
 
 # Context budget
 

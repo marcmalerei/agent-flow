@@ -1,6 +1,6 @@
 import { PromptNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
-import { appendGeneratedMarker, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlList, yamlString, yamlStringLine } from './shared';
 
 export function promptFilePath(node: PromptNode): string {
   const defaultPath = `.github/prompts/${node.id}.prompt.md`;
@@ -32,7 +32,11 @@ ${list(node.constraints)}
 
 # Required artifacts
 
-${list(node.requiredArtifacts)}
+${artifactUsageList(node.artifactUsages, node.requiredArtifacts)}
+
+# Referenced instructions
+
+${referenceInstructionList(node.instructionRefs)}
 
 # Definition of done
 
