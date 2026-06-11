@@ -7,6 +7,44 @@ import { loadOrInferPipeline, inferPipelineFromWorkspace } from '../src/pipeline
 import { deriveVisibleFlowEdges } from '../src/webview/graph';
 
 describe('workspace scanner', () => {
+  it('parses role files and role references from agent markdown', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-roles-'));
+    await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/roles'), { recursive: true });
+    await fs.writeFile(path.join(workspace, '.github/roles/frontend-developer.md'), `---
+name: "Frontend-Developer"
+description: "Frontend developer role"
+---
+
+Markdown content...
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/agents/frontend.agent.md'), `---
+name: "Frontend"
+---
+
+# Role
+
+Read \`.github/roles/frontend-developer.md\` before implementing UI changes.
+`, 'utf8');
+
+    const pipeline = await inferPipelineFromWorkspace(workspace);
+
+    expect(pipeline.nodes.find((node) => node.id === 'frontend-developer' && node.type === 'role')).toMatchObject({
+      roleFile: '.github/roles/frontend-developer.md',
+      label: 'Frontend-Developer',
+      description: 'Frontend developer role'
+    });
+    expect(pipeline.nodes.find((node) => node.id === 'frontend' && node.type === 'agent')).toMatchObject({
+      roleRefs: [{ target: '.github/roles/frontend-developer.md' }]
+    });
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label, edge.data.derivedFrom])).toContainEqual([
+      'frontend-developer',
+      'frontend',
+      'role',
+      'agent.roleRefs'
+    ]);
+  });
+
   it('parses agent handoffs from frontmatter object lists', async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-handoffs-'));
     await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });

@@ -120,6 +120,7 @@ function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<
     '.github/prompts/**/*.prompt.md',
     '.github/instructions/**/*.instructions.md',
     '.github/skills/**/SKILL.md',
+    '.github/roles/**/*.md',
     '.agent-output/**/*.{md,json,txt}'
   ];
   const watchers = patterns.map((pattern) => vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(workspace, pattern)));
