@@ -476,6 +476,43 @@ describe('webview graph projection', () => {
     ]);
   });
 
+  it('projects handoff nodes to their target agents', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Handoff node',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'Router', calls: [], outputs: [] },
+        { id: 'handoff', type: 'handoff', label: 'Escalate', sourceAgent: 'router', targetAgent: 'worker' },
+        { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }
+      ],
+      edges: [
+        { id: 'router-handoff-node-handoff', from: 'router', to: 'handoff', kind: 'handoff', label: 'Escalate' },
+        { id: 'handoff-handoff-target-worker', from: 'handoff', to: 'worker', kind: 'handoff', label: 'Escalate' }
+      ]
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.id, edge.source, edge.target, edge.label, edge.data.derivedFrom])).toEqual([
+      ['router-handoff-node-handoff', 'router', 'handoff', 'Escalate', 'pipeline.edges'],
+      ['handoff-handoff-target-worker', 'handoff', 'worker', 'Escalate', 'pipeline.edges']
+    ]);
+  });
+
+  it('projects live handoff node target references and edge direction markers', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Live handoff node',
+      nodes: [
+        { id: 'handoff', type: 'handoff', label: 'Escalate', targetAgent: 'worker' },
+        { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }
+      ],
+      edges: []
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label, edge.data.derivedFrom, edge.markerEnd && typeof edge.markerEnd === 'object' ? edge.markerEnd.type : undefined])).toEqual([
+      ['handoff', 'worker', 'Escalate', 'handoff.targetAgent', 'arrowclosed']
+    ]);
+  });
+
   it('projects prompt artifact usage and instruction references into visible edges', () => {
     const pipeline: AgentPipeline = {
       version: 1,
