@@ -391,6 +391,23 @@ describe('webview graph projection', () => {
     ]);
   });
 
+
+  it('projects instruction file references into visible edges', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Instruction refs',
+      nodes: [
+        { id: 'atom', type: 'instruction', label: 'Atom', instructionFile: '.github/instructions/atom.instructions.md', applyTo: '!**/*', instructionRefs: [{ target: '.github/instructions/template.instructions.md' }] },
+        { id: 'template', type: 'instruction', label: 'Template', instructionFile: '.github/instructions/template.instructions.md', applyTo: '**/*' }
+      ],
+      edges: []
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label, edge.data.derivedFrom, edge.data.kind])).toEqual([
+      ['template', 'atom', 'instructs', 'instruction.instructionRefs', 'reference']
+    ]);
+  });
+
   it('keeps explicit user-drawn edges editable and avoids duplicate reference previews', () => {
     const pipeline: AgentPipeline = {
       version: 1,

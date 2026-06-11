@@ -9,7 +9,7 @@ export interface VisibleFlowEdge {
   animated?: boolean;
   style?: Record<string, string | number>;
   data: {
-    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'agent.hooks' | 'agent.mcpServers';
+    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'instruction.instructionRefs' | 'agent.hooks' | 'agent.mcpServers';
     kind: PipelineEdgeKind | 'reference';
     artifact?: string;
   };
@@ -84,6 +84,10 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
         });
       }
       addInstructionReferenceEdges(visible, explicitPairs, node.id, node.instructionRefs, 'prompt.instructionRefs', instructionsByTarget);
+    }
+
+    if (node.type === 'instruction') {
+      addInstructionReferenceEdges(visible, explicitPairs, node.id, node.instructionRefs, 'instruction.instructionRefs', instructionsByTarget);
     }
 
     if (node.type !== 'agent') continue;
@@ -195,7 +199,7 @@ function addInstructionReferenceEdges(
   explicitPairs: Set<string>,
   nodeId: string,
   refs: ReferenceInstruction[] | undefined,
-  derivedFrom: 'agent.instructionRefs' | 'prompt.instructionRefs',
+  derivedFrom: 'agent.instructionRefs' | 'prompt.instructionRefs' | 'instruction.instructionRefs',
   instructionsByTarget: Map<string, string>
 ): void {
   for (const ref of refs ?? []) {

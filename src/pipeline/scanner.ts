@@ -115,6 +115,35 @@ function parseYamlScalar(value: string): string | boolean {
   return stripped;
 }
 
+
+function customizationKind(filePath: string): 'agent' | 'prompt' | 'instruction' | undefined {
+  if (filePath.endsWith('.agent.md')) return 'agent';
+  if (filePath.endsWith('.prompt.md')) return 'prompt';
+  if (filePath.endsWith('.instructions.md')) return 'instruction';
+  return undefined;
+}
+
+function isArtifactPath(filePath: string): boolean {
+  return customizationKind(filePath) === undefined;
+}
+
+function customizationNodeId(filePath: string): string {
+  if (filePath.endsWith('.agent.md')) return path.basename(filePath, '.agent.md');
+  if (filePath.endsWith('.prompt.md')) return path.basename(filePath, '.prompt.md');
+  if (filePath.endsWith('.instructions.md')) return path.basename(filePath, '.instructions.md');
+  return filePath.replace(/[^A-Za-z0-9_-]/g, '-');
+}
+
+function parseCustomizationRefs(source: string): Array<{ path: string; kind: 'agent' | 'prompt' | 'instruction' }> {
+  const refs: Array<{ path: string; kind: 'agent' | 'prompt' | 'instruction' }> = [];
+  const pattern = /`([^`]+\.(?:agent|prompt|instructions)\.md)`/gi;
+  for (const match of source.matchAll(pattern)) {
+    const kind = customizationKind(match[1]);
+    if (kind) refs.push({ path: match[1], kind });
+  }
+  return [...new Map(refs.map((ref) => [`${ref.kind}:${ref.path}`, ref])).values()];
+}
+
 function frontmatterHandoffs(value: FrontmatterValue | undefined): AgentHandoff[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const handoffs = value.filter((item): item is AgentHandoff => typeof item === 'object' && item !== null && !Array.isArray(item) && typeof item.label === 'string' && typeof item.agent === 'string');
@@ -131,6 +160,7 @@ function parseArtifactUsageLines(source: string): ArtifactUsage[] | undefined {
   const usages = source.split(/\r?\n/).map((line): ArtifactUsage | undefined => {
     const match = line.match(/^\s*-\s+(Read|Write|Append to|Validate)\s+`([^`]+)`(?::\s*(.+)|\.)?\s*$/i);
     if (!match) return undefined;
+    if (!isArtifactPath(match[2])) return undefined;
     const usage: ArtifactUsage = {
       path: match[2],
       action: artifactAction(match[1])
@@ -145,6 +175,7 @@ function parseMarkdownFileUsages(source: string): ArtifactUsage[] | undefined {
   const usages: ArtifactUsage[] = [];
   const pattern = /\b(Read|Write|Append to|Validate)\s+`([^`]+)`(?::\s*([^\n]+))?/gi;
   for (const match of source.matchAll(pattern)) {
+    if (!isArtifactPath(match[2])) continue;
     usages.push({ path: match[2], action: artifactAction(match[1]), instruction: match[3]?.trim().replace(/\.$/, '') || undefined });
   }
   return usages.length ? usages : undefined;
@@ -161,15 +192,29 @@ function mergeArtifactUsages(...groups: Array<ArtifactUsage[] | undefined>): Art
 
 function parseInstructionRefs(source: string): ReferenceInstruction[] | undefined {
   const section = markdownSection(source, 'Referenced instructions');
-  if (!section) return undefined;
-  const refs = section.split(/\r?\n/).map((line): ReferenceInstruction | undefined => {
+  const sectionRefs = section?.split(/\r?\n/).map((line): ReferenceInstruction | undefined => {
     const match = line.match(/^\s*-\s+Follow\s+`([^`]+)`(?::\s*(.+)|\.)?\s*$/i);
     if (!match) return undefined;
     const ref: ReferenceInstruction = { target: match[1] };
     if (match[2]?.trim()) ref.instruction = match[2].trim();
     return ref;
   }).filter((ref): ref is ReferenceInstruction => Boolean(ref));
+  return mergeInstructionRefs(sectionRefs, parseMarkdownInstructionRefs(source));
+}
+
+function parseMarkdownInstructionRefs(source: string): ReferenceInstruction[] | undefined {
+  const refs: ReferenceInstruction[] = [];
+  const pattern = /`([^`]*\.github\/instructions\/[^`]+\.instructions\.md)`/gi;
+  for (const match of source.matchAll(pattern)) refs.push({ target: match[1] });
   return refs.length ? refs : undefined;
+}
+
+function mergeInstructionRefs(...groups: Array<ReferenceInstruction[] | undefined>): ReferenceInstruction[] | undefined {
+  const byTarget = new Map<string, ReferenceInstruction>();
+  for (const ref of groups.flatMap((group) => group ?? [])) {
+    byTarget.set(ref.target, { ...ref, instruction: byTarget.get(ref.target)?.instruction ?? ref.instruction });
+  }
+  return byTarget.size ? [...byTarget.values()] : undefined;
 }
 
 function markdownSection(source: string, heading: string): string | undefined {
@@ -273,7 +318,8 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const id = path.basename(file, '.instructions.md');
     const content = await fs.readFile(file, 'utf8');
     const fm = frontmatter(content);
-    nodes.push({ id, type: 'instruction', label: titleFromId(id), instructionFile: rel(workspace, file), applyTo: typeof fm.applyTo === 'string' ? stripYamlQuotes(fm.applyTo) : '**/*', description: typeof fm.description === 'string' ? stripYamlQuotes(fm.description) : undefined, markdown: content, position: addPosition() });
+    const instructionRefs = parseInstructionRefs(content);
+    nodes.push({ id, type: 'instruction', label: titleFromId(id), instructionFile: rel(workspace, file), applyTo: typeof fm.applyTo === 'string' ? stripYamlQuotes(fm.applyTo) : '**/*', description: typeof fm.description === 'string' ? stripYamlQuotes(fm.description) : undefined, instructionRefs, markdown: content, position: addPosition() });
   }
 
   const skillFiles = await findFiles(path.join(workspace, '.github/skills'), (file) => path.basename(file) === 'SKILL.md');
@@ -284,12 +330,13 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     nodes.push({ id, type: 'skill', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), skillFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : content.match(/## Description\s+([\s\S]*?)(\n##|$)/)?.[1]?.trim(), argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, context: typeof fm.context === 'string' ? fm.context : undefined, markdown: content, position: addPosition() });
   }
 
-  const outputFiles = await findFiles(path.join(workspace, '.agent-output'), (file) => file.endsWith('.md') || file.endsWith('.json') || file.endsWith('.txt'));
+  const outputFiles = await findFiles(path.join(workspace, '.agent-output'), (file) => isArtifactPath(file) && (file.endsWith('.md') || file.endsWith('.json') || file.endsWith('.txt')));
   for (const file of outputFiles.sort()) {
     const id = rel(workspace, file).replace(/[^A-Za-z0-9_-]/g, '-');
     nodes.push({ id, type: 'artifact', label: rel(workspace, file), path: rel(workspace, file), position: addPosition() });
   }
 
+  addReferencedCustomizationNodes(nodes, edges, addPosition);
   addReferencedArtifactNodes(nodes, addPosition);
   addAgentConfigurationNodes(nodes, edges, addPosition);
 
@@ -302,6 +349,59 @@ function isHooks(value: FrontmatterValue | undefined): value is AgentHooks {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+
+function addReferencedCustomizationNodes(nodes: PipelineNode[], edges: PipelineEdge[], addPosition: () => { x: number; y: number }): void {
+  const nodesByFile = new Map<string, PipelineNode>();
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  for (const node of nodes) {
+    if (node.type === 'agent' && node.agentFile) nodesByFile.set(node.agentFile, node);
+    if (node.type === 'prompt' && node.promptFile) nodesByFile.set(node.promptFile, node);
+    if (node.type === 'instruction' && node.instructionFile) nodesByFile.set(node.instructionFile, node);
+  }
+
+  for (const source of [...nodes]) {
+    if (!source.markdown) continue;
+    for (const ref of parseCustomizationRefs(source.markdown)) {
+      let target = nodesByFile.get(ref.path) ?? nodesById.get(customizationNodeId(ref.path));
+      if (!target) {
+        target = placeholderCustomizationNode(ref, addPosition());
+        nodes.push(target);
+        nodesById.set(target.id, target);
+        nodesByFile.set(ref.path, target);
+      }
+      if (source.id === target.id) continue;
+      if ((source.type === 'agent' || source.type === 'prompt' || source.type === 'instruction') && ref.kind === 'instruction') {
+        source.instructionRefs = upsertReferenceInstruction(source.instructionRefs, ref.path);
+      }
+      const edge = customizationReferenceEdge(source, target, ref.kind);
+      if (!edges.some((item) => item.id === edge.id)) edges.push(edge);
+    }
+  }
+}
+
+function placeholderCustomizationNode(ref: { path: string; kind: 'agent' | 'prompt' | 'instruction' }, position: { x: number; y: number }): PipelineNode {
+  const id = customizationNodeId(ref.path);
+  const base = { id, label: titleFromId(id), markdown: '', position };
+  if (ref.kind === 'agent') return { ...base, type: 'agent', agentFile: ref.path, tools: [], calls: [], inputs: [], outputs: [] };
+  if (ref.kind === 'prompt') return { ...base, type: 'prompt', promptFile: ref.path, tools: [], workflow: [], constraints: [] };
+  return { ...base, type: 'instruction', instructionFile: ref.path, applyTo: '**/*', rules: [] };
+}
+
+function customizationReferenceEdge(source: PipelineNode, target: PipelineNode, kind: 'agent' | 'prompt' | 'instruction'): PipelineEdge {
+  return {
+    id: `${source.id}-references-${target.id}`,
+    from: source.id,
+    to: target.id,
+    kind: kind === 'instruction' ? 'instruction' : 'flow',
+    label: 'references'
+  };
+}
+
+function upsertReferenceInstruction(refs: ReferenceInstruction[] | undefined, target: string): ReferenceInstruction[] {
+  if (refs?.some((ref) => ref.target === target)) return refs;
+  return [...(refs ?? []), { target }];
+}
+
 function addReferencedArtifactNodes(nodes: PipelineNode[], addPosition: () => { x: number; y: number }): void {
   const existingPaths = new Set(nodes.filter((node): node is Extract<PipelineNode, { type: 'artifact' }> => node.type === 'artifact').map((node) => node.path));
   const referenced = new Set<string>();
@@ -310,7 +410,7 @@ function addReferencedArtifactNodes(nodes: PipelineNode[], addPosition: () => { 
     if (node.type === 'prompt') [...(node.requiredArtifacts ?? []), ...(node.artifactUsages ?? []).map((usage) => usage.path)].forEach((item) => referenced.add(item));
   }
   for (const artifactPath of [...referenced].sort()) {
-    if (existingPaths.has(artifactPath)) continue;
+    if (!isArtifactPath(artifactPath) || existingPaths.has(artifactPath)) continue;
     const id = artifactPath.replace(/[^A-Za-z0-9_-]/g, '-');
     nodes.push({ id, type: 'artifact', label: artifactPath, path: artifactPath, position: addPosition() });
     existingPaths.add(artifactPath);

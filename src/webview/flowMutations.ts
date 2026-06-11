@@ -97,6 +97,12 @@ function removeNodeReferences(node: PipelineNode, deletedNodeIds: Set<string>, d
       instructionRefs: node.instructionRefs?.filter((ref) => !deletedInstructionTargets.has(ref.target))
     };
   }
+  if (node.type === 'instruction') {
+    return {
+      ...node,
+      instructionRefs: node.instructionRefs?.filter((ref) => !deletedInstructionTargets.has(ref.target))
+    };
+  }
   return node;
 }
 

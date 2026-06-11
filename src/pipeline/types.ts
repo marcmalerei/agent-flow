@@ -100,6 +100,7 @@ export interface InstructionNode extends BaseNode {
   instructionFile?: string;
   applyTo: string;
   excludeAgent?: 'code-review' | 'cloud-agent' | string;
+  instructionRefs?: ReferenceInstruction[];
   rules?: string[];
 }
 
