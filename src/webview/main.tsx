@@ -25,7 +25,7 @@ import { normalizeConfiguredTools, partitionConfiguredTools } from './toolOption
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 import { TokenNode, flowHandlePositions } from './TokenNode';
 import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renameNodeLabel } from './flowMutations';
-import { optionalTextValue } from './formState';
+import { optionalTextValue, referenceInstructionTextValue } from './formState';
 
 interface State {
   pipeline: AgentPipeline;
@@ -322,7 +322,7 @@ function AgentArtifactRow({ checkedInput, checkedOutput, label, onInputToggle, o
         <label><input type="checkbox" checked={checkedOutput} onChange={(event: any) => onOutputToggle(path, event.target.checked)} />Output</label>
       </div>
     </div>
-    {checked && <div className="compact-reference-fields"><select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value }, event.target.value)}>{['read', 'write', 'append', 'validate'].map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select><textarea aria-label={`Instruction for ${label}`} value={usage?.instruction ?? ''} placeholder="Add the instruction for this artifact." onChange={(event: any) => onUsageChange(path, { instruction: event.target.value.trim() || undefined }, currentAction)} /></div>}
+    {checked && <div className="compact-reference-fields"><select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value }, event.target.value)}>{['read', 'write', 'append', 'validate'].map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select><textarea aria-label={`Instruction for ${label}`} value={usage?.instruction ?? ''} placeholder="Add the instruction for this artifact." onChange={(event: any) => onUsageChange(path, { instruction: referenceInstructionTextValue(event.target.value) }, currentAction)} /></div>}
   </div>;
 }
 
@@ -332,7 +332,7 @@ function ArtifactUsageRow({ actionOptions, checked, defaultAction, label, onTogg
     <div className="reference-row-header">
       <label className="reference-check" title={path}><input type="checkbox" checked={checked} onChange={(event: any) => onToggle(path, event.target.checked)} /><span className="artifact-option"><span>{label}</span><small>{path}</small></span></label>
     </div>
-    {checked && <div className="compact-reference-fields"><select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value })}>{actionOptions.map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select><textarea aria-label={`Instruction for ${label}`} value={usage?.instruction ?? ''} placeholder="Add the instruction for this artifact." onChange={(event: any) => onUsageChange(path, { instruction: event.target.value.trim() || undefined })} /></div>}
+    {checked && <div className="compact-reference-fields"><select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value })}>{actionOptions.map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select><textarea aria-label={`Instruction for ${label}`} value={usage?.instruction ?? ''} placeholder="Add the instruction for this artifact." onChange={(event: any) => onUsageChange(path, { instruction: referenceInstructionTextValue(event.target.value) })} /></div>}
   </div>;
 }
 
@@ -353,7 +353,7 @@ function InstructionReferenceSelector({ instructions, onInstructionChange, onTog
 function InstructionReferenceRow({ checked, instruction, onInstructionChange, onToggle, reference, target }: { checked: boolean; instruction?: Extract<PipelineNode, { type: 'instruction' }>; onInstructionChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; reference?: ReferenceInstruction; target: string }) {
   return <div className={`reference-row${checked ? ' selected' : ''}`}>
     <label className="reference-check" title={target}><input type="checkbox" checked={checked} onChange={(event: any) => onToggle(target, event.target.checked)} /><span className="artifact-option"><span>{instruction?.label ?? target}</span><small>{target}</small></span></label>
-    {checked && <div className="reference-fields"><label>Purpose<textarea value={reference?.instruction ?? ''} placeholder={`How should this node apply ${target}?`} onChange={(event: any) => onInstructionChange(target, event.target.value.trim())} /></label></div>}
+    {checked && <div className="reference-fields"><label>Purpose<textarea value={reference?.instruction ?? ''} placeholder={`How should this node apply ${target}?`} onChange={(event: any) => onInstructionChange(target, event.target.value)} /></label></div>}
   </div>;
 }
 
@@ -395,8 +395,8 @@ function removeArtifactUsageIfUnselected(usages: ArtifactUsage[] | undefined, pa
 
 function upsertInstructionRef(refs: ReferenceInstruction[] | undefined, target: string, instruction?: string): ReferenceInstruction[] {
   const existing = refs ?? [];
-  if (existing.some((ref) => ref.target === target)) return existing.map((ref) => ref.target === target ? { target, instruction: instruction === undefined ? ref.instruction : instruction.trim() || undefined } : ref);
-  return [...existing, { target, instruction: instruction?.trim() || undefined }];
+  if (existing.some((ref) => ref.target === target)) return existing.map((ref) => ref.target === target ? { target, instruction: instruction === undefined ? ref.instruction : referenceInstructionTextValue(instruction) } : ref);
+  return [...existing, { target, instruction: instruction === undefined ? undefined : referenceInstructionTextValue(instruction) }];
 }
 
 function instructionReferenceTarget(instruction: Extract<PipelineNode, { type: 'instruction' }>): string {

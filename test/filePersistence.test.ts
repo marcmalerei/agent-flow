@@ -73,4 +73,98 @@ describe('webview file persistence', () => {
     expect(await exists(path.join(workspace, '.github/prompts/new-prompt-1.prompt.md'))).toBe(false);
     expect(await exists(path.join(workspace, '.github/prompts/release-notes.prompt.md'))).toBe(true);
   });
+
+  it('persists an agent-created artifact output with its prompt instruction', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-output-artifact-'));
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Output artifact use case',
+      nodes: [
+        {
+          id: 'writer',
+          type: 'agent',
+          label: 'Writer',
+          agentFile: '.github/agents/writer.agent.md',
+          tools: ['read'],
+          calls: [],
+          inputs: [],
+          outputs: ['.agent-output/summary.md'],
+          artifactUsages: [
+            { path: '.agent-output/summary.md', action: 'write', instruction: 'Create a concise implementation summary with open risks.' }
+          ]
+        },
+        {
+          id: 'summary',
+          type: 'artifact',
+          label: 'Summary',
+          path: '.agent-output/summary.md'
+        }
+      ],
+      edges: []
+    };
+
+    await writeGeneratedFiles(workspace, pipeline);
+
+    const agentMarkdown = await fs.readFile(path.join(workspace, '.github/agents/writer.agent.md'), 'utf8');
+    expect(agentMarkdown).toContain('- Write `.agent-output/summary.md`: Create a concise implementation summary with open risks.');
+
+    const reloaded = await loadOrInferPipeline(workspace);
+    const writer = reloaded.nodes.find((node) => node.id === 'writer' && node.type === 'agent');
+
+    expect(writer?.type).toBe('agent');
+    expect(writer).toMatchObject({
+      outputs: ['.agent-output/summary.md'],
+      artifactUsages: [
+        { path: '.agent-output/summary.md', action: 'write', instruction: 'Create a concise implementation summary with open risks.' }
+      ]
+    });
+    expect(reloaded.nodes.find((node) => node.type === 'artifact' && node.path === '.agent-output/summary.md')).toBeDefined();
+  });
+
+  it('persists an agent artifact input with its prompt instruction', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-input-artifact-'));
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Input artifact use case',
+      nodes: [
+        {
+          id: 'reader',
+          type: 'agent',
+          label: 'Reader',
+          agentFile: '.github/agents/reader.agent.md',
+          tools: ['read'],
+          calls: [],
+          inputs: ['.agent-output/context.md'],
+          outputs: [],
+          artifactUsages: [
+            { path: '.agent-output/context.md', action: 'read', instruction: 'Use this context as the only source for acceptance criteria.' }
+          ]
+        },
+        {
+          id: 'context',
+          type: 'artifact',
+          label: 'Context',
+          path: '.agent-output/context.md'
+        }
+      ],
+      edges: []
+    };
+
+    await writeGeneratedFiles(workspace, pipeline);
+
+    const agentMarkdown = await fs.readFile(path.join(workspace, '.github/agents/reader.agent.md'), 'utf8');
+    expect(agentMarkdown).toContain('- Read `.agent-output/context.md`: Use this context as the only source for acceptance criteria.');
+
+    const reloaded = await loadOrInferPipeline(workspace);
+    const reader = reloaded.nodes.find((node) => node.id === 'reader' && node.type === 'agent');
+
+    expect(reader?.type).toBe('agent');
+    expect(reader).toMatchObject({
+      inputs: ['.agent-output/context.md'],
+      artifactUsages: [
+        { path: '.agent-output/context.md', action: 'read', instruction: 'Use this context as the only source for acceptance criteria.' }
+      ]
+    });
+    expect(reloaded.nodes.find((node) => node.type === 'artifact' && node.path === '.agent-output/context.md')).toBeDefined();
+  });
 });

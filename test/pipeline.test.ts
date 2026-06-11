@@ -252,6 +252,44 @@ Keep this prose.`
     expect(agent).toContain('- Follow `.github/instructions/docs-scope.instructions.md`: Apply when reviewing documentation changes.');
   });
 
+  it('updates artifact work in edited agent markdown when config changes', () => {
+    const agent = generateAgentMarkdown({
+      id: 'writer',
+      type: 'agent',
+      label: 'Writer',
+      tools: ['read'],
+      outputs: ['.agent-output/summary.md'],
+      artifactUsages: [
+        { path: '.agent-output/summary.md', action: 'write', instruction: 'Create a summary with risks and next steps.' }
+      ],
+      markdown: `---
+name: "Writer"
+tools:
+  - "read"
+---
+
+# Role
+
+Keep this custom role text.
+
+# Artifact work
+
+None.
+
+# Notes
+
+Keep this custom note.`
+    });
+
+    expect(agent).toContain('# Role');
+    expect(agent).toContain('Keep this custom role text.');
+    expect(agent).toContain('# Artifact work');
+    expect(agent).toContain('- Write `.agent-output/summary.md`: Create a summary with risks and next steps.');
+    expect(agent).toContain('# Notes');
+    expect(agent).toContain('Keep this custom note.');
+    expect(agent).not.toContain('# Artifact work\n\nNone.');
+  });
+
   it('generates actionable artifact and instruction references for prompts', () => {
     const prompt = generatePromptMarkdown({
       id: 'release-notes',
