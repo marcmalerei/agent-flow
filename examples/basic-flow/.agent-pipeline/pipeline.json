@@ -1,0 +1,298 @@
+{
+  "version": 1,
+  "name": "AgentFlow Example Pipeline",
+  "nodes": [
+    {
+      "id": "triage-request",
+      "type": "prompt",
+      "label": "Triage Request",
+      "description": "Classify an incoming issue and start the implementation workflow.",
+      "promptFile": ".github/prompts/triage-request.prompt.md",
+      "argumentHint": "[issue or task]",
+      "model": "auto",
+      "startAgent": "router",
+      "tools": [
+        "read",
+        "search"
+      ],
+      "workflow": [
+        "Read the incoming request.",
+        "Ask Router to decide the implementation path."
+      ],
+      "constraints": [
+        "Keep the first response scoped to files in this workspace."
+      ],
+      "requiredArtifacts": [
+        ".agent-output/triage.md"
+      ],
+      "definitionOfDone": [
+        "Router has written the triage artifact."
+      ],
+      "position": {
+        "x": 80,
+        "y": 80
+      }
+    },
+    {
+      "id": "router",
+      "type": "agent",
+      "label": "Router",
+      "description": "Routes the task to implementation or review agents and keeps the handoff concise.",
+      "agentFile": ".github/agents/router.agent.md",
+      "argumentHint": "[task summary]",
+      "model": "auto",
+      "target": "vscode",
+      "tools": [
+        "read",
+        "search",
+        "agent"
+      ],
+      "calls": [
+        "implementer"
+      ],
+      "handoffs": [
+        {
+          "label": "Review Plan",
+          "agent": "reviewer",
+          "prompt": "Review the triage and implementation plan before code changes.",
+          "send": false
+        }
+      ],
+      "inputs": [],
+      "outputs": [
+        ".agent-output/triage.md"
+      ],
+      "rules": [
+        "Prefer the smallest useful agent set."
+      ],
+      "position": {
+        "x": 330,
+        "y": 80
+      }
+    },
+    {
+      "id": "implementer",
+      "type": "agent",
+      "label": "Implementer",
+      "description": "Makes focused source changes and writes an implementation summary.",
+      "agentFile": ".github/agents/implementer.agent.md",
+      "tools": [
+        "read",
+        "search",
+        "edit"
+      ],
+      "calls": [
+        "reviewer"
+      ],
+      "inputs": [
+        ".agent-output/triage.md"
+      ],
+      "outputs": [
+        ".agent-output/implementation.md"
+      ],
+      "editRules": [
+        "Keep changes scoped to the files required by the task."
+      ],
+      "verificationRules": [
+        "Run the smallest relevant test command."
+      ],
+      "position": {
+        "x": 600,
+        "y": 80
+      }
+    },
+    {
+      "id": "reviewer",
+      "type": "agent",
+      "label": "Reviewer",
+      "description": "Checks the implementation summary and produces review notes.",
+      "agentFile": ".github/agents/reviewer.agent.md",
+      "tools": [
+        "read",
+        "search"
+      ],
+      "inputs": [
+        ".agent-output/implementation.md"
+      ],
+      "outputs": [
+        ".agent-output/review.md"
+      ],
+      "position": {
+        "x": 870,
+        "y": 80
+      }
+    },
+    {
+      "id": "docs-scope",
+      "type": "instruction",
+      "label": "Docs Scope",
+      "description": "Documentation edits stay focused and cite changed behavior.",
+      "instructionFile": ".github/instructions/docs-scope.instructions.md",
+      "applyTo": "docs/**/*.md",
+      "rules": [
+        "Document behavior changes without marketing language."
+      ],
+      "position": {
+        "x": 330,
+        "y": 320
+      }
+    },
+    {
+      "id": "review-pr",
+      "type": "skill",
+      "label": "Review PR",
+      "description": "Use when reviewing implementation summaries before merge.",
+      "skillFile": ".github/skills/review-pr/SKILL.md",
+      "argumentHint": "[summary artifact]",
+      "userInvocable": true,
+      "context": "inline",
+      "activationCriteria": [
+        "A change summary or pull request is available."
+      ],
+      "procedure": [
+        "Read the implementation artifact.",
+        "List correctness risks first.",
+        "Call out missing tests."
+      ],
+      "position": {
+        "x": 600,
+        "y": 320
+      }
+    },
+    {
+      "id": "triage-artifact",
+      "type": "artifact",
+      "label": "Triage Artifact",
+      "description": "Router output with path, scope, and chosen agents.",
+      "path": ".agent-output/triage.md",
+      "template": "## Scope\n\n## Selected agents\n\n## Risks\n",
+      "position": {
+        "x": 330,
+        "y": 560
+      }
+    },
+    {
+      "id": "implementation-artifact",
+      "type": "artifact",
+      "label": "Implementation Artifact",
+      "description": "Implementation notes and verification output.",
+      "path": ".agent-output/implementation.md",
+      "template": "## Changes\n\n## Verification\n",
+      "position": {
+        "x": 600,
+        "y": 560
+      }
+    },
+    {
+      "id": "review-artifact",
+      "type": "artifact",
+      "label": "Review Artifact",
+      "description": "Review findings and remaining risk.",
+      "path": ".agent-output/review.md",
+      "template": "## Findings\n\n## Residual risk\n",
+      "position": {
+        "x": 870,
+        "y": 560
+      }
+    },
+    {
+      "id": "review-complete",
+      "type": "gate",
+      "label": "Review Complete",
+      "description": "Decides whether the implementation can be finished.",
+      "condition": "No blocking review findings remain.",
+      "trueBranch": "reviewer",
+      "falseBranch": "implementer",
+      "maxIterations": 2,
+      "position": {
+        "x": 1140,
+        "y": 320
+      }
+    },
+    {
+      "id": "pre-write-guard",
+      "type": "hook",
+      "label": "Pre Write Guard",
+      "description": "Checks that generated files are expected before writing Markdown files.",
+      "trigger": "beforeWriteMarkdownFiles",
+      "policy": [
+        "Confirm generated file count before overwriting Markdown."
+      ],
+      "action": "warn",
+      "position": {
+        "x": 80,
+        "y": 320
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "triage-starts-router",
+      "from": "triage-request",
+      "to": "router",
+      "kind": "prompt"
+    },
+    {
+      "id": "router-calls-implementer",
+      "from": "router",
+      "to": "implementer",
+      "kind": "flow"
+    },
+    {
+      "id": "router-handoff-reviewer",
+      "from": "router",
+      "to": "reviewer",
+      "kind": "handoff",
+      "label": "Review Plan"
+    },
+    {
+      "id": "router-writes-triage",
+      "from": "router",
+      "to": "triage-artifact",
+      "kind": "artifact",
+      "artifact": ".agent-output/triage.md"
+    },
+    {
+      "id": "triage-read-by-implementer",
+      "from": "triage-artifact",
+      "to": "implementer",
+      "kind": "artifact",
+      "artifact": ".agent-output/triage.md"
+    },
+    {
+      "id": "implementer-writes-summary",
+      "from": "implementer",
+      "to": "implementation-artifact",
+      "kind": "artifact",
+      "artifact": ".agent-output/implementation.md"
+    },
+    {
+      "id": "summary-read-by-reviewer",
+      "from": "implementation-artifact",
+      "to": "reviewer",
+      "kind": "artifact",
+      "artifact": ".agent-output/implementation.md"
+    },
+    {
+      "id": "reviewer-writes-review",
+      "from": "reviewer",
+      "to": "review-artifact",
+      "kind": "artifact",
+      "artifact": ".agent-output/review.md"
+    },
+    {
+      "id": "reviewer-to-gate",
+      "from": "reviewer",
+      "to": "review-complete",
+      "kind": "gate",
+      "label": "done"
+    },
+    {
+      "id": "gate-retry",
+      "from": "review-complete",
+      "to": "implementer",
+      "kind": "flow",
+      "label": "retry"
+    }
+  ]
+}

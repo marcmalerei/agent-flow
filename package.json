@@ -83,6 +83,7 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
+    "dev:webview:example": "vite --config vite.webview.dev.config.mts --host 127.0.0.1",
     "build:webview": "vite build --config vite.webview.config.mts",
     "build": "npm run compile && npm run build:webview",
     "package:vsix": "vsce package --out agentflow-0.0.1.vsix",

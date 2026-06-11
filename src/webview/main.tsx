@@ -11,10 +11,10 @@ import ListItem from '@tiptap/extension-list-item';
 import CodeBlock from '@tiptap/extension-code-block';
 import Code from '@tiptap/extension-code';
 import Link from '@tiptap/extension-link';
-import { Background, Controls, ReactFlow, ReactFlowProvider, addEdge, useReactFlow, type Connection, type Edge, type Node } from '@xyflow/react';
+import { Background, Controls, ReactFlow, ReactFlowProvider, useReactFlow, type Connection, type Edge, type Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './styles.css';
-import { AgentPipeline, PipelineEdgeKind, PipelineNode, PipelineNodeType, ValidationFinding, RiskScore } from '../pipeline/types';
+import { AgentPipeline, PipelineNode, PipelineNodeType, ValidationFinding, RiskScore } from '../pipeline/types';
 import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
@@ -24,6 +24,7 @@ import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmat
 import { normalizeConfiguredTools, partitionConfiguredTools } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 import { TokenNode, flowHandlePositions } from './TokenNode';
+import { connectPipelineNodes } from './flowMutations';
 
 interface State {
   pipeline: AgentPipeline;
@@ -103,53 +104,26 @@ function App() {
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
     commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? { ...node, ...patch } as PipelineNode : node) }));
   };
-  const updateEdges = (nextEdges: Edge[]) => {
-    commitDraft((pipeline) => ({
-      ...pipeline,
-      edges: nextEdges
-        .filter((edge) => !isPreviewEdge(edge))
-        .map((edge) => {
-          const metadata = edgeMetadata(edge);
-          return {
-            id: edge.id,
-            from: String(edge.source),
-            to: String(edge.target),
-            kind: metadata.kind,
-            artifact: metadata.artifact,
-            label: typeof edge.label === 'string' ? edge.label : undefined
-          };
-        })
-    }));
-  };
+  const connectNodes = (sourceId: string, targetId: string) => commitDraft((pipeline) => connectPipelineNodes(pipeline, sourceId, targetId));
   const addNode = (type: PipelineNodeType, position = { x: 120, y: 120 }, connectFrom?: string) => {
     const node = createNode(type, draft, position);
-    commitDraft((pipeline) => ({
-      ...pipeline,
-      nodes: [...pipeline.nodes, node],
-      edges: connectFrom ? [...pipeline.edges, { id: `${connectFrom}-to-${node.id}`, from: connectFrom, to: node.id, kind: 'flow' }] : pipeline.edges
-    }), node.id);
+    commitDraft((pipeline) => {
+      const next = { ...pipeline, nodes: [...pipeline.nodes, node] };
+      return connectFrom ? connectPipelineNodes(next, connectFrom, node.id) : next;
+    }, node.id);
   };
   const savePipeline = () => vscode?.postMessage({ command: 'savePipeline', pipeline: draft, selectedId: selected?.id });
   const writeMarkdownFiles = () => vscode?.postMessage({ command: 'writeMarkdownFiles', pipeline: draft, selectedId: selected?.id });
 
-  return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} updateEdges={updateEdges} addNode={addNode} savePipeline={savePipeline} writeMarkdownFiles={writeMarkdownFiles} /></ReactFlowProvider>;
+  return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} addNode={addNode} savePipeline={savePipeline} writeMarkdownFiles={writeMarkdownFiles} /></ReactFlowProvider>;
 }
 
-function isPreviewEdge(edge: Edge): boolean {
-  const derivedFrom = (edge as Edge & { data?: { derivedFrom?: string } }).data?.derivedFrom;
-  return typeof derivedFrom === 'string' && derivedFrom !== 'pipeline.edges';
-}
-
-function edgeMetadata(edge: Edge): { kind: PipelineEdgeKind; artifact?: string } {
-  const data = (edge as Edge & { data?: { kind?: string; artifact?: string } }).data;
-  if (data?.kind === 'artifact' || data?.kind === 'prompt' || data?.kind === 'skill' || data?.kind === 'gate' || data?.kind === 'handoff') return { kind: data.kind, artifact: data.artifact };
-  return { kind: 'flow' };
-}
-
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, updateEdges, addNode, savePipeline, writeMarkdownFiles }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: Node[]; edges: Edge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; updateEdges: (edges: Edge[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void; savePipeline: () => void; writeMarkdownFiles: () => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, connectNodes, addNode, savePipeline, writeMarkdownFiles }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: Node[]; edges: Edge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void; savePipeline: () => void; writeMarkdownFiles: () => void }) {
   const { screenToFlowPosition } = useReactFlow();
   const connectingNodeId = useRef<string | null>(null);
-  const onConnect = useCallback((params: Connection) => updateEdges(addEdge(params, edges)), [edges, updateEdges]);
+  const onConnect = useCallback((params: Connection) => {
+    if (params.source && params.target) connectNodes(params.source, params.target);
+  }, [connectNodes]);
   const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
     if (!connectingNodeId.current) return;
     const target = event.target as Element | null;
