@@ -118,7 +118,11 @@ describe('basic example flow', () => {
     expect(prompt?.type).toBe('prompt');
     expect(router?.calls).toEqual(['implementer']);
     expect(router?.handoffs).toEqual([{ label: 'Review Plan', agent: 'reviewer', prompt: 'Review the triage and implementation plan before code changes.', send: false }]);
+    expect(router?.artifactUsages).toEqual([{ path: '.agent-output/triage.md', action: 'write', instruction: 'Write the selected route, involved agents, and open risks.' }]);
+    expect(router?.instructionRefs).toEqual([{ target: '.github/instructions/docs-scope.instructions.md', instruction: 'Apply if the route includes documentation work.' }]);
     expect(prompt?.startAgent).toBe('router');
+    expect(prompt?.artifactUsages).toEqual([{ path: '.agent-output/triage.md', action: 'read', instruction: 'Use this artifact to decide whether the request is ready for implementation.' }]);
+    expect(prompt?.instructionRefs).toEqual([{ target: '.github/instructions/docs-scope.instructions.md', instruction: 'Apply when the prompt asks for documentation changes.' }]);
     expect(validatePipeline(inferred).filter((finding) => finding.severity === 'error')).toEqual([]);
   });
 });

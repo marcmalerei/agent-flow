@@ -1,4 +1,4 @@
-import { AgentPipeline, PipelineEdgeKind } from '../pipeline/types';
+import { AgentPipeline, ArtifactUsage, PipelineEdgeKind, PipelineNode, ReferenceInstruction } from '../pipeline/types';
 import { normalizePipelineAgentReferences, resolveAgentReference, stripYamlQuotes } from '../pipeline/referenceResolver';
 
 export interface VisibleFlowEdge {
@@ -9,7 +9,7 @@ export interface VisibleFlowEdge {
   animated?: boolean;
   style?: Record<string, string | number>;
   data: {
-    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs';
+    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs';
     kind: PipelineEdgeKind | 'reference';
     artifact?: string;
   };
@@ -19,6 +19,7 @@ const defaultEdgeStyle = { stroke: 'var(--vscode-editor-foreground)', opacity: 0
 const previewStyle = { ...defaultEdgeStyle, strokeDasharray: '5 5', opacity: 0.75 };
 const handoffStyle = { stroke: 'var(--vscode-charts-purple)', strokeDasharray: '3 3', strokeWidth: 2, opacity: 0.95 };
 const artifactStyle = { stroke: 'var(--vscode-charts-green)', opacity: 0.85 };
+const instructionStyle = { stroke: 'var(--vscode-charts-orange)', strokeDasharray: '4 2', opacity: 0.85 };
 
 export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge[] {
   const normalized = normalizePipelineAgentReferences(pipeline);
@@ -47,6 +48,7 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
       .filter((node) => node.type === 'artifact')
       .map((node) => [node.path, node.id])
   );
+  const instructionsByTarget = instructionTargets(normalized.nodes);
 
   for (const node of normalized.nodes) {
     if (node.type === 'prompt' && node.startAgent && nodeIds.has(node.startAgent)) {
@@ -57,6 +59,24 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
         label: 'starts',
         data: { derivedFrom: 'prompt.startAgent', kind: 'reference' }
       });
+    }
+
+    if (node.type === 'prompt') {
+      addArtifactUsageEdges(visible, explicitPairs, node.id, node.artifactUsages, 'prompt.artifactUsages', artifactsByPath);
+      for (const artifact of node.requiredArtifacts ?? []) {
+        const artifactNodeId = artifactsByPath.get(artifact);
+        if (!artifactNodeId) continue;
+        addPreviewEdge(visible, explicitPairs, {
+          id: `ref:prompt-artifact:${artifactNodeId}:${node.id}`,
+          source: artifactNodeId,
+          target: node.id,
+          label: 'reads',
+          animated: true,
+          style: artifactStyle,
+          data: { derivedFrom: 'prompt.requiredArtifacts', kind: 'reference' }
+        });
+      }
+      addInstructionReferenceEdges(visible, explicitPairs, node.id, node.instructionRefs, 'prompt.instructionRefs', instructionsByTarget);
     }
 
     if (node.type !== 'agent') continue;
@@ -85,6 +105,8 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
       });
     }
 
+    addArtifactUsageEdges(visible, explicitPairs, node.id, node.artifactUsages, 'agent.artifactUsages', artifactsByPath);
+
     for (const artifact of node.outputs ?? []) {
       const artifactNodeId = artifactsByPath.get(artifact);
       if (!artifactNodeId) continue;
@@ -112,6 +134,8 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
         data: { derivedFrom: 'agent.inputs', kind: 'reference' }
       });
     }
+
+    addInstructionReferenceEdges(visible, explicitPairs, node.id, node.instructionRefs, 'agent.instructionRefs', instructionsByTarget);
   }
 
   return visible;
@@ -122,8 +146,74 @@ function addPreviewEdge(
   explicitPairs: Set<string>,
   edge: VisibleFlowEdge
 ): void {
-  if (explicitPairs.has(pairKey(edge.source, edge.target))) return;
+  const key = pairKey(edge.source, edge.target);
+  if (explicitPairs.has(key)) return;
+  explicitPairs.add(key);
   edges.push({ ...edge, style: edge.style ?? previewStyle });
+}
+
+function addArtifactUsageEdges(
+  edges: VisibleFlowEdge[],
+  explicitPairs: Set<string>,
+  nodeId: string,
+  usages: ArtifactUsage[] | undefined,
+  derivedFrom: 'agent.artifactUsages' | 'prompt.artifactUsages',
+  artifactsByPath: Map<string, string>
+): void {
+  for (const usage of usages ?? []) {
+    const artifactNodeId = artifactsByPath.get(usage.path);
+    if (!artifactNodeId) continue;
+    const writes = usage.action === 'write' || usage.action === 'append';
+    addPreviewEdge(edges, explicitPairs, {
+      id: `ref:${derivedFrom}:${writes ? nodeId : artifactNodeId}:${writes ? artifactNodeId : nodeId}:${slugPart(usage.action)}`,
+      source: writes ? nodeId : artifactNodeId,
+      target: writes ? artifactNodeId : nodeId,
+      label: artifactEdgeLabel(usage.action),
+      animated: true,
+      style: artifactStyle,
+      data: { derivedFrom, kind: 'reference', artifact: usage.path }
+    });
+  }
+}
+
+function addInstructionReferenceEdges(
+  edges: VisibleFlowEdge[],
+  explicitPairs: Set<string>,
+  nodeId: string,
+  refs: ReferenceInstruction[] | undefined,
+  derivedFrom: 'agent.instructionRefs' | 'prompt.instructionRefs',
+  instructionsByTarget: Map<string, string>
+): void {
+  for (const ref of refs ?? []) {
+    const instructionNodeId = instructionsByTarget.get(ref.target);
+    if (!instructionNodeId) continue;
+    addPreviewEdge(edges, explicitPairs, {
+      id: `ref:${derivedFrom}:${instructionNodeId}:${nodeId}`,
+      source: instructionNodeId,
+      target: nodeId,
+      label: 'instructs',
+      style: instructionStyle,
+      data: { derivedFrom, kind: 'reference' }
+    });
+  }
+}
+
+function instructionTargets(nodes: PipelineNode[]): Map<string, string> {
+  const targets = new Map<string, string>();
+  for (const node of nodes) {
+    if (node.type !== 'instruction') continue;
+    targets.set(node.id, node.id);
+    targets.set(node.label, node.id);
+    targets.set(node.instructionFile ?? `.github/instructions/${node.id}.instructions.md`, node.id);
+  }
+  return targets;
+}
+
+function artifactEdgeLabel(action: string): string {
+  if (action === 'write') return 'writes';
+  if (action === 'append') return 'appends';
+  if (action === 'validate') return 'validates';
+  return 'reads';
 }
 
 function pairKey(source: string, target: string): string {

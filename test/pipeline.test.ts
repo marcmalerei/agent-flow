@@ -350,6 +350,24 @@ describe('webview graph projection', () => {
     ]);
   });
 
+  it('projects prompt artifact usage and instruction references into visible edges', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Reference edges',
+      nodes: [
+        { id: 'prompt', type: 'prompt', label: 'Prompt', artifactUsages: [{ path: '.agent-output/brief.md', action: 'read', instruction: 'Summarize it.' }], instructionRefs: [{ target: '.github/instructions/docs.instructions.md', instruction: 'Use docs rules.' }] },
+        { id: 'artifact', type: 'artifact', label: 'Brief', path: '.agent-output/brief.md' },
+        { id: 'docs', type: 'instruction', label: 'Docs', instructionFile: '.github/instructions/docs.instructions.md', applyTo: 'docs/**/*.md' }
+      ],
+      edges: []
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label, edge.data.derivedFrom, edge.data.kind])).toEqual([
+      ['artifact', 'prompt', 'reads', 'prompt.artifactUsages', 'reference'],
+      ['docs', 'prompt', 'instructs', 'prompt.instructionRefs', 'reference']
+    ]);
+  });
+
   it('keeps explicit user-drawn edges editable and avoids duplicate reference previews', () => {
     const pipeline: AgentPipeline = {
       version: 1,
