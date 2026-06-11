@@ -1,23 +1,13 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { generateFiles } from '../pipeline/generators';
-import { PIPELINE_FILE_PATH } from '../pipeline/paths';
 import { AgentPipeline } from '../pipeline/types';
-import { stringifyViewState } from '../pipeline/viewState';
 
 export type AgentFlowLog = (message: string) => void;
 
 export interface FilePersistenceResult {
   written: string[];
   removed: string[];
-}
-
-export async function writePipelineViewState(workspace: string, pipeline: AgentPipeline, log?: AgentFlowLog): Promise<FilePersistenceResult> {
-  const target = path.join(workspace, PIPELINE_FILE_PATH);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, stringifyViewState(pipeline), 'utf8');
-  log?.(`wrote ${PIPELINE_FILE_PATH}`);
-  return { written: [target], removed: [] };
 }
 
 export async function writeGeneratedFiles(workspace: string, pipeline: AgentPipeline, previousPipeline?: AgentPipeline, log?: AgentFlowLog): Promise<FilePersistenceResult> {

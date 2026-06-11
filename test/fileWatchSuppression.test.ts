@@ -6,7 +6,7 @@ describe('file watch suppression', () => {
     let now = 1_000;
     const suppression = new FileWatchSuppression(() => now, 1_000);
 
-    suppression.markSelfWrites(['/workspace/.github/agent-flow.json', '/workspace/.github/prompts/new.prompt.md']);
+    suppression.markSelfWrites(['/workspace/.github/agents/router.agent.md', '/workspace/.github/prompts/new.prompt.md']);
 
     expect(suppression.consumeIfSelfWrite('/workspace/.github/prompts/new.prompt.md')).toBe(true);
     expect(suppression.consumeIfSelfWrite('/workspace/.github/prompts/new.prompt.md')).toBe(false);

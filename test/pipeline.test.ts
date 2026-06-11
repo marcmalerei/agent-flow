@@ -168,11 +168,8 @@ Keep this prose.
     expect(generateSkillMarkdown(skill!)).toContain('## Activation criteria');
   });
 
-  it('uses the .github agent-flow JSON path for generated pipeline state', () => {
-    expect(generateFiles({ version: 1, name: 'Path', nodes: [], edges: [] })[0]).toMatchObject({
-      path: '.github/agent-flow.json',
-      kind: 'pipeline'
-    });
+  it('does not generate flow JSON because Markdown files are the source of truth', () => {
+    expect(generateFiles({ version: 1, name: 'Path', nodes: [], edges: [] }).some((file) => file.kind === 'pipeline' || file.path === '.github/agent-flow.json')).toBe(false);
   });
 
   it('generates current skill frontmatter fields', () => {
@@ -364,8 +361,8 @@ describe('webview graph projection', () => {
 
     expect(coerceFlowLayout('vertical')).toBe('vertical');
     expect(coerceFlowLayout('compact')).toBe('compact');
-    expect(coerceFlowLayout('unknown')).toBe('manual');
-    expect(layoutFlowNodes(pipeline, 'manual').get('prompt')).toEqual({ x: 11, y: 22 });
+    expect(coerceFlowLayout('manual')).toBe('compact');
+    expect(coerceFlowLayout('unknown')).toBe('compact');
     expect(layoutFlowNodes(pipeline, 'vertical').get('agent')?.y).toBeGreaterThan(layoutFlowNodes(pipeline, 'vertical').get('prompt')?.y ?? 0);
     expect(layoutFlowNodes(pipeline, 'horizontal').get('agent')?.x).toBeGreaterThan(layoutFlowNodes(pipeline, 'horizontal').get('prompt')?.x ?? 0);
     expect(layoutFlowNodes(pipeline, 'typeColumns').get('agent')?.x).toBeGreaterThan(layoutFlowNodes(pipeline, 'typeColumns').get('prompt')?.x ?? 0);

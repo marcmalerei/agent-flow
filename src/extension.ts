@@ -8,7 +8,6 @@ import { calculateRiskScore } from './pipeline/riskScore';
 import { generateFiles } from './pipeline/generators';
 import { AgentPipeline, GeneratedFile } from './pipeline/types';
 import { openPipelinePanel } from './webview/panel';
-import { PIPELINE_FILE_PATH } from './pipeline/paths';
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
@@ -40,13 +39,13 @@ async function scanWorkspaceCommand(): Promise<void> {
 async function createDefaultPipelineCommand(): Promise<void> {
   const workspace = getWorkspaceRoot();
   if (!workspace) { vscode.window.showErrorMessage('Open a workspace folder before creating a pipeline.'); return; }
-  const target = path.join(workspace, PIPELINE_FILE_PATH);
   const pipeline = createDefaultPipeline();
-  if (await fileExists(target)) {
-    const answer = await vscode.window.showWarningMessage('agent-flow.json already exists. Overwrite it with the Agent Flow default preset?', { modal: true }, 'Overwrite');
+  const files = generateFiles(pipeline);
+  if (await anyFileExists(workspace, files)) {
+    const answer = await vscode.window.showWarningMessage('Agent Flow generated files already exist. Overwrite them with the default preset?', { modal: true }, 'Overwrite');
     if (answer !== 'Overwrite') return;
   }
-  for (const file of generateFiles(pipeline)) {
+  for (const file of files) {
     const fileTarget = path.join(workspace, file.path);
     await fs.mkdir(path.dirname(fileTarget), { recursive: true });
     await fs.writeFile(fileTarget, file.content, 'utf8');
@@ -96,8 +95,11 @@ async function readFileOrEmpty(file: string): Promise<string> {
   try { return await fs.readFile(file, 'utf8'); } catch { return ''; }
 }
 
-async function fileExists(file: string): Promise<boolean> {
-  try { await fs.access(file); return true; } catch { return false; }
+async function anyFileExists(workspace: string, files: GeneratedFile[]): Promise<boolean> {
+  for (const file of files) {
+    try { await fs.access(path.join(workspace, file.path)); return true; } catch {}
+  }
+  return false;
 }
 
 function renderValidationReport(name: string, findings: ReturnType<typeof validatePipeline>, risk: ReturnType<typeof calculateRiskScore>): string {

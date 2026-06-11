@@ -8,8 +8,7 @@ import { promptFilePath } from './generators/promptGenerator';
 import { instructionFilePath } from './generators/instructionGenerator';
 import { skillFilePath } from './generators/skillGenerator';
 import { GENERATED_MARKER } from './generators/shared';
-import { LEGACY_PIPELINE_FILE_PATH, PIPELINE_FILE_PATH } from './paths';
-import { applyViewState, parseViewState } from './viewState';
+import { LEGACY_PIPELINE_FILE_PATH } from './paths';
 
 async function exists(file: string): Promise<boolean> {
   try { await fs.access(file); return true; } catch { return false; }
@@ -261,16 +260,15 @@ function escapeRegExp(value: string): string {
 
 export async function loadOrInferPipeline(workspace: string): Promise<AgentPipeline> {
   const inferred = await inferPipelineFromWorkspace(workspace);
-  const viewState = parseViewState(await readIfExists(path.join(workspace, PIPELINE_FILE_PATH)) ?? '');
-  if (inferred.nodes.length > 0) return applyViewState(inferred, viewState);
+  if (inferred.nodes.length > 0) return inferred;
 
   const legacyPipelineFile = path.join(workspace, LEGACY_PIPELINE_FILE_PATH);
   if (await exists(legacyPipelineFile)) {
     const legacyPipeline = await hydrateMarkdownContent(workspace, normalizePipelineAgentReferences(parsePipelineJson(await fs.readFile(legacyPipelineFile, 'utf8'))));
-    return applyViewState(legacyPipeline, viewState);
+    return legacyPipeline;
   }
 
-  return applyViewState(inferred, viewState);
+  return inferred;
 }
 
 async function hydrateMarkdownContent(workspace: string, pipeline: AgentPipeline): Promise<AgentPipeline> {
