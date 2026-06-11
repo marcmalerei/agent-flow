@@ -9,17 +9,22 @@ export interface VisibleFlowEdge {
   animated?: boolean;
   style?: Record<string, string | number>;
   data: {
-    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs';
+    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'agent.hooks' | 'agent.mcpServers';
     kind: PipelineEdgeKind | 'reference';
     artifact?: string;
   };
 }
 
-const defaultEdgeStyle = { stroke: 'var(--vscode-editor-foreground)', opacity: 0.7 };
+const defaultEdgeStyle = { stroke: 'var(--vscode-charts-blue)', strokeWidth: 1.7, opacity: 0.78 };
+const promptStyle = { stroke: 'var(--vscode-charts-purple)', strokeWidth: 2.1, opacity: 0.9 };
 const previewStyle = { ...defaultEdgeStyle, strokeDasharray: '5 5', opacity: 0.75 };
-const handoffStyle = { stroke: 'var(--vscode-charts-purple)', strokeDasharray: '3 3', strokeWidth: 2, opacity: 0.95 };
-const artifactStyle = { stroke: 'var(--vscode-charts-green)', opacity: 0.85 };
-const instructionStyle = { stroke: 'var(--vscode-charts-orange)', strokeDasharray: '4 2', opacity: 0.85 };
+const handoffStyle = { stroke: 'var(--vscode-charts-purple)', strokeDasharray: '3 3', strokeWidth: 2.3, opacity: 0.95 };
+const artifactStyle = { stroke: 'var(--vscode-charts-green)', strokeWidth: 2, opacity: 0.88 };
+const gateStyle = { stroke: 'var(--vscode-charts-yellow)', strokeDasharray: '8 3', strokeWidth: 2.2, opacity: 0.92 };
+const skillStyle = { stroke: 'var(--vscode-testing-iconPassed, #2ea043)', strokeDasharray: '1 4', strokeWidth: 2, opacity: 0.88 };
+const hookStyle = { stroke: 'var(--vscode-charts-red)', strokeDasharray: '2 4', strokeWidth: 2, opacity: 0.9 };
+const mcpStyle = { stroke: 'var(--vscode-charts-cyan, #00b7c3)', strokeDasharray: '6 2', strokeWidth: 2, opacity: 0.9 };
+const instructionStyle = { stroke: 'var(--vscode-charts-orange)', strokeDasharray: '4 2', strokeWidth: 2, opacity: 0.88 };
 
 export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge[] {
   const normalized = normalizePipelineAgentReferences(pipeline);
@@ -49,6 +54,8 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
       .map((node) => [node.path, node.id])
   );
   const instructionsByTarget = instructionTargets(normalized.nodes);
+  const hookNodesByAgent = hookNodesByAgentId(normalized.nodes);
+  const mcpNodesByAgent = mcpNodesByAgentId(normalized.nodes);
 
   for (const node of normalized.nodes) {
     if (node.type === 'prompt' && node.startAgent && nodeIds.has(node.startAgent)) {
@@ -136,6 +143,13 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
     }
 
     addInstructionReferenceEdges(visible, explicitPairs, node.id, node.instructionRefs, 'agent.instructionRefs', instructionsByTarget);
+
+    for (const hookNode of hookNodesByAgent.get(node.id) ?? []) {
+      addPreviewEdge(visible, explicitPairs, { id: `ref:agent.hooks:${node.id}:${hookNode.id}`, source: node.id, target: hookNode.id, label: hookNode.trigger ?? 'hook', style: hookStyle, data: { derivedFrom: 'agent.hooks', kind: 'hook' } });
+    }
+    for (const mcpNode of mcpNodesByAgent.get(node.id) ?? []) {
+      addPreviewEdge(visible, explicitPairs, { id: `ref:agent.mcpServers:${node.id}:${mcpNode.id}`, source: node.id, target: mcpNode.id, label: mcpNode.label, style: mcpStyle, data: { derivedFrom: 'agent.mcpServers', kind: 'mcp-server' } });
+    }
   }
 
   return visible;
@@ -185,16 +199,17 @@ function addInstructionReferenceEdges(
   instructionsByTarget: Map<string, string>
 ): void {
   for (const ref of refs ?? []) {
-    const instructionNodeId = instructionsByTarget.get(ref.target);
-    if (!instructionNodeId) continue;
-    addPreviewEdge(edges, explicitPairs, {
-      id: `ref:${derivedFrom}:${instructionNodeId}:${nodeId}`,
-      source: instructionNodeId,
-      target: nodeId,
-      label: 'instructs',
-      style: instructionStyle,
-      data: { derivedFrom, kind: 'reference' }
-    });
+    const instructionNodeIds = resolveInstructionTargets(ref.target, instructionsByTarget);
+    for (const instructionNodeId of instructionNodeIds) {
+      addPreviewEdge(edges, explicitPairs, {
+        id: `ref:${derivedFrom}:${instructionNodeId}:${nodeId}`,
+        source: instructionNodeId,
+        target: nodeId,
+        label: 'instructs',
+        style: instructionStyle,
+        data: { derivedFrom, kind: 'reference' }
+      });
+    }
   }
 }
 
@@ -207,6 +222,36 @@ function instructionTargets(nodes: PipelineNode[]): Map<string, string> {
     targets.set(node.instructionFile ?? `.github/instructions/${node.id}.instructions.md`, node.id);
   }
   return targets;
+}
+
+function resolveInstructionTargets(target: string, instructionsByTarget: Map<string, string>): string[] {
+  if (!target.includes('*')) return instructionsByTarget.has(target) ? [instructionsByTarget.get(target)!] : [];
+  const pattern = new RegExp(`^${target.split('*').map(escapeRegExp).join('.*')}$`);
+  return [...new Set([...instructionsByTarget.entries()].filter(([candidate]) => pattern.test(candidate)).map(([, id]) => id))];
+}
+
+function hookNodesByAgentId(nodes: PipelineNode[]): Map<string, Array<Extract<PipelineNode, { type: 'hook' }>>> {
+  const byOwner = new Map<string, Array<Extract<PipelineNode, { type: 'hook' }>>>();
+  for (const node of nodes) {
+    if (node.type !== 'hook') continue;
+    const owner = node.id.split('-hook-')[0];
+    if (!owner) continue;
+    byOwner.set(owner, [...(byOwner.get(owner) ?? []), node]);
+  }
+  return byOwner;
+}
+
+function mcpNodesByAgentId(nodes: PipelineNode[]): Map<string, Array<Extract<PipelineNode, { type: 'mcp-server' }>>> {
+  const byOwner = new Map<string, Array<Extract<PipelineNode, { type: 'mcp-server' }>>>();
+  for (const node of nodes) {
+    if (node.type !== 'mcp-server' || !node.ownerAgent) continue;
+    byOwner.set(node.ownerAgent, [...(byOwner.get(node.ownerAgent) ?? []), node]);
+  }
+  return byOwner;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function artifactEdgeLabel(action: string): string {
@@ -242,8 +287,14 @@ function isStoredEdgeVisible(source: string, target: string, nodesById: Map<stri
 }
 
 function edgeStyle(kind: PipelineEdgeKind): Record<string, string | number> {
+  if (kind === 'prompt') return promptStyle;
   if (kind === 'handoff') return handoffStyle;
+  if (kind === 'hook') return hookStyle;
+  if (kind === 'mcp-server') return mcpStyle;
+  if (kind === 'instruction') return instructionStyle;
   if (kind === 'artifact') return artifactStyle;
+  if (kind === 'gate') return gateStyle;
+  if (kind === 'skill') return skillStyle;
   return defaultEdgeStyle;
 }
 

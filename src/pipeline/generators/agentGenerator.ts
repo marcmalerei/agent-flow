@@ -69,7 +69,7 @@ function agentFrontmatter(node: AgentNode): string {
   return `---
 name: ${yamlString(node.label)}
 description: ${yamlString(node.description ?? node.label)}
-${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('model', node.model)}${yamlStringLine('target', node.target)}${yamlBooleanLine('user-invocable', node.userInvocable)}${yamlBooleanLine('disable-model-invocation', node.disableModelInvocation)}${yamlAgentHandoffs(node.handoffs)}
+${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('model', node.model)}${yamlStringLine('target', node.target)}${yamlBooleanLine('user-invocable', node.userInvocable)}${yamlBooleanLine('disable-model-invocation', node.disableModelInvocation)}${yamlAgentHandoffs(node.handoffs)}${yamlAgentHooks(node.hooks)}${yamlMcpServers(node.mcpServers)}
 ${yamlList('tools', normalizeToolsForVsCode(node.tools))}
 ${yamlList('agents', node.calls)}
 ---`;
@@ -84,4 +84,39 @@ function yamlAgentHandoffs(handoffs: AgentNode['handoffs']): string {
     if (handoff.model) lines.push(`    model: ${yamlString(handoff.model)}`);
     return lines.join('\n');
   }).join('\n')}\n`;
+}
+
+
+function yamlAgentHooks(hooks: AgentNode['hooks']): string {
+  if (!hooks || Object.keys(hooks).length === 0) return '';
+  const lines = ['hooks:'];
+  for (const [trigger, commands] of Object.entries(hooks)) {
+    lines.push(`  ${trigger}:`);
+    for (const command of commands) {
+      const entries = Object.entries(command).filter(([, value]) => value !== undefined);
+      if (entries.length === 0) continue;
+      const [firstKey, firstValue] = entries[0];
+      lines.push(`    - ${firstKey}: ${yamlHookValue(firstValue)}`);
+      for (const [key, value] of entries.slice(1)) lines.push(`      ${key}: ${yamlHookValue(value)}`);
+    }
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+function yamlMcpServers(servers: AgentNode['mcpServers']): string {
+  if (!servers || servers.length === 0) return '';
+  return `mcp-servers:\n${servers.map((server) => {
+    const lines = [`  - name: ${yamlString(server.name)}`];
+    for (const [key, value] of Object.entries(server)) {
+      if (key === 'name' || value === undefined) continue;
+      lines.push(`    ${key}: ${Array.isArray(value) ? JSON.stringify(value) : yamlHookValue(value)}`);
+    }
+    return lines.join('\n');
+  }).join('\n')}\n`;
+}
+
+function yamlHookValue(value: string | boolean | number | string[] | undefined): string {
+  if (typeof value === 'boolean' || typeof value === 'number') return String(value);
+  if (Array.isArray(value)) return JSON.stringify(value);
+  return yamlString(String(value ?? ''));
 }

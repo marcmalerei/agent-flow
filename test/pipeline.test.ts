@@ -295,11 +295,34 @@ describe('webview graph projection', () => {
     };
 
     expect(coerceFlowLayout('vertical')).toBe('vertical');
+    expect(coerceFlowLayout('compact')).toBe('compact');
     expect(coerceFlowLayout('unknown')).toBe('manual');
     expect(layoutFlowNodes(pipeline, 'manual').get('prompt')).toEqual({ x: 11, y: 22 });
     expect(layoutFlowNodes(pipeline, 'vertical').get('agent')?.y).toBeGreaterThan(layoutFlowNodes(pipeline, 'vertical').get('prompt')?.y ?? 0);
     expect(layoutFlowNodes(pipeline, 'horizontal').get('agent')?.x).toBeGreaterThan(layoutFlowNodes(pipeline, 'horizontal').get('prompt')?.x ?? 0);
     expect(layoutFlowNodes(pipeline, 'typeColumns').get('agent')?.x).toBeGreaterThan(layoutFlowNodes(pipeline, 'typeColumns').get('prompt')?.x ?? 0);
+    expect(layoutFlowNodes(pipeline, 'compact').size).toBe(3);
+  });
+
+  it('places large compact layouts without node collisions', () => {
+    const nodes: AgentPipeline['nodes'] = Array.from({ length: 30 }, (_, index) => ({
+      id: `node-${index}`,
+      type: index % 3 === 0 ? 'agent' : index % 3 === 1 ? 'prompt' : 'instruction',
+      label: `Node ${index}`
+    } as AgentPipeline['nodes'][number]));
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Large layout',
+      nodes,
+      edges: nodes.slice(1).map((node, index) => ({ id: `edge-${index}`, from: nodes[index].id, to: node.id, kind: 'flow' }))
+    };
+
+    const positions = [...layoutFlowNodes(pipeline, 'compact').values()];
+    const occupied = new Set(positions.map((position) => `${position.x}:${position.y}`));
+
+    expect(positions).toHaveLength(nodes.length);
+    expect(occupied.size).toBe(nodes.length);
+    expect(Math.max(...positions.map((position) => position.x))).toBeLessThan(245 * 8);
   });
 
   it('estimates token badges for generated node content', () => {

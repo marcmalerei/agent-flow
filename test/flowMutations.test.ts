@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AgentPipeline } from '../src/pipeline/types';
-import { connectPipelineNodes } from '../src/webview/flowMutations';
+import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes } from '../src/webview/flowMutations';
 
 function basePipeline(): AgentPipeline {
   return {
@@ -71,4 +71,28 @@ describe('flow mutations', () => {
     expect(router?.calls).toEqual(['worker']);
     expect(twice.edges).toHaveLength(1);
   });
+});
+
+it('removes node references and edges when nodes are deleted from the canvas', () => {
+  const pipeline = connectPipelineNodes(connectPipelineNodes(basePipeline(), 'router', 'worker'), 'router', 'artifact');
+  const next = deletePipelineNodes(pipeline, ['worker', 'artifact']);
+  const router = next.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+
+  expect(router?.type).toBe('agent');
+  expect(router?.calls).toEqual([]);
+  expect(router?.outputs).toEqual([]);
+  expect(router?.artifactUsages).toEqual([]);
+  expect(next.edges).toEqual([]);
+});
+
+it('removes backing references when edges are deleted from the canvas', () => {
+  const pipeline = connectPipelineNodes(connectPipelineNodes(basePipeline(), 'router', 'worker'), 'artifact', 'router');
+  const next = deletePipelineEdges(pipeline, ['router-flow-worker', 'artifact-artifact-router']);
+  const router = next.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+
+  expect(router?.type).toBe('agent');
+  expect(router?.calls).toEqual([]);
+  expect(router?.inputs).toEqual([]);
+  expect(router?.artifactUsages).toEqual([]);
+  expect(next.edges).toEqual([]);
 });
