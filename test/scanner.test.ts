@@ -70,3 +70,73 @@ name: Worker
     expect(agent.markdown).toContain('Hydrated body.');
   });
 });
+
+it('parses VS Code agent frontmatter, markdown file references, hooks, and MCP servers', async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-vscode-schema-'));
+  await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+  await fs.mkdir(path.join(workspace, '.github/instructions'), { recursive: true });
+  await fs.writeFile(path.join(workspace, '.github/instructions/docs.instructions.md'), '---\napplyTo: docs/**/*.md\n---\n\n# Docs\n', 'utf8');
+  await fs.writeFile(path.join(workspace, '.github/agents/full-blown-feature.agent.md'), `---
+name: full-blown-feature
+description: A brief description shown as placeholder text in the chat input field.
+argument-hint: Describe the feature you want to implement
+model:
+  - GPT-5 (copilot)
+  - Claude Sonnet 4.5 (copilot)
+target: vscode
+user-invocable: true
+disable-model-invocation: false
+tools:
+  - agent
+  - browser
+  - edit
+agents:
+  - "*"
+handoffs:
+  - label: Start Code Review
+    agent: example-subagent
+    prompt: Please review the implementation above for quality and security issues.
+    send: false
+    model: GPT-4o (copilot)
+hooks:
+  SessionStart:
+    - type: command
+      command: echo "Agent started"
+mcp-servers:
+  - name: my-server
+    command: npx
+    args: ["-y","my-mcp-server"]
+---
+
+# Full Blown Feature
+
+Write \`.agent-output/artifact-output.md\`
+
+Read \`.agent-output/artifact-input.md\`
+
+# Referenced instructions
+
+- Follow \`.github/instructions/*.instructions.md\`.
+`, 'utf8');
+
+  const pipeline = await inferPipelineFromWorkspace(workspace);
+  const agent = pipeline.nodes.find((node) => node.id === 'full-blown-feature');
+
+  expect(agent?.type).toBe('agent');
+  if (agent?.type !== 'agent') throw new Error('agent missing');
+  expect(agent.argumentHint).toBe('Describe the feature you want to implement');
+  expect(agent.model).toEqual(['GPT-5 (copilot)', 'Claude Sonnet 4.5 (copilot)']);
+  expect(agent.target).toBe('vscode');
+  expect(agent.userInvocable).toBe(true);
+  expect(agent.disableModelInvocation).toBe(false);
+  expect(agent.tools).toEqual(['agent', 'browser', 'edit']);
+  expect(agent.calls).toEqual(['*']);
+  expect(agent.hooks).toEqual({ SessionStart: [{ type: 'command', command: 'echo "Agent started"' }] });
+  expect(agent.mcpServers).toEqual([{ name: 'my-server', command: 'npx', args: '["-y","my-mcp-server"]' }]);
+  expect(agent.outputs).toEqual(['.agent-output/artifact-output.md']);
+  expect(agent.inputs).toEqual(['.agent-output/artifact-input.md']);
+  expect(agent.instructionRefs).toEqual([{ target: '.github/instructions/*.instructions.md' }]);
+  expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.agent-output/artifact-output.md')).toBe(true);
+  expect(pipeline.nodes.some((node) => node.type === 'hook' && node.label === 'SessionStart hook')).toBe(true);
+  expect(pipeline.nodes.some((node) => node.type === 'mcp-server' && node.label === 'my-server')).toBe(true);
+});

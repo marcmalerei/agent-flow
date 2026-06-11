@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineEdge, PipelineNode, ReferenceInstruction, PIPELINE_VERSION } from './types';
+import { AgentHandoff, AgentHookCommand, AgentHooks, AgentPipeline, ArtifactAction, ArtifactUsage, McpServerConfig, PipelineEdge, PipelineNode, ReferenceInstruction, PIPELINE_VERSION } from './types';
 import { parsePipelineJson } from './parser';
 import { normalizeAgentCalls, normalizePipelineAgentReferences, stripYamlQuotes } from './referenceResolver';
 import { agentFilePath } from './generators/agentGenerator';
@@ -38,7 +38,8 @@ function titleFromId(id: string): string {
   return id.split(/[-_]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }
 
-type FrontmatterValue = string | boolean | string[] | AgentHandoff[];
+type FrontmatterScalar = string | boolean;
+type FrontmatterValue = FrontmatterScalar | string[] | AgentHandoff[] | AgentHooks | McpServerConfig[];
 
 function frontmatter(source: string): Record<string, FrontmatterValue> {
   let content = source.trimStart();
@@ -46,28 +47,69 @@ function frontmatter(source: string): Record<string, FrontmatterValue> {
   if (!content.startsWith('---')) return {};
   const end = content.indexOf('\n---', 3);
   if (end < 0) return {};
+  return parseFrontmatterBlock(content.slice(3, end).split(/\r?\n/));
+}
+
+function parseFrontmatterBlock(lines: string[]): Record<string, FrontmatterValue> {
   const data: Record<string, FrontmatterValue> = {};
-  let current: string | undefined;
-  let currentObject: Record<string, string | boolean> | undefined;
-  for (const line of content.slice(3, end).split(/\r?\n/)) {
-    const key = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
-    if (key) { current = key[1]; currentObject = undefined; data[current] = key[2] ? parseYamlScalar(key[2]) : []; continue; }
-    const objectItem = line.match(/^\s*-\s+([A-Za-z0-9_-]+):\s*(.*)$/);
-    if (objectItem && current === 'handoffs') {
-      currentObject = { [objectItem[1]]: parseYamlScalar(objectItem[2]) };
-      data[current] = [...(Array.isArray(data[current]) ? data[current] as AgentHandoff[] : []), currentObject as unknown as AgentHandoff];
-      continue;
-    }
-    const objectField = line.match(/^\s+([A-Za-z0-9_-]+):\s*(.*)$/);
-    if (objectField && currentObject) { currentObject[objectField[1]] = parseYamlScalar(objectField[2]); continue; }
-    const item = line.match(/^\s*-\s+(.+)$/);
-    if (item && current) data[current] = [...(Array.isArray(data[current]) ? data[current] as string[] : []), stripYamlQuotes(item[1])];
+  for (let index = 0; index < lines.length;) {
+    const key = lines[index].match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (!key) { index += 1; continue; }
+    const name = key[1];
+    const rest = key[2];
+    if (rest.trim()) { data[name] = parseYamlScalar(rest); index += 1; continue; }
+    const child: string[] = [];
+    index += 1;
+    while (index < lines.length && /^\s+/.test(lines[index])) child.push(lines[index++]);
+    data[name] = parseYamlCollection(name, child);
   }
   return data;
 }
 
+function parseYamlCollection(name: string, lines: string[]): FrontmatterValue {
+  if (name === 'hooks') return parseHooks(lines);
+  if (name === 'handoffs') return parseObjectList(lines) as unknown as AgentHandoff[];
+  if (name === 'mcp-servers') return parseObjectList(lines) as McpServerConfig[];
+  return lines.map((line) => line.match(/^\s*-\s+(.+)$/)?.[1]).filter((item): item is string => Boolean(item)).map(stripYamlQuotes);
+}
+
+function parseObjectList(lines: string[]): Array<Record<string, string | boolean>> {
+  const items: Array<Record<string, string | boolean>> = [];
+  let current: Record<string, string | boolean> | undefined;
+  for (const line of lines) {
+    const first = line.match(/^\s*-\s+([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (first) {
+      current = { [first[1]]: parseYamlScalar(first[2]) };
+      items.push(current);
+      continue;
+    }
+    const field = line.match(/^\s+([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (field && current) current[field[1]] = parseYamlScalar(field[2]);
+  }
+  return items;
+}
+
+function parseHooks(lines: string[]): AgentHooks {
+  const hooks: AgentHooks = {};
+  let trigger: string | undefined;
+  let current: AgentHookCommand | undefined;
+  for (const line of lines) {
+    const triggerMatch = line.match(/^\s{2}([A-Za-z0-9_-]+):\s*$/);
+    if (triggerMatch) { trigger = triggerMatch[1]; hooks[trigger] = []; current = undefined; continue; }
+    const first = line.match(/^\s*-\s+([A-Za-z0-9_-]+):\s*(.*)$/) ?? line.match(/^\s{4}-\s+([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (first && trigger) {
+      current = { [first[1]]: parseYamlScalar(first[2]) } as AgentHookCommand;
+      hooks[trigger].push(current);
+      continue;
+    }
+    const field = line.match(/^\s{6}([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (field && current) current[field[1]] = parseYamlScalar(field[2]);
+  }
+  return hooks;
+}
+
 function parseYamlScalar(value: string): string | boolean {
-  const stripped = stripYamlQuotes(value);
+  const stripped = stripYamlQuotes(value.trim());
   if (stripped === 'true') return true;
   if (stripped === 'false') return false;
   return stripped;
@@ -81,8 +123,12 @@ function frontmatterHandoffs(value: FrontmatterValue | undefined): AgentHandoff[
 
 function parseArtifactUsages(source: string, heading: 'Artifact work' | 'Required artifacts'): ArtifactUsage[] | undefined {
   const section = markdownSection(source, heading);
-  if (!section) return undefined;
-  const usages = section.split(/\r?\n/).map((line): ArtifactUsage | undefined => {
+  const scoped = section ? parseArtifactUsageLines(section) : undefined;
+  return mergeArtifactUsages(scoped, parseMarkdownFileUsages(source));
+}
+
+function parseArtifactUsageLines(source: string): ArtifactUsage[] | undefined {
+  const usages = source.split(/\r?\n/).map((line): ArtifactUsage | undefined => {
     const match = line.match(/^\s*-\s+(Read|Write|Append to|Validate)\s+`([^`]+)`(?::\s*(.+)|\.)?\s*$/i);
     if (!match) return undefined;
     const usage: ArtifactUsage = {
@@ -93,6 +139,24 @@ function parseArtifactUsages(source: string, heading: 'Artifact work' | 'Require
     return usage;
   }).filter((usage): usage is ArtifactUsage => Boolean(usage));
   return usages.length ? usages : undefined;
+}
+
+function parseMarkdownFileUsages(source: string): ArtifactUsage[] | undefined {
+  const usages: ArtifactUsage[] = [];
+  const pattern = /\b(Read|Write|Append to|Validate)\s+`([^`]+)`(?::\s*([^\n]+))?/gi;
+  for (const match of source.matchAll(pattern)) {
+    usages.push({ path: match[2], action: artifactAction(match[1]), instruction: match[3]?.trim().replace(/\.$/, '') || undefined });
+  }
+  return usages.length ? usages : undefined;
+}
+
+function mergeArtifactUsages(...groups: Array<ArtifactUsage[] | undefined>): ArtifactUsage[] | undefined {
+  const byKey = new Map<string, ArtifactUsage>();
+  for (const usage of groups.flatMap((group) => group ?? [])) {
+    const key = `${usage.action}:${usage.path}`;
+    byKey.set(key, { ...usage, instruction: byKey.get(key)?.instruction ?? usage.instruction });
+  }
+  return byKey.size ? [...byKey.values()] : undefined;
 }
 
 function parseInstructionRefs(source: string): ReferenceInstruction[] | undefined {
@@ -178,7 +242,7 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const handoffs = frontmatterHandoffs(fm.handoffs) ?? [];
     const artifactUsages = parseArtifactUsages(content, 'Artifact work');
     const instructionRefs = parseInstructionRefs(content);
-    nodes.push({ id, type: 'agent', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), agentFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, markdown: content, tools: Array.isArray(fm.tools) ? fm.tools as string[] : [], calls: [], handoffs, outputs: artifactUsages?.filter((usage) => usage.action === 'write' || usage.action === 'append').map((usage) => usage.path) ?? [], inputs: artifactUsages?.filter((usage) => usage.action === 'read' || usage.action === 'validate').map((usage) => usage.path) ?? [], artifactUsages, instructionRefs, position: addPosition() });
+    nodes.push({ id, type: 'agent', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), agentFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, target: typeof fm.target === 'string' ? fm.target : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, hooks: isHooks(fm.hooks) ? fm.hooks : undefined, mcpServers: Array.isArray(fm['mcp-servers']) ? fm['mcp-servers'] as McpServerConfig[] : undefined, markdown: content, tools: Array.isArray(fm.tools) ? fm.tools as string[] : [], calls: [], handoffs, outputs: artifactUsages?.filter((usage) => usage.action === 'write' || usage.action === 'append').map((usage) => usage.path) ?? [], inputs: artifactUsages?.filter((usage) => usage.action === 'read' || usage.action === 'validate').map((usage) => usage.path) ?? [], artifactUsages, instructionRefs, position: addPosition() });
     pendingAgentCalls.push({ id, calls: calls as string[], handoffs });
   }
   for (const pending of pendingAgentCalls) {
@@ -200,7 +264,7 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const startAgent = content.match(/Start with `([^`]+)`/)?.[1];
     const artifactUsages = parseArtifactUsages(content, 'Required artifacts');
     const instructionRefs = parseInstructionRefs(content);
-    nodes.push({ id, type: 'prompt', label: titleFromId(id), promptFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, markdown: content, startAgent, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, position: addPosition() });
+    nodes.push({ id, type: 'prompt', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), promptFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, markdown: content, startAgent, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, position: addPosition() });
     if (startAgent) edges.push({ id: `${id}-starts-${startAgent}`, from: id, to: startAgent, kind: 'prompt' });
   }
 
@@ -216,7 +280,8 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
   for (const file of skillFiles.sort()) {
     const id = path.basename(path.dirname(file));
     const content = await fs.readFile(file, 'utf8');
-    nodes.push({ id, type: 'skill', label: titleFromId(id), skillFile: rel(workspace, file), description: content.match(/## Description\s+([\s\S]*?)(\n##|$)/)?.[1]?.trim(), markdown: content, position: addPosition() });
+    const fm = frontmatter(content);
+    nodes.push({ id, type: 'skill', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), skillFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : content.match(/## Description\s+([\s\S]*?)(\n##|$)/)?.[1]?.trim(), argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, context: typeof fm.context === 'string' ? fm.context : undefined, markdown: content, position: addPosition() });
   }
 
   const outputFiles = await findFiles(path.join(workspace, '.agent-output'), (file) => file.endsWith('.md') || file.endsWith('.json') || file.endsWith('.txt'));
@@ -225,8 +290,56 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     nodes.push({ id, type: 'artifact', label: rel(workspace, file), path: rel(workspace, file), position: addPosition() });
   }
 
+  addReferencedArtifactNodes(nodes, addPosition);
+  addAgentConfigurationNodes(nodes, edges, addPosition);
+
   const pipeline: AgentPipeline = { version: PIPELINE_VERSION, name: 'Inferred Agent Pipeline', nodes, edges };
   return normalizePipelineAgentReferences(pipeline);
+}
+
+
+function isHooks(value: FrontmatterValue | undefined): value is AgentHooks {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function addReferencedArtifactNodes(nodes: PipelineNode[], addPosition: () => { x: number; y: number }): void {
+  const existingPaths = new Set(nodes.filter((node): node is Extract<PipelineNode, { type: 'artifact' }> => node.type === 'artifact').map((node) => node.path));
+  const referenced = new Set<string>();
+  for (const node of nodes) {
+    if (node.type === 'agent') [...(node.inputs ?? []), ...(node.outputs ?? []), ...(node.artifactUsages ?? []).map((usage) => usage.path)].forEach((item) => referenced.add(item));
+    if (node.type === 'prompt') [...(node.requiredArtifacts ?? []), ...(node.artifactUsages ?? []).map((usage) => usage.path)].forEach((item) => referenced.add(item));
+  }
+  for (const artifactPath of [...referenced].sort()) {
+    if (existingPaths.has(artifactPath)) continue;
+    const id = artifactPath.replace(/[^A-Za-z0-9_-]/g, '-');
+    nodes.push({ id, type: 'artifact', label: artifactPath, path: artifactPath, position: addPosition() });
+    existingPaths.add(artifactPath);
+  }
+}
+
+function addAgentConfigurationNodes(nodes: PipelineNode[], edges: PipelineEdge[], addPosition: () => { x: number; y: number }): void {
+  const agents = nodes.filter((node): node is Extract<PipelineNode, { type: 'agent' }> => node.type === 'agent');
+  for (const agent of agents) {
+    for (const handoff of agent.handoffs ?? []) {
+      const handoffId = `${agent.id}-handoff-${slugPart(handoff.label)}`;
+      if (!nodes.some((node) => node.id === handoffId)) nodes.push({ id: handoffId, type: 'handoff', label: handoff.label, sourceAgent: agent.id, targetAgent: handoff.agent, prompt: handoff.prompt, send: handoff.send, model: handoff.model, position: addPosition() });
+      edges.push({ id: `${agent.id}-handoff-node-${handoffId}`, from: agent.id, to: handoffId, kind: 'handoff', label: handoff.label });
+      const target = normalizeAgentCalls([handoff.agent], nodes)[0];
+      if (target) edges.push({ id: `${handoffId}-handoff-target-${target}`, from: handoffId, to: target, kind: 'handoff', label: handoff.label });
+    }
+    for (const [trigger, commands] of Object.entries(agent.hooks ?? {})) {
+      commands.forEach((command, index) => {
+        const hookId = `${agent.id}-hook-${slugPart(trigger)}-${index + 1}`;
+        if (!nodes.some((node) => node.id === hookId)) nodes.push({ id: hookId, type: 'hook', label: `${trigger} hook`, trigger, action: command.command, position: addPosition() });
+        edges.push({ id: `${agent.id}-hook-${hookId}`, from: agent.id, to: hookId, kind: 'hook', label: trigger });
+      });
+    }
+    for (const server of agent.mcpServers ?? []) {
+      const serverId = `${agent.id}-mcp-${slugPart(server.name)}`;
+      if (!nodes.some((node) => node.id === serverId)) nodes.push({ id: serverId, type: 'mcp-server', label: server.name, ownerAgent: agent.id, command: server.command, args: server.args, position: addPosition() });
+      edges.push({ id: `${agent.id}-mcp-${serverId}`, from: agent.id, to: serverId, kind: 'mcp-server', label: server.name });
+    }
+  }
 }
 
 function slugPart(value: string): string {
