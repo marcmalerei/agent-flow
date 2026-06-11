@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { stringifyPipeline } from '../src/pipeline/parser';
 import { loadOrInferPipeline, inferPipelineFromWorkspace } from '../src/pipeline/scanner';
+import { deriveVisibleFlowEdges } from '../src/webview/graph';
 
 describe('workspace scanner', () => {
   it('parses agent handoffs from frontmatter object lists', async () => {
@@ -173,6 +174,8 @@ applyTo: "**/*"
   expect(atom?.type).toBe('instruction');
   if (atom?.type !== 'instruction') throw new Error('atom instruction missing');
   expect(atom.instructionRefs).toEqual([{ target: '.github/instructions/template.instructions.md' }]);
+  expect(pipeline.edges.filter((edge) => edge.kind === 'instruction')).toEqual([]);
+  expect(deriveVisibleFlowEdges(pipeline).filter((edge) => edge.source === 'template' && edge.target === 'atom')).toHaveLength(1);
 });
 
 it('treats referenced agent, prompt, and instruction markdown as customization nodes, not artifacts', async () => {

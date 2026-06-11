@@ -447,6 +447,7 @@ function addReferencedCustomizationNodes(nodes: PipelineNode[], edges: PipelineE
       if (source.id === target.id) continue;
       if ((source.type === 'agent' || source.type === 'prompt' || source.type === 'instruction') && ref.kind === 'instruction') {
         source.instructionRefs = upsertReferenceInstruction(source.instructionRefs, ref.path);
+        continue;
       }
       const edge = customizationReferenceEdge(source, target, ref.kind);
       if (!edges.some((item) => item.id === edge.id)) edges.push(edge);
