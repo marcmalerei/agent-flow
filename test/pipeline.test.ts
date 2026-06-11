@@ -9,6 +9,7 @@ import { normalizePipelineAgentReferences, resolveAgentReference, stripYamlQuote
 import { deriveVisibleFlowEdges } from '../src/webview/graph';
 import { coerceFlowLayout, layoutFlowNodes } from '../src/webview/flowLayout';
 import { estimateNodeTokenCount, estimateTokenCount, formatTokenBadge } from '../src/webview/tokenCounts';
+import { renameNodeLabel } from '../src/webview/flowMutations';
 
 describe('pipeline parsing', () => {
   it('round-trips the default pipeline schema', () => {
@@ -275,15 +276,42 @@ Keep this prose.`
     expect(prompt).toContain('- Follow `.github/instructions/docs-scope.instructions.md`: Use the docs style rules.');
   });
 
+  it('honors explicit file paths for newly inserted Markdown-backed nodes', () => {
+    const files = generateFiles({
+      version: 1,
+      name: 'Inserted nodes',
+      nodes: [
+        { id: 'new-agent-1', type: 'agent', label: 'New agent', agentFile: '.github/agents/new-agent-1.agent.md', tools: [], calls: [], outputs: [] },
+        { id: 'new-prompt-1', type: 'prompt', label: 'New prompt', promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: [] },
+        { id: 'new-instruction-1', type: 'instruction', label: 'New instruction', instructionFile: '.github/instructions/new-instruction-1.instructions.md', applyTo: undefined },
+        { id: 'new-skill-1', type: 'skill', label: 'New skill', skillFile: '.github/skills/new-skill-1/SKILL.md' },
+        { id: 'new-artifact-1', type: 'artifact', label: 'New artifact', path: '.agent-output/new-artifact-1.md' },
+        { id: 'new-gate-1', type: 'gate', label: 'New gate', condition: 'Define condition' },
+        { id: 'new-handoff-1', type: 'handoff', label: 'New handoff' },
+        { id: 'new-mcp-server-1', type: 'mcp-server', label: 'New MCP server' }
+      ],
+      edges: []
+    }).map((file) => file.path);
+
+    expect(files).toContain('.github/agents/new-agent-1.agent.md');
+    expect(files).toContain('.github/prompts/new-prompt-1.prompt.md');
+    expect(files).toContain('.github/instructions/new-instruction-1.instructions.md');
+    expect(files).toContain('.github/skills/new-skill-1/SKILL.md');
+    expect(files).toContain('.agent-output/new-artifact-1.md');
+    expect(files).not.toContain('.github/gates/new-gate-1.md');
+    expect(files).not.toContain('.github/handoffs/new-handoff-1.md');
+    expect(files).not.toContain('.github/mcp-servers/new-mcp-server-1.md');
+  });
+
   it('uses a renamed new node label for generated markdown file names', () => {
     const files = generateFiles({
       version: 1,
       name: 'New nodes',
       nodes: [
-        { id: 'new-agent-1', type: 'agent', label: 'Security Reviewer', agentFile: '.github/agents/new-agent-1.agent.md', tools: [], calls: [], outputs: [] },
-        { id: 'new-prompt-1', type: 'prompt', label: 'Release Notes', promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: [] },
-        { id: 'new-instruction-1', type: 'instruction', label: 'Docs Scope', instructionFile: '.github/instructions/new-instruction-1.instructions.md', applyTo: '**/*.md' },
-        { id: 'new-skill-1', type: 'skill', label: 'Review PR', skillFile: '.github/skills/new-skill-1/SKILL.md' }
+        renameNodeLabel({ id: 'new-agent-1', type: 'agent', label: 'New agent', agentFile: '.github/agents/new-agent-1.agent.md', tools: [], calls: [], outputs: [] }, 'Security Reviewer'),
+        renameNodeLabel({ id: 'new-prompt-1', type: 'prompt', label: 'New prompt', promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: [] }, 'Release Notes'),
+        renameNodeLabel({ id: 'new-instruction-1', type: 'instruction', label: 'New instruction', instructionFile: '.github/instructions/new-instruction-1.instructions.md', applyTo: '**/*.md' }, 'Docs Scope'),
+        renameNodeLabel({ id: 'new-skill-1', type: 'skill', label: 'New skill', skillFile: '.github/skills/new-skill-1/SKILL.md' }, 'Review PR')
       ],
       edges: []
     }).map((file) => file.path);
@@ -299,10 +327,10 @@ Keep this prose.`
       version: 1,
       name: 'New node content',
       nodes: [
-        { id: 'new-agent-1', type: 'agent', label: 'Security Reviewer', agentFile: '.github/agents/new-agent-1.agent.md', tools: [], calls: [], outputs: [] },
-        { id: 'new-prompt-1', type: 'prompt', label: 'Release Notes', promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: [] },
-        { id: 'new-instruction-1', type: 'instruction', label: 'Docs Scope', instructionFile: '.github/instructions/new-instruction-1.instructions.md', applyTo: '**/*.md' },
-        { id: 'new-skill-1', type: 'skill', label: 'Review PR', skillFile: '.github/skills/new-skill-1/SKILL.md' }
+        renameNodeLabel({ id: 'new-agent-1', type: 'agent', label: 'New agent', agentFile: '.github/agents/new-agent-1.agent.md', tools: [], calls: [], outputs: [] }, 'Security Reviewer'),
+        renameNodeLabel({ id: 'new-prompt-1', type: 'prompt', label: 'New prompt', promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: [] }, 'Release Notes'),
+        renameNodeLabel({ id: 'new-instruction-1', type: 'instruction', label: 'New instruction', instructionFile: '.github/instructions/new-instruction-1.instructions.md', applyTo: '**/*.md' }, 'Docs Scope'),
+        renameNodeLabel({ id: 'new-skill-1', type: 'skill', label: 'New skill', skillFile: '.github/skills/new-skill-1/SKILL.md' }, 'Review PR')
       ],
       edges: []
     });

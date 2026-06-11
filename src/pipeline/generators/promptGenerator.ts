@@ -1,10 +1,9 @@
 import { PromptNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
-import { appendGeneratedMarker, artifactUsageList, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlOptionalList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function promptFilePath(node: PromptNode): string {
-  const defaultPath = `.github/prompts/${node.id}.prompt.md`;
-  if (node.promptFile && !isDefaultNewNodePath(node.id, 'prompt', node.promptFile, defaultPath)) return node.promptFile;
+  if (node.promptFile) return node.promptFile;
   return `.github/prompts/${nodeFileStem(node.id, node.label, 'prompt')}.prompt.md`;
 }
 

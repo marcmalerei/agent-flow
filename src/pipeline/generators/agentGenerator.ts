@@ -1,10 +1,9 @@
 import { AgentNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
-import { appendGeneratedMarker, artifactUsageList, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlBooleanLine, yamlOptionalList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlBooleanLine, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function agentFilePath(node: AgentNode): string {
-  const defaultPath = `.github/agents/${node.id}.agent.md`;
-  if (node.agentFile && !isDefaultNewNodePath(node.id, 'agent', node.agentFile, defaultPath)) return node.agentFile;
+  if (node.agentFile) return node.agentFile;
   return `.github/agents/${nodeFileStem(node.id, node.label, 'agent')}.agent.md`;
 }
 

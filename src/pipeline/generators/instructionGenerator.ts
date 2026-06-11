@@ -1,9 +1,8 @@
 import { InstructionNode } from '../types';
-import { appendGeneratedMarker, isDefaultNewNodePath, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlString, yamlStringLine } from './shared';
 
 export function instructionFilePath(node: InstructionNode): string {
-  const defaultPath = `.github/instructions/${node.id}.instructions.md`;
-  if (node.instructionFile && !isDefaultNewNodePath(node.id, 'instruction', node.instructionFile, defaultPath)) return node.instructionFile;
+  if (node.instructionFile) return node.instructionFile;
   return `.github/instructions/${nodeFileStem(node.id, node.label, 'instruction')}.instructions.md`;
 }
 
