@@ -48,6 +48,15 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .reference-list { display: grid; gap: 8px; }
 .reference-row { padding: 8px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, transparent); }
 .reference-row.selected { background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--agentflow-panel)) 78%, var(--vscode-list-hoverBackground, transparent)); }
+.compact-reference-list { gap: 6px; }
+.compact-reference-row { padding: 7px 8px; }
+.reference-row-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.direction-chips { display: inline-flex; flex: 0 0 auto; gap: 4px; }
+.direction-chips label { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; margin: 0; padding: 1px 6px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-button-secondaryBackground, transparent); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); font-size: 11px; font-weight: 400; }
+.direction-chips input { width: auto; margin: 0; }
+.compact-reference-fields { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px; margin-top: 7px; }
+.compact-reference-fields select, .compact-reference-fields textarea { margin: 0; }
+.compact-reference-fields textarea { min-height: 46px; }
 .reference-check { display: flex !important; align-items: flex-start; gap: 8px; margin: 0 !important; font-weight: 400 !important; }
 .reference-check input { width: auto; margin-top: 2px; }
 .reference-fields { display: grid; grid-template-columns: minmax(96px, 120px) 1fr; gap: 8px; margin-top: 8px; }
