@@ -4,13 +4,9 @@ import { generatePromptMarkdown, promptFilePath } from './promptGenerator';
 import { generateInstructionMarkdown, instructionFilePath } from './instructionGenerator';
 import { generateSkillMarkdown, skillFilePath } from './skillGenerator';
 import { appendGeneratedMarker } from './shared';
-import { PIPELINE_FILE_PATH } from '../paths';
-import { stringifyViewState } from '../viewState';
 
 export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
-  const files: GeneratedFile[] = [
-    { path: PIPELINE_FILE_PATH, content: stringifyViewState(pipeline), kind: 'pipeline' }
-  ];
+  const files: GeneratedFile[] = [];
   for (const node of pipeline.nodes) {
     if (node.type === 'agent') files.push({ path: agentFilePath(node), content: generateAgentMarkdown(node), kind: 'agent' });
     if (node.type === 'prompt') files.push({ path: promptFilePath(node), content: generatePromptMarkdown(node), kind: 'prompt' });

@@ -8,8 +8,7 @@ import { AgentPipeline } from '../pipeline/types';
 import { listToolOptionNames } from './toolOptions';
 import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from './panelMessages';
 import { coerceFlowLayout } from './flowLayout';
-import { PIPELINE_FILE_PATH } from '../pipeline/paths';
-import { AgentFlowLog, writeGeneratedFiles, writePipelineViewState } from './filePersistence';
+import { AgentFlowLog, writeGeneratedFiles } from './filePersistence';
 import { FileWatchSuppression } from './fileWatchSuppression';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext): Promise<void> {
@@ -53,9 +52,8 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
           message,
           workspace,
           previousPipeline,
-          writePipeline: async (workspace, pipeline) => {
-            const result = await writePipelineViewState(workspace, pipeline, log);
-            selfWrites.markSelfWrites(result.written);
+          writePipeline: async () => {
+            log('skipped flow JSON write; Markdown files are the source of truth');
           },
           writeMarkdownFiles: async (workspace, pipeline, previousPipeline) => {
             const result = await writeGeneratedFiles(workspace, pipeline, previousPipeline, log);
@@ -73,15 +71,14 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
         pipeline = await handleSavePipelineMessage({
           message,
           workspace,
-          writePipeline: async (workspace, pipeline) => {
-            const result = await writePipelineViewState(workspace, pipeline, log);
-            selfWrites.markSelfWrites(result.written);
+          writePipeline: async () => {
+            log('skipped flow JSON write; Markdown files are the source of truth');
           },
           postState: async (nextPipeline, selectedId) => {
             panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
           },
           showSavedMessage: async () => {
-            vscode.window.showInformationMessage('Agent Flow pipeline saved to JSON.');
+            vscode.window.showInformationMessage('Agent Flow changes are saved to Markdown files.');
           }
         });
       }
@@ -118,7 +115,6 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
 
 function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<void>, log?: AgentFlowLog, selfWrites?: FileWatchSuppression): vscode.Disposable {
   const patterns = [
-    PIPELINE_FILE_PATH,
     '.agent-pipeline/pipeline.json',
     '.github/agents/**/*.agent.md',
     '.github/prompts/**/*.prompt.md',

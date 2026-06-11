@@ -27,17 +27,10 @@ export async function run(): Promise<void> {
 
   await vscode.commands.executeCommand('agentflow.createDefaultPipeline');
 
-  const viewStateFile = path.join(workspace, '.github', 'agent-flow.json');
-  const viewState = JSON.parse(await fs.readFile(viewStateFile, 'utf8')) as {
-    version?: unknown;
-    name?: unknown;
-    nodes?: unknown[];
-  };
-
-  assert.equal(viewState.version, 1);
-  assert.equal(viewState.name, 'Default Agent Pipeline');
-  assert.ok(Array.isArray(viewState.nodes) && viewState.nodes.length > 0, 'Default view state should include nodes.');
+  await assert.rejects(fs.readFile(path.join(workspace, '.github', 'agent-flow.json'), 'utf8'));
   assert.match(await fs.readFile(path.join(workspace, '.github/agents/router.agent.md'), 'utf8'), /name: "Router"/);
+  assert.match(await fs.readFile(path.join(workspace, '.github/prompts/start-implementation.prompt.md'), 'utf8'), /name: "Start Implementation Prompt"/);
+  assert.match(await fs.readFile(path.join(workspace, '.github/skills/ui-implementation/SKILL.md'), 'utf8'), /name: "ui-implementation"/);
 
   await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
   await fs.mkdir(path.join(workspace, '.github/prompts'), { recursive: true });

@@ -1,7 +1,7 @@
 import { AgentPipeline, PipelineNode, Position } from '../pipeline/types';
 import { deriveVisibleFlowEdges } from './graph';
 
-export type FlowLayout = 'manual' | 'vertical' | 'horizontal' | 'typeColumns' | 'compact';
+export type FlowLayout = 'vertical' | 'horizontal' | 'typeColumns' | 'compact';
 
 const nodeWidth = 260;
 const nodeHeight = 170;
@@ -11,11 +11,10 @@ const compactMaxColumns = 8;
 const typeOrder = ['prompt', 'agent', 'gate', 'handoff', 'instruction', 'skill', 'artifact', 'hook', 'mcp-server'];
 
 export function coerceFlowLayout(value: unknown): FlowLayout {
-  return value === 'vertical' || value === 'horizontal' || value === 'typeColumns' || value === 'compact' ? value : 'manual';
+  return value === 'vertical' || value === 'horizontal' || value === 'typeColumns' || value === 'compact' ? value : 'compact';
 }
 
 export function layoutFlowNodes(pipeline: AgentPipeline, layout: FlowLayout): Map<string, Position> {
-  if (layout === 'manual') return new Map(pipeline.nodes.map((node) => [node.id, node.position ?? { x: 0, y: 0 }]));
   if (layout === 'typeColumns') return layoutByType(pipeline);
   if (layout === 'compact') return layoutCompactGrid(pipeline);
   return layoutLayered(pipeline, layout);

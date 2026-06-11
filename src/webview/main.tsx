@@ -25,6 +25,7 @@ import { normalizeConfiguredTools, partitionConfiguredTools } from './toolOption
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 import { TokenNode, flowHandlePositions } from './TokenNode';
 import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renameNodeLabel } from './flowMutations';
+import { optionalTextValue } from './formState';
 
 interface State {
   pipeline: AgentPipeline;
@@ -118,7 +119,7 @@ function App() {
   const nodes: Node[] = useMemo(() => draft.nodes.map((node) => ({
     id: node.id,
     position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
-    draggable: state.flowLayout === 'manual',
+    draggable: false,
     type: 'tokenNode',
     data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), ...handlePositions },
     style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
@@ -176,7 +177,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><button className="button-secondary compact" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</button><span className="autosave-status">Auto-save</span><div className="node-buttons">{nodeTypes.map((type) => <button className="button-secondary compact" key={type} onClick={() => addNode(type)} title={`Create ${type} node`}>+ {type}</button>)}</div></header>
-    <main className="canvas"><ReactFlow key={state.flowLayout} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onNodeDragStop={(_: unknown, node: Node) => updateNode(node.id, { position: node.position } as Partial<PipelineNode>)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
+    <main className="canvas"><ReactFlow key={state.flowLayout} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><button className="collapse" onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</button>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} />}</section>
   </div>;
@@ -206,7 +207,7 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
   const artifacts = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'artifact' }> => item.type === 'artifact');
   const instructions = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'instruction' }> => item.type === 'instruction');
   const references = buildReferenceItems(pipeline);
-  const setOptionalString = (field: string, value: string) => onChange(node.id, { [field]: value.trim() || undefined } as Partial<PipelineNode>);
+  const setOptionalString = (field: string, value: string) => onChange(node.id, { [field]: optionalTextValue(value) } as Partial<PipelineNode>);
   const setHandoffs = (handoffs: AgentHandoff[]) => onChange(node.id, { handoffs } as Partial<PipelineNode>);
   const toggleListItem = (field: string, item: string, checked: boolean) => {
     const rawCurrent = Array.isArray((node as any)[field]) ? (node as any)[field] as string[] : [];

@@ -42,7 +42,7 @@ describe('basic example flow', () => {
     const routerAgent = files.find((file) => file.path === '.github/agents/router.agent.md');
     const prompt = files.find((file) => file.path === '.github/prompts/triage-request.prompt.md');
 
-    expect(paths).toContain('.github/agent-flow.json');
+    expect(paths).not.toContain('.github/agent-flow.json');
     expect(paths).toContain('.github/agents/router.agent.md');
     expect(paths).toContain('.github/prompts/triage-request.prompt.md');
     expect(paths).toContain('.github/instructions/docs-scope.instructions.md');
@@ -58,7 +58,7 @@ describe('basic example flow', () => {
     expect(prompt?.content).toContain('- Read `.agent-output/triage.md`: Use this artifact to decide whether the request is ready for implementation.');
   });
 
-  it('auto-persists view state and generated Markdown files from webview messages', async () => {
+  it('auto-persists generated Markdown files from webview messages without flow JSON', async () => {
     const pipeline = await readExamplePipeline();
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-example-'));
     const calls: string[] = [];
@@ -66,12 +66,8 @@ describe('basic example flow', () => {
     const saved = await handlePersistPipelineMessage({
       message: { command: 'persistPipeline', pipeline, selectedId: 'router' },
       workspace,
-      writePipeline: async (targetWorkspace, nextPipeline) => {
-        const viewState = generateFiles(nextPipeline).find((file) => file.kind === 'pipeline');
-        if (!viewState) throw new Error('missing view state');
-        await fs.mkdir(path.dirname(path.join(targetWorkspace, viewState.path)), { recursive: true });
-        await fs.writeFile(path.join(targetWorkspace, viewState.path), viewState.content, 'utf8');
-        calls.push('view-state');
+      writePipeline: async () => {
+        calls.push('skip-flow-json');
       },
       writeMarkdownFiles: async (targetWorkspace, nextPipeline) => {
         await writeGeneratedMarkdown(targetWorkspace, nextPipeline);
@@ -83,8 +79,8 @@ describe('basic example flow', () => {
     });
 
     expect(saved).toBeDefined();
-    expect(calls).toEqual(['view-state', 'write-markdown', 'state:router']);
-    expect(JSON.parse(await fs.readFile(path.join(workspace, '.github/agent-flow.json'), 'utf8')).nodes).toHaveLength(pipeline.nodes.length);
+    expect(calls).toEqual(['skip-flow-json', 'write-markdown', 'state:router']);
+    await expect(fs.readFile(path.join(workspace, '.github/agent-flow.json'), 'utf8')).rejects.toThrow();
     expect(await fs.readFile(path.join(workspace, '.github/agents/router.agent.md'), 'utf8')).toContain('handoffs:\n  - label: "Review Plan"');
     expect(await fs.readFile(path.join(workspace, '.github/prompts/triage-request.prompt.md'), 'utf8')).toContain('agent: "router"');
   });
