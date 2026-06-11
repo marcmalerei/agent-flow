@@ -17,7 +17,7 @@ describe('repository .github example data', () => {
     expect(orchestrator.tools).toEqual(['agent', 'read', 'search']);
     expect(orchestrator.calls).toEqual(['worker']);
     expect(orchestrator.handoffs).toEqual([{ label: 'Quality Review', agent: '.github/agents/qa.agent.md', prompt: 'Review the worker output and note risks.', send: false, model: 'GPT-4o (copilot)' }]);
-    expect(orchestrator.hooks).toEqual({ SessionStart: [{ type: 'command', command: 'echo "AgentFlow example started"' }] });
+    expect(orchestrator.hooks).toEqual({ SessionStart: [{ type: 'command', command: 'echo "Agent Flow example started"' }] });
     expect(orchestrator.mcpServers).toEqual([{ name: 'filesystem-example', command: 'npx', args: '["-y","@modelcontextprotocol/server-filesystem","."]' }]);
     expect(orchestrator.inputs).toEqual(['.agent-output/example-input.md']);
     expect(orchestrator.outputs).toEqual(['.agent-output/example-plan.md']);

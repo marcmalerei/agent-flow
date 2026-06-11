@@ -1,8 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from '../src/webview/panelMessages';
+import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from '../src/webview/panelMessages';
 import { AgentPipeline } from '../src/pipeline/types';
 
 describe('webview save handling', () => {
+  it('persists pipeline view state and markdown files without confirmation', async () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Auto save',
+      nodes: [{ id: 'agent', type: 'agent', label: 'Agent', tools: ['codebase'], calls: ['"Worker"'], outputs: [] }, { id: 'worker', type: 'agent', label: 'Worker', outputs: [] }],
+      edges: []
+    };
+    const calls: string[] = [];
+
+    const result = await handlePersistPipelineMessage({
+      message: { command: 'persistPipeline', pipeline, selectedId: 'agent' },
+      workspace: '/workspace',
+      writePipeline: async (_workspace, saved) => {
+        calls.push(`view:${saved.nodes[0].type === 'agent' ? `${saved.nodes[0].calls?.[0]}:${saved.nodes[0].tools?.join(',')}` : ''}`);
+      },
+      writeMarkdownFiles: async (_workspace, saved) => {
+        calls.push(`markdown:${saved.nodes.length}`);
+      },
+      postState: async (_pipeline, selectedId) => {
+        calls.push(`state:${selectedId}`);
+      }
+    });
+
+    expect(result.nodes[0].type === 'agent' && result.nodes[0].calls).toEqual(['worker']);
+    expect(calls).toEqual(['view:worker:read,search', 'markdown:2', 'state:agent']);
+  });
+
   it('writes only the pipeline JSON when saving from the webview', async () => {
     const pipeline: AgentPipeline = {
       version: 1,

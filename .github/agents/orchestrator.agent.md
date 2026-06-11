@@ -23,7 +23,7 @@ handoffs:
 hooks:
   SessionStart:
     - type: command
-      command: echo "AgentFlow example started"
+      command: echo "Agent Flow example started"
 mcp-servers:
   - name: filesystem-example
     command: npx

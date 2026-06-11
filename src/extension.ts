@@ -2,13 +2,13 @@ import * as vscode from 'vscode';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { createDefaultPipeline } from './pipeline/defaultPipeline';
-import { stringifyPipeline } from './pipeline/parser';
 import { countCopilotInstructionLines, loadOrInferPipeline } from './pipeline/scanner';
 import { validatePipeline } from './pipeline/validator';
 import { calculateRiskScore } from './pipeline/riskScore';
 import { generateFiles } from './pipeline/generators';
 import { AgentPipeline, GeneratedFile } from './pipeline/types';
 import { openPipelinePanel } from './webview/panel';
+import { PIPELINE_FILE_PATH } from './pipeline/paths';
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
@@ -28,27 +28,30 @@ export function getWorkspaceRoot(): string | undefined {
 
 async function loadWorkspacePipeline(): Promise<{ workspace: string; pipeline: AgentPipeline }> {
   const workspace = getWorkspaceRoot();
-  if (!workspace) throw new Error('Open a workspace folder before using AgentFlow.');
+  if (!workspace) throw new Error('Open a workspace folder before using Agent Flow.');
   return { workspace, pipeline: await loadOrInferPipeline(workspace) };
 }
 
 async function scanWorkspaceCommand(): Promise<void> {
   const { pipeline } = await loadWorkspacePipeline();
-  vscode.window.showInformationMessage(`AgentFlow found ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges.`);
+  vscode.window.showInformationMessage(`Agent Flow found ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges.`);
 }
 
 async function createDefaultPipelineCommand(): Promise<void> {
   const workspace = getWorkspaceRoot();
   if (!workspace) { vscode.window.showErrorMessage('Open a workspace folder before creating a pipeline.'); return; }
-  const target = path.join(workspace, '.agent-pipeline/pipeline.json');
+  const target = path.join(workspace, PIPELINE_FILE_PATH);
   const pipeline = createDefaultPipeline();
   if (await fileExists(target)) {
-    const answer = await vscode.window.showWarningMessage('pipeline.json already exists. Overwrite it with the AgentFlow default preset?', { modal: true }, 'Overwrite');
+    const answer = await vscode.window.showWarningMessage('agent-flow.json already exists. Overwrite it with the Agent Flow default preset?', { modal: true }, 'Overwrite');
     if (answer !== 'Overwrite') return;
   }
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, stringifyPipeline(pipeline), 'utf8');
-  vscode.window.showInformationMessage('AgentFlow default pipeline created.');
+  for (const file of generateFiles(pipeline)) {
+    const fileTarget = path.join(workspace, file.path);
+    await fs.mkdir(path.dirname(fileTarget), { recursive: true });
+    await fs.writeFile(fileTarget, file.content, 'utf8');
+  }
+  vscode.window.showInformationMessage('Agent Flow default files created.');
 }
 
 async function validatePipelineCommand(): Promise<void> {
@@ -65,14 +68,14 @@ async function generateFilesCommand(): Promise<void> {
   const preview = await previewGeneratedFiles(workspace, files);
   const doc = await vscode.workspace.openTextDocument({ language: 'diff', content: preview });
   await vscode.window.showTextDocument(doc, { preview: true });
-  const answer = await vscode.window.showWarningMessage(`Write ${files.length} generated AgentFlow files? Existing generated or user files may be overwritten only after this confirmation.`, { modal: true }, 'Write Files');
+  const answer = await vscode.window.showWarningMessage(`Write ${files.length} generated Agent Flow files? Existing generated or user files may be overwritten only after this confirmation.`, { modal: true }, 'Write Files');
   if (answer !== 'Write Files') return;
   for (const file of files) {
     const target = path.join(workspace, file.path);
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, file.content, 'utf8');
   }
-  vscode.window.showInformationMessage(`AgentFlow wrote ${files.length} files.`);
+  vscode.window.showInformationMessage(`Agent Flow wrote ${files.length} files.`);
 }
 
 async function previewGeneratedFiles(workspace: string, files: GeneratedFile[]): Promise<string> {
@@ -80,7 +83,7 @@ async function previewGeneratedFiles(workspace: string, files: GeneratedFile[]):
   for (const file of files) {
     const target = path.join(workspace, file.path);
     const current = await readFileOrEmpty(target);
-    sections.push(`--- ${file.path}\n+++ ${file.path}\n@@ AgentFlow generated preview @@\n${current ? summarize(current, '-') : '- <new file>\n'}${summarize(file.content, '+')}`);
+    sections.push(`--- ${file.path}\n+++ ${file.path}\n@@ Agent Flow generated preview @@\n${current ? summarize(current, '-') : '- <new file>\n'}${summarize(file.content, '+')}`);
   }
   return sections.join('\n');
 }
@@ -98,5 +101,5 @@ async function fileExists(file: string): Promise<boolean> {
 }
 
 function renderValidationReport(name: string, findings: ReturnType<typeof validatePipeline>, risk: ReturnType<typeof calculateRiskScore>): string {
-  return `# AgentFlow Validation: ${name}\n\n## Findings\n\n${findings.length ? findings.map((item) => `- **${item.severity.toUpperCase()}** (${item.ruleId}) ${item.message}`).join('\n') : 'No findings.'}\n\n## Context Risk Score\n\n${risk.score}/100\n\n${risk.reasons.map((reason) => `- ${reason}`).join('\n') || 'No risk reasons.'}\n`;
+  return `# Agent Flow Validation: ${name}\n\n## Findings\n\n${findings.length ? findings.map((item) => `- **${item.severity.toUpperCase()}** (${item.ruleId}) ${item.message}`).join('\n') : 'No findings.'}\n\n## Context Risk Score\n\n${risk.score}/100\n\n${risk.reasons.map((reason) => `- ${reason}`).join('\n') || 'No risk reasons.'}\n`;
 }

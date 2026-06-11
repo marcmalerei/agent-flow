@@ -10,6 +10,12 @@ export interface SavePipelineMessage {
   selectedId?: string;
 }
 
+export interface PersistPipelineMessage {
+  command: 'persistPipeline';
+  pipeline: unknown;
+  selectedId?: string;
+}
+
 export interface WriteMarkdownFilesMessage {
   command: 'writeMarkdownFiles';
   pipeline: unknown;
@@ -29,6 +35,23 @@ export async function handleSavePipelineMessage(dependencies: SavePipelineDepend
   await dependencies.writePipeline(dependencies.workspace, pipeline);
   await dependencies.postState(pipeline, dependencies.message.selectedId);
   await dependencies.showSavedMessage();
+  return pipeline;
+}
+
+export interface PersistPipelineDependencies {
+  message: PersistPipelineMessage;
+  workspace: string;
+  writePipeline(workspace: string, pipeline: AgentPipeline): Promise<void>;
+  writeMarkdownFiles(workspace: string, pipeline: AgentPipeline, previousPipeline?: AgentPipeline): Promise<void>;
+  postState(pipeline: AgentPipeline, selectedId?: string): Promise<void>;
+  previousPipeline?: AgentPipeline;
+}
+
+export async function handlePersistPipelineMessage(dependencies: PersistPipelineDependencies): Promise<AgentPipeline> {
+  const pipeline = normalizePipelineTools(normalizePipelineAgentReferences(parsePipeline(dependencies.message.pipeline)));
+  await dependencies.writePipeline(dependencies.workspace, pipeline);
+  await dependencies.writeMarkdownFiles(dependencies.workspace, pipeline, dependencies.previousPipeline);
+  await dependencies.postState(pipeline, dependencies.message.selectedId);
   return pipeline;
 }
 

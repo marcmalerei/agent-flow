@@ -7,15 +7,17 @@ import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { AgentPipeline } from '../pipeline/types';
 import { listToolOptionNames } from './toolOptions';
-import { handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from './panelMessages';
+import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from './panelMessages';
 import { coerceFlowLayout } from './flowLayout';
+import { PIPELINE_FILE_PATH } from '../pipeline/paths';
+import { stringifyViewState } from '../pipeline/viewState';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!workspace) { vscode.window.showErrorMessage('Open a workspace folder before opening AgentFlow.'); return; }
+  if (!workspace) { vscode.window.showErrorMessage('Open a workspace folder before opening Agent Flow.'); return; }
   let pipeline = await loadOrInferPipeline(workspace);
   let selectedId: string | undefined;
-  const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'AgentFlow Pipeline', vscode.ViewColumn.One, {
+  const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'Agent Flow Pipeline', vscode.ViewColumn.One, {
     enableScripts: true,
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
   });
@@ -33,6 +35,20 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
     fileWatchers.dispose();
   });
   panel.webview.onDidReceiveMessage(async (message) => {
+    if (message?.command === 'persistPipeline') {
+      selectedId = typeof message.selectedId === 'string' ? message.selectedId : selectedId;
+      const previousPipeline = pipeline;
+      pipeline = await handlePersistPipelineMessage({
+        message,
+        workspace,
+        previousPipeline,
+        writePipeline,
+        writeMarkdownFiles: writeGeneratedFiles,
+        postState: async (nextPipeline, selectedId) => {
+          panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
+        }
+      });
+    }
     if (message?.command === 'savePipeline') {
       selectedId = typeof message.selectedId === 'string' ? message.selectedId : selectedId;
       pipeline = await handleSavePipelineMessage({
@@ -43,7 +59,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
           panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
         },
         showSavedMessage: async () => {
-          vscode.window.showInformationMessage('AgentFlow pipeline saved to JSON.');
+          vscode.window.showInformationMessage('Agent Flow pipeline saved to JSON.');
         }
       });
     }
@@ -57,11 +73,11 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
           panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
         },
         confirmWrite: async (fileCount) => {
-          const answer = await vscode.window.showWarningMessage(`Write ${fileCount} generated AgentFlow Markdown/artifact files? Existing files may be overwritten.`, { modal: true }, 'Write Files');
+          const answer = await vscode.window.showWarningMessage(`Write ${fileCount} generated Agent Flow Markdown/artifact files? Existing files may be overwritten.`, { modal: true }, 'Write Files');
           return answer === 'Write Files';
         },
         showWrittenMessage: async (fileCount) => {
-          vscode.window.showInformationMessage(`AgentFlow wrote ${fileCount} generated files.`);
+          vscode.window.showInformationMessage(`Agent Flow wrote ${fileCount} generated files.`);
         }
       });
       if (nextPipeline) pipeline = nextPipeline;
@@ -72,6 +88,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
 
 function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<void>): vscode.Disposable {
   const patterns = [
+    PIPELINE_FILE_PATH,
     '.agent-pipeline/pipeline.json',
     '.github/agents/**/*.agent.md',
     '.github/prompts/**/*.prompt.md',
@@ -87,7 +104,7 @@ function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = undefined;
-      onRefresh().catch((error) => vscode.window.showWarningMessage(`AgentFlow could not refresh the pipeline after file changes: ${(error as Error).message}`));
+      onRefresh().catch((error) => vscode.window.showWarningMessage(`Agent Flow could not refresh the pipeline after file changes: ${(error as Error).message}`));
     }, 250);
   };
   for (const watcher of watchers) {
@@ -116,17 +133,28 @@ async function buildState(workspace: string, pipeline: AgentPipeline): Promise<u
 }
 
 async function writePipeline(workspace: string, pipeline: AgentPipeline): Promise<void> {
-  const target = path.join(workspace, '.agent-pipeline/pipeline.json');
+  const target = path.join(workspace, PIPELINE_FILE_PATH);
   await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, `${JSON.stringify(pipeline, null, 2)}\n`, 'utf8');
+  await fs.writeFile(target, stringifyViewState(pipeline), 'utf8');
 }
 
-async function writeGeneratedFiles(workspace: string, pipeline: AgentPipeline): Promise<void> {
-  for (const file of generateFiles(pipeline).filter((file) => file.kind !== 'pipeline')) {
+async function writeGeneratedFiles(workspace: string, pipeline: AgentPipeline, previousPipeline?: AgentPipeline): Promise<void> {
+  const nextFiles = generateFiles(pipeline).filter((file) => file.kind !== 'pipeline');
+  const nextPaths = new Set(nextFiles.map((file) => file.path));
+  for (const file of previousPipeline ? generateFiles(previousPipeline).filter((file) => file.kind !== 'pipeline') : []) {
+    if (nextPaths.has(file.path)) continue;
+    await fs.rm(path.join(workspace, file.path), { force: true });
+  }
+  for (const file of nextFiles) {
     const target = path.join(workspace, file.path);
+    if (await readExistingFile(target) === file.content) continue;
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, file.content, 'utf8');
   }
+}
+
+async function readExistingFile(file: string): Promise<string | undefined> {
+  try { return await fs.readFile(file, 'utf8'); } catch { return undefined; }
 }
 
 function html(webview: vscode.Webview, context: vscode.ExtensionContext, state: unknown): string {
@@ -140,7 +168,7 @@ function html(webview: vscode.Webview, context: vscode.ExtensionContext, state: 
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
 <link rel="stylesheet" href="${css}">
-<title>AgentFlow</title>
+<title>Agent Flow</title>
 </head>
 <body>
 <div id="root"></div>

@@ -49,7 +49,7 @@ export interface BaseNode {
   type: PipelineNodeType;
   label: string;
   description?: string;
-  /** Optional Markdown override edited from the AgentFlow webview. */
+  /** Optional Markdown override edited from the Agent Flow webview. */
   markdown?: string;
   position?: Position;
 }
@@ -98,7 +98,7 @@ export interface PromptNode extends BaseNode {
 export interface InstructionNode extends BaseNode {
   type: 'instruction';
   instructionFile?: string;
-  applyTo: string;
+  applyTo?: string;
   excludeAgent?: 'code-review' | 'cloud-agent' | string;
   instructionRefs?: ReferenceInstruction[];
   rules?: string[];

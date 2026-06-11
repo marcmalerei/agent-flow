@@ -1,14 +1,15 @@
 import { AgentPipeline, GeneratedFile } from '../types';
-import { stringifyPipeline } from '../parser';
 import { generateAgentMarkdown, agentFilePath } from './agentGenerator';
 import { generatePromptMarkdown, promptFilePath } from './promptGenerator';
 import { generateInstructionMarkdown, instructionFilePath } from './instructionGenerator';
 import { generateSkillMarkdown, skillFilePath } from './skillGenerator';
 import { appendGeneratedMarker } from './shared';
+import { PIPELINE_FILE_PATH } from '../paths';
+import { stringifyViewState } from '../viewState';
 
 export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
   const files: GeneratedFile[] = [
-    { path: '.agent-pipeline/pipeline.json', content: stringifyPipeline(pipeline), kind: 'pipeline' }
+    { path: PIPELINE_FILE_PATH, content: stringifyViewState(pipeline), kind: 'pipeline' }
   ];
   for (const node of pipeline.nodes) {
     if (node.type === 'agent') files.push({ path: agentFilePath(node), content: generateAgentMarkdown(node), kind: 'agent' });

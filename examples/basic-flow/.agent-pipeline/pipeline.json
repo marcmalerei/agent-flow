@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "name": "AgentFlow Example Pipeline",
+  "name": "Agent Flow Example Pipeline",
   "nodes": [
     {
       "id": "triage-request",
