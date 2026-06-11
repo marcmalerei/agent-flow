@@ -193,6 +193,76 @@ name: Router
     expect(router?.position).toEqual({ x: 420, y: 260 });
     expect(router?.markdown).toContain('# Router');
   });
+
+  it('discovers filesystem-created .github nodes with view state and frontmatter details', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-filesystem-created-'));
+    await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/prompts'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/instructions'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/skills/review-pr'), { recursive: true });
+    await fs.writeFile(path.join(workspace, '.github/agent-flow.json'), JSON.stringify({
+      version: 1,
+      name: 'Filesystem Flow',
+      nodes: [
+        { id: 'router', type: 'agent', file: '.github/agents/router.agent.md', position: { x: 10, y: 20 } },
+        { id: 'release-notes', type: 'prompt', file: '.github/prompts/release-notes.prompt.md', position: { x: 30, y: 40 } },
+        { id: 'docs-policy', type: 'instruction', file: '.github/instructions/docs-policy.instructions.md', position: { x: 50, y: 60 } },
+        { id: 'review-pr', type: 'skill', file: '.github/skills/review-pr/SKILL.md', position: { x: 70, y: 80 } }
+      ]
+    }, null, 2), 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/agents/router.agent.md'), `---
+name: Router
+tools:
+  - read
+agents:
+  - Worker
+---
+
+# Router
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/agents/worker.agent.md'), `---
+name: Worker
+---
+
+# Worker
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/prompts/release-notes.prompt.md'), `---
+name: Release Notes
+agent: router
+tools:
+  - search
+---
+
+# Release Notes
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/instructions/docs-policy.instructions.md'), `---
+name: Documentation Policy
+description: Use the docs voice.
+applyTo: "**/*.md"
+---
+
+# Documentation Policy
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/skills/review-pr/SKILL.md'), `---
+name: Review PR
+description: Review pull requests.
+---
+
+## Description
+Review pull requests.
+`, 'utf8');
+
+    const pipeline = await loadOrInferPipeline(workspace);
+
+    expect(pipeline.name).toBe('Filesystem Flow');
+    expect(pipeline.nodes.find((node) => node.id === 'router' && node.type === 'agent')).toMatchObject({ label: 'Router', position: { x: 10, y: 20 }, calls: ['worker'] });
+    expect(pipeline.nodes.find((node) => node.id === 'worker' && node.type === 'agent')).toMatchObject({ label: 'Worker' });
+    expect(pipeline.nodes.find((node) => node.id === 'release-notes' && node.type === 'prompt')).toMatchObject({ label: 'Release Notes', startAgent: 'router', tools: ['search'], position: { x: 30, y: 40 } });
+    expect(pipeline.nodes.find((node) => node.id === 'docs-policy' && node.type === 'instruction')).toMatchObject({ label: 'Documentation Policy', description: 'Use the docs voice.', applyTo: '**/*.md', position: { x: 50, y: 60 } });
+    expect(pipeline.nodes.find((node) => node.id === 'review-pr' && node.type === 'skill')).toMatchObject({ label: 'Review PR', position: { x: 70, y: 80 } });
+    expect(pipeline.edges).toContainEqual({ id: 'router-calls-worker', from: 'router', to: 'worker', kind: 'flow' });
+    expect(pipeline.edges).toContainEqual({ id: 'release-notes-starts-router', from: 'release-notes', to: 'router', kind: 'prompt' });
+  });
 });
 
 it('parses VS Code agent frontmatter, markdown file references, hooks, and MCP servers', async () => {
