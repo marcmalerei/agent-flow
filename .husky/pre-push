@@ -5,6 +5,10 @@ if [ "${AGENTFLOW_SKIP_VERSION_BUMP:-}" = "1" ]; then
   exit 0
 fi
 
+if [ "$(git log -1 --pretty=%s)" = "chore: bump extension version" ]; then
+  exit 0
+fi
+
 if ! git diff --quiet || ! git diff --cached --quiet; then
   echo "Agent Flow pre-push: working tree has uncommitted changes; commit or stash them before pushing."
   exit 1
