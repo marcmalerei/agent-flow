@@ -106,6 +106,8 @@ export interface InstructionNode extends BaseNode {
   instructionFile?: string;
   applyTo?: string;
   excludeAgent?: 'code-review' | 'cloud-agent' | string;
+  requiredArtifacts?: string[];
+  artifactUsages?: ArtifactUsage[];
   instructionRefs?: ReferenceInstruction[];
   rules?: string[];
 }
@@ -117,6 +119,8 @@ export interface SkillNode extends BaseNode {
   userInvocable?: boolean;
   disableModelInvocation?: boolean;
   context?: SkillContext;
+  requiredArtifacts?: string[];
+  artifactUsages?: ArtifactUsage[];
   activationCriteria?: string[];
   doNotUseWhen?: string[];
   procedure?: string[];

@@ -1,5 +1,5 @@
 import { InstructionNode } from '../types';
-import { appendGeneratedMarker, list, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, replaceMarkdownSection, yamlString, yamlStringLine } from './shared';
 
 export function instructionFilePath(node: InstructionNode): string {
   if (node.instructionFile) return node.instructionFile;
@@ -8,7 +8,14 @@ export function instructionFilePath(node: InstructionNode): string {
 
 export function generateInstructionMarkdown(node: InstructionNode): string {
   const frontmatter = instructionFrontmatter(node);
-  if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(node.markdown, frontmatter);
+  if (node.markdown?.trim()) {
+    const body = replaceMarkdownSection(
+      replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
+      'Referenced instructions',
+      referenceInstructionList(node.instructionRefs)
+    );
+    return mergeMarkdownWithFrontmatter(body, frontmatter);
+  }
 
   return appendGeneratedMarker(`${frontmatter}
 
@@ -19,6 +26,10 @@ ${node.description ?? ''}
 # Referenced instructions
 
 ${referenceInstructionList(node.instructionRefs)}
+
+# Required artifacts
+
+${artifactUsageList(node.artifactUsages, node.requiredArtifacts)}
 
 # Rules
 

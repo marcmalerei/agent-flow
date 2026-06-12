@@ -386,17 +386,21 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
     };
   }
   if (node.type === 'instruction') {
+    const artifactUsages = parseArtifactUsages(markdown, 'Required artifacts');
     return {
       ...node,
       label: typeof fm.name === 'string' ? fm.name : node.label,
       description: typeof fm.description === 'string' ? stripYamlQuotes(fm.description) : node.description,
       applyTo: typeof fm.applyTo === 'string' ? stripYamlQuotes(fm.applyTo) : node.applyTo,
       excludeAgent: typeof fm.excludeAgent === 'string' ? stripYamlQuotes(fm.excludeAgent) : node.excludeAgent,
+      requiredArtifacts: artifactUsages?.map((usage) => usage.path) ?? node.requiredArtifacts,
+      artifactUsages: artifactUsages ?? node.artifactUsages,
       instructionRefs: parseInstructionRefs(markdown) ?? node.instructionRefs,
       markdown
     };
   }
   if (node.type === 'skill') {
+    const artifactUsages = parseArtifactUsages(markdown, 'Required artifacts');
     return {
       ...node,
       label: typeof fm.name === 'string' ? fm.name : node.label,
@@ -405,6 +409,8 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
       userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : node.userInvocable,
       disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : node.disableModelInvocation,
       context: typeof fm.context === 'string' ? fm.context : node.context,
+      requiredArtifacts: artifactUsages?.map((usage) => usage.path) ?? node.requiredArtifacts,
+      artifactUsages: artifactUsages ?? node.artifactUsages,
       markdown
     };
   }
@@ -587,8 +593,9 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const id = path.basename(file, '.instructions.md');
     const content = await fs.readFile(file, 'utf8');
     const fm = frontmatter(content);
+    const artifactUsages = parseArtifactUsages(content, 'Required artifacts');
     const instructionRefs = parseInstructionRefs(content);
-    nodes.push({ id, type: 'instruction', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), instructionFile: rel(workspace, file), applyTo: typeof fm.applyTo === 'string' ? stripYamlQuotes(fm.applyTo) : '**/*', description: typeof fm.description === 'string' ? stripYamlQuotes(fm.description) : undefined, excludeAgent: typeof fm.excludeAgent === 'string' ? stripYamlQuotes(fm.excludeAgent) : undefined, instructionRefs, markdown: content, position: addPosition() });
+    nodes.push({ id, type: 'instruction', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), instructionFile: rel(workspace, file), applyTo: typeof fm.applyTo === 'string' ? stripYamlQuotes(fm.applyTo) : '**/*', description: typeof fm.description === 'string' ? stripYamlQuotes(fm.description) : undefined, excludeAgent: typeof fm.excludeAgent === 'string' ? stripYamlQuotes(fm.excludeAgent) : undefined, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, markdown: content, position: addPosition() });
   }
 
   const skillFiles = await findFiles(path.join(workspace, '.github/skills'), (file) => path.basename(file) === 'SKILL.md');
@@ -596,7 +603,8 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const id = path.basename(path.dirname(file));
     const content = await fs.readFile(file, 'utf8');
     const fm = frontmatter(content);
-    nodes.push({ id, type: 'skill', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), skillFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : content.match(/## Description\s+([\s\S]*?)(\n##|$)/)?.[1]?.trim(), argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, context: typeof fm.context === 'string' ? fm.context : undefined, markdown: content, position: addPosition() });
+    const artifactUsages = parseArtifactUsages(content, 'Required artifacts');
+    nodes.push({ id, type: 'skill', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), skillFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : content.match(/## Description\s+([\s\S]*?)(\n##|$)/)?.[1]?.trim(), argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, context: typeof fm.context === 'string' ? fm.context : undefined, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, markdown: content, position: addPosition() });
   }
 
   const roleFiles = await findFiles(path.join(workspace, '.github/roles'), (file) => file.endsWith('.md'));

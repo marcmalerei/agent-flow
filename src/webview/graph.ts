@@ -17,7 +17,7 @@ export interface VisibleFlowEdge {
   style?: Record<string, string | number>;
   markerEnd?: FlowEdgeMarker;
   data: {
-    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'handoff.targetAgent' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'instruction.instructionRefs' | 'agent.roleRefs' | 'prompt.roleRefs' | 'agent.hooks' | 'agent.mcpServers';
+    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'handoff.targetAgent' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'instruction.artifactUsages' | 'instruction.requiredArtifacts' | 'skill.artifactUsages' | 'skill.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'instruction.instructionRefs' | 'agent.roleRefs' | 'prompt.roleRefs' | 'agent.hooks' | 'agent.mcpServers';
     kind: PipelineEdgeKind | 'reference';
     artifact?: string;
   };
@@ -113,7 +113,14 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
     }
 
     if (node.type === 'instruction') {
+      addArtifactUsageEdges(visible, explicitPairs, node.id, node.artifactUsages, 'instruction.artifactUsages', artifactsByPath);
+      addRequiredArtifactEdges(visible, explicitPairs, node.id, node.artifactUsages?.length ? undefined : node.requiredArtifacts, 'instruction.requiredArtifacts', artifactsByPath);
       addInstructionReferenceEdges(visible, explicitPairs, node.id, node.instructionRefs, 'instruction.instructionRefs', instructionsByTarget);
+    }
+
+    if (node.type === 'skill') {
+      addArtifactUsageEdges(visible, explicitPairs, node.id, node.artifactUsages, 'skill.artifactUsages', artifactsByPath);
+      addRequiredArtifactEdges(visible, explicitPairs, node.id, node.artifactUsages?.length ? undefined : node.requiredArtifacts, 'skill.requiredArtifacts', artifactsByPath);
     }
 
     if (node.type !== 'agent') continue;
@@ -203,7 +210,7 @@ function addArtifactUsageEdges(
   explicitPairs: Set<string>,
   nodeId: string,
   usages: ArtifactUsage[] | undefined,
-  derivedFrom: 'agent.artifactUsages' | 'prompt.artifactUsages',
+  derivedFrom: 'agent.artifactUsages' | 'prompt.artifactUsages' | 'instruction.artifactUsages' | 'skill.artifactUsages',
   artifactsByPath: Map<string, string>
 ): void {
   for (const usage of usages ?? []) {
@@ -218,6 +225,29 @@ function addArtifactUsageEdges(
       animated: true,
       style: artifactStyle,
       data: { derivedFrom, kind: 'reference', artifact: usage.path }
+    });
+  }
+}
+
+function addRequiredArtifactEdges(
+  edges: VisibleFlowEdge[],
+  explicitPairs: Set<string>,
+  nodeId: string,
+  artifacts: string[] | undefined,
+  derivedFrom: 'prompt.requiredArtifacts' | 'instruction.requiredArtifacts' | 'skill.requiredArtifacts',
+  artifactsByPath: Map<string, string>
+): void {
+  for (const artifact of artifacts ?? []) {
+    const artifactNodeId = artifactsByPath.get(artifact);
+    if (!artifactNodeId) continue;
+    addPreviewEdge(edges, explicitPairs, {
+      id: `ref:${derivedFrom}:${artifactNodeId}:${nodeId}`,
+      source: artifactNodeId,
+      target: nodeId,
+      label: 'reads',
+      animated: true,
+      style: artifactStyle,
+      data: { derivedFrom, kind: 'reference', artifact }
     });
   }
 }
