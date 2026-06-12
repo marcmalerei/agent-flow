@@ -21,4 +21,13 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('Add Node');
     expect(webviewSource).not.toContain('className="node-buttons"');
   });
+
+  test('uses compact TipTap editors for reference instructions', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+
+    expect(webviewSource).toContain('ReferenceMarkdownEditor');
+    expect(webviewSource).toContain('variant="compact"');
+    expect(webviewSource).not.toContain('placeholder="Add the instruction for this artifact." onChange');
+    expect(webviewSource).not.toContain('placeholder={`How should this node apply');
+  });
 });
