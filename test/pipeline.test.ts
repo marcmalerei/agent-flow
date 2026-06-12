@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { createDefaultPipeline } from '../src/pipeline/defaultPipeline';
 import { parsePipelineJson, stringifyPipeline } from '../src/pipeline/parser';
 import { generateAgentMarkdown, generateFiles, generateInstructionMarkdown, generatePromptMarkdown, generateRoleMarkdown, generateSkillMarkdown } from '../src/pipeline/generators';
@@ -6,6 +9,7 @@ import { validatePipeline } from '../src/pipeline/validator';
 import { calculateRiskScore } from '../src/pipeline/riskScore';
 import { AgentPipeline, PromptNode } from '../src/pipeline/types';
 import { normalizePipelineAgentReferences, resolveAgentReference, stripYamlQuotes } from '../src/pipeline/referenceResolver';
+import { inferPipelineFromWorkspace } from '../src/pipeline/scanner';
 import { deriveVisibleFlowEdges } from '../src/webview/graph';
 import { coerceFlowLayout, layoutFlowNodes } from '../src/webview/flowLayout';
 import { estimateNodeTokenCount, estimateTokenCount, formatTokenBadge } from '../src/webview/tokenCounts';
@@ -252,19 +256,58 @@ Keep this prose.`
       inputs: ['.agent-output/implementation.md'],
       outputs: ['.agent-output/review.md'],
       artifactUsages: [
-        { path: '.agent-output/implementation.md', action: 'read', instruction: 'Use this as the source of truth for the review.' },
+        { path: '.agent-output/implementation.md', action: 'read', instruction: 'Use $artifact as the source of truth for the review.' },
         { path: '.agent-output/review.md', action: 'write', instruction: 'Write blocking findings first.' }
       ],
       instructionRefs: [
-        { target: '.github/instructions/docs-scope.instructions.md', instruction: 'Apply when reviewing documentation changes.' }
+        { target: '.github/instructions/docs-scope.instructions.md', instruction: 'Apply $instruction when reviewing documentation changes.' }
       ]
     });
 
     expect(agent).toContain('# Artifact work');
-    expect(agent).toContain('- Read `.agent-output/implementation.md`: Use this as the source of truth for the review.');
-    expect(agent).toContain('- Write `.agent-output/review.md`: Write blocking findings first.');
+    expect(agent).toContain('<!--agent-flow:begin artifact-ref action="read" path=".agent-output/implementation.md"-->');
+    expect(agent).toContain('Use `.agent-output/implementation.md` as the source of truth for the review.');
+    expect(agent).toContain('<!--agent-flow:begin artifact-ref action="write" path=".agent-output/review.md"-->');
+    expect(agent).toContain('Write blocking findings first.');
     expect(agent).toContain('# Referenced instructions');
-    expect(agent).toContain('- Follow `.github/instructions/docs-scope.instructions.md`: Apply when reviewing documentation changes.');
+    expect(agent).toContain('<!--agent-flow:begin instruction-ref target=".github/instructions/docs-scope.instructions.md"-->');
+    expect(agent).toContain('Apply `.github/instructions/docs-scope.instructions.md` when reviewing documentation changes.');
+  });
+
+  it('parses magic reference blocks back into placeholder instructions', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-magic-refs-'));
+    await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+    await fs.writeFile(path.join(workspace, '.github/agents/reviewer.agent.md'), `---
+name: "Reviewer"
+tools:
+  - "read"
+---
+
+# Artifact work
+
+<!--agent-flow:begin artifact-ref action="read" path=".agent-output/implementation.md"-->
+Use \`.agent-output/implementation.md\` as the source of truth for the review.
+<!--agent-flow:end artifact-ref-->
+
+# Referenced instructions
+
+<!--agent-flow:begin instruction-ref target=".github/instructions/docs-scope.instructions.md"-->
+Apply \`.github/instructions/docs-scope.instructions.md\` when reviewing documentation changes.
+<!--agent-flow:end instruction-ref-->
+`, 'utf8');
+    const pipeline = await inferPipelineFromWorkspace(workspace);
+    const reviewer = pipeline.nodes.find((node) => node.id === 'reviewer');
+
+    expect(reviewer?.type).toBe('agent');
+    expect(reviewer).toMatchObject({
+      inputs: ['.agent-output/implementation.md'],
+      artifactUsages: [
+        { path: '.agent-output/implementation.md', action: 'read', instruction: 'Use $artifact as the source of truth for the review.' }
+      ],
+      instructionRefs: [
+        { target: '.github/instructions/docs-scope.instructions.md', instruction: 'Apply $instruction when reviewing documentation changes.' }
+      ]
+    });
   });
 
   it('updates artifact work in edited agent markdown when config changes', () => {
@@ -299,7 +342,8 @@ Keep this custom note.`
     expect(agent).toContain('# Role');
     expect(agent).toContain('Keep this custom role text.');
     expect(agent).toContain('# Artifact work');
-    expect(agent).toContain('- Write `.agent-output/summary.md`: Create a summary with risks and next steps.');
+    expect(agent).toContain('<!--agent-flow:begin artifact-ref action="write" path=".agent-output/summary.md"-->');
+    expect(agent).toContain('Create a summary with risks and next steps.');
     expect(agent).toContain('# Notes');
     expect(agent).toContain('Keep this custom note.');
     expect(agent).not.toContain('# Artifact work\n\nNone.');
@@ -321,9 +365,11 @@ Keep this custom note.`
     });
 
     expect(prompt).toContain('# Required artifacts');
-    expect(prompt).toContain('- Read `.agent-output/review.md`: Summarize only accepted findings.');
+    expect(prompt).toContain('<!--agent-flow:begin artifact-ref action="read" path=".agent-output/review.md"-->');
+    expect(prompt).toContain('Summarize only accepted findings.');
     expect(prompt).toContain('# Referenced instructions');
-    expect(prompt).toContain('- Follow `.github/instructions/docs-scope.instructions.md`: Use the docs style rules.');
+    expect(prompt).toContain('<!--agent-flow:begin instruction-ref target=".github/instructions/docs-scope.instructions.md"-->');
+    expect(prompt).toContain('Use the docs style rules.');
   });
 
   it('honors explicit file paths for newly inserted Markdown-backed nodes', () => {

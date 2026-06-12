@@ -51,11 +51,14 @@ describe('basic example flow', () => {
     expect(routerAgent?.content).toContain('handoffs:\n  - label: "Review Plan"');
     expect(routerAgent?.content).toContain('tools:\n  - "agent"\n  - "read"\n  - "search"');
     expect(routerAgent?.content).toContain('agents:\n  - "implementer"');
-    expect(routerAgent?.content).toContain('- Write `.agent-output/triage.md`: Write the selected route, involved agents, and open risks.');
-    expect(routerAgent?.content).toContain('- Follow `.github/instructions/docs-scope.instructions.md`: Apply if the route includes documentation work.');
+    expect(routerAgent?.content).toContain('<!--agent-flow:begin artifact-ref action="write" path=".agent-output/triage.md"-->');
+    expect(routerAgent?.content).toContain('Write the selected route, involved agents, and open risks.');
+    expect(routerAgent?.content).toContain('<!--agent-flow:begin instruction-ref target=".github/instructions/docs-scope.instructions.md"-->');
+    expect(routerAgent?.content).toContain('Apply if the route includes documentation work.');
     expect(prompt?.content).toContain('agent: "router"');
     expect(prompt?.content).toContain('Start with `router`.');
-    expect(prompt?.content).toContain('- Read `.agent-output/triage.md`: Use this artifact to decide whether the request is ready for implementation.');
+    expect(prompt?.content).toContain('<!--agent-flow:begin artifact-ref action="read" path=".agent-output/triage.md"-->');
+    expect(prompt?.content).toContain('Use this artifact to decide whether the request is ready for implementation.');
   });
 
   it('auto-persists generated Markdown files from webview messages without flow JSON', async () => {

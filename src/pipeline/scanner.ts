@@ -160,8 +160,23 @@ function frontmatterHandoffs(value: FrontmatterValue | undefined): AgentHandoff[
 
 function parseArtifactUsages(source: string, heading: 'Artifact work' | 'Required artifacts'): ArtifactUsage[] | undefined {
   const section = markdownSection(source, heading);
+  const magic = parseMagicArtifactRefs(source);
   const scoped = section ? parseArtifactUsageLines(section) : undefined;
-  return mergeArtifactUsages(scoped, parseMarkdownFileUsages(source));
+  return mergeArtifactUsages(magic, scoped, parseMarkdownFileUsages(source));
+}
+
+function parseMagicArtifactRefs(source: string): ArtifactUsage[] | undefined {
+  const usages: ArtifactUsage[] = [];
+  const pattern = /<!--agent-flow:begin\s+artifact-ref\s+([^>]*)-->([\s\S]*?)<!--agent-flow:end\s+artifact-ref-->/gi;
+  for (const match of source.matchAll(pattern)) {
+    const attrs = parseReferenceAttributes(match[1]);
+    const path = attrs.path;
+    const action = attrs.action;
+    if (!path || !action || !isArtifactPath(path)) continue;
+    const instruction = referenceInstructionFromBlock(match[2], path, '$artifact');
+    usages.push({ path, action: artifactAction(action), instruction });
+  }
+  return usages.length ? usages : undefined;
 }
 
 function parseArtifactUsageLines(source: string): ArtifactUsage[] | undefined {
@@ -204,6 +219,7 @@ function parsePromptStartAgent(fm: Record<string, FrontmatterValue>, source: str
 
 function parseInstructionRefs(source: string): ReferenceInstruction[] | undefined {
   const section = markdownSection(source, 'Referenced instructions');
+  const magicRefs = parseMagicInstructionRefs(source);
   const sectionRefs = section?.split(/\r?\n/).map((line): ReferenceInstruction | undefined => {
     const match = line.match(/^\s*-\s+Follow\s+`([^`]+)`(?::\s*(.+)|\.)?\s*$/i);
     if (!match) return undefined;
@@ -211,7 +227,38 @@ function parseInstructionRefs(source: string): ReferenceInstruction[] | undefine
     if (match[2]?.trim()) ref.instruction = match[2].trim();
     return ref;
   }).filter((ref): ref is ReferenceInstruction => Boolean(ref));
-  return mergeInstructionRefs(sectionRefs, parseMarkdownInstructionRefs(source));
+  return mergeInstructionRefs(magicRefs, sectionRefs, parseMarkdownInstructionRefs(source));
+}
+
+function parseMagicInstructionRefs(source: string): ReferenceInstruction[] | undefined {
+  const refs: ReferenceInstruction[] = [];
+  const pattern = /<!--agent-flow:begin\s+instruction-ref\s+([^>]*)-->([\s\S]*?)<!--agent-flow:end\s+instruction-ref-->/gi;
+  for (const match of source.matchAll(pattern)) {
+    const target = parseReferenceAttributes(match[1]).target;
+    if (!target) continue;
+    refs.push({ target, instruction: referenceInstructionFromBlock(match[2], target, '$instruction') });
+  }
+  return refs.length ? refs : undefined;
+}
+
+function parseReferenceAttributes(source: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (const match of source.matchAll(/([A-Za-z0-9_-]+)="([^"]*)"/g)) attrs[match[1]] = htmlAttributeValue(match[2]);
+  return attrs;
+}
+
+function htmlAttributeValue(value: string): string {
+  return value.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+}
+
+function referenceInstructionFromBlock(source: string, path: string, placeholder: '$artifact' | '$instruction'): string | undefined {
+  const body = source.trim();
+  if (!body) return undefined;
+  const escaped = escapeRegExp(path);
+  return body
+    .replace(new RegExp(`\`${escaped}\``, 'g'), placeholder)
+    .replace(new RegExp(escaped, 'g'), placeholder)
+    .trim();
 }
 
 function parseMarkdownInstructionRefs(source: string): ReferenceInstruction[] | undefined {

@@ -384,7 +384,7 @@ function AgentArtifactRow({ checkedInput, checkedOutput, label, onInputToggle, o
         <label><input type="checkbox" checked={checkedOutput} onChange={(event: any) => onOutputToggle(path, event.target.checked)} />Output</label>
       </div>
     </div>
-    {checked && <div className="compact-reference-fields"><label className="reference-action-field">Action<select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value }, event.target.value)}>{['read', 'write', 'append', 'validate'].map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label><div className="reference-markdown-field"><span className="reference-markdown-label">Instruction</span><ReferenceMarkdownEditor ariaLabel={`Instruction for ${label}`} value={usage?.instruction ?? ''} references={references} onChange={(value) => onUsageChange(path, { instruction: referenceInstructionTextValue(value) }, currentAction)} /></div></div>}
+    {checked && <div className="compact-reference-fields"><label className="reference-action-field">Action<select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value }, event.target.value)}>{['read', 'write', 'append', 'validate'].map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label><div className="reference-markdown-field"><span className="reference-markdown-label">Instruction</span><ReferenceMarkdownEditor ariaLabel={`Instruction for ${label}`} value={usage?.instruction ?? ''} references={references} referenceToken={{ label: 'Artifact', value: '$artifact', title: `Insert ${path}` }} onChange={(value) => onUsageChange(path, { instruction: referenceInstructionTextValue(value) }, currentAction)} /></div></div>}
   </div>;
 }
 
@@ -394,7 +394,7 @@ function ArtifactUsageRow({ actionOptions, checked, defaultAction, label, onTogg
     <div className="reference-row-header">
       <label className="reference-check" title={path}><input type="checkbox" checked={checked} onChange={(event: any) => onToggle(path, event.target.checked)} /><span className="artifact-option"><span>{label}</span><small>{path}</small></span></label>
     </div>
-    {checked && <div className="compact-reference-fields"><label className="reference-action-field">Action<select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value })}>{actionOptions.map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label><div className="reference-markdown-field"><span className="reference-markdown-label">Instruction</span><ReferenceMarkdownEditor ariaLabel={`Instruction for ${label}`} value={usage?.instruction ?? ''} references={references} onChange={(value) => onUsageChange(path, { instruction: referenceInstructionTextValue(value) })} /></div></div>}
+    {checked && <div className="compact-reference-fields"><label className="reference-action-field">Action<select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value })}>{actionOptions.map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label><div className="reference-markdown-field"><span className="reference-markdown-label">Instruction</span><ReferenceMarkdownEditor ariaLabel={`Instruction for ${label}`} value={usage?.instruction ?? ''} references={references} referenceToken={{ label: 'Artifact', value: '$artifact', title: `Insert ${path}` }} onChange={(value) => onUsageChange(path, { instruction: referenceInstructionTextValue(value) })} /></div></div>}
   </div>;
 }
 
@@ -415,14 +415,16 @@ function InstructionReferenceSelector({ instructions, onInstructionChange, onTog
 function InstructionReferenceRow({ checked, instruction, onInstructionChange, onToggle, reference, references, target }: { checked: boolean; instruction?: Extract<PipelineNode, { type: 'instruction' }>; onInstructionChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; reference?: ReferenceInstruction; references: ReferenceItem[]; target: string }) {
   return <div className={`reference-row${checked ? ' selected' : ''}`}>
     <label className="reference-check" title={target}><input type="checkbox" checked={checked} onChange={(event: any) => onToggle(target, event.target.checked)} /><span className="artifact-option"><span>{instruction?.label ?? target}</span><small>{target}</small></span></label>
-    {checked && <div className="reference-fields"><div className="reference-markdown-field"><span className="reference-markdown-label">Purpose</span><ReferenceMarkdownEditor ariaLabel={`Purpose for ${target}`} value={reference?.instruction ?? ''} references={references} onChange={(value) => onInstructionChange(target, value)} /></div></div>}
+    {checked && <div className="reference-fields"><div className="reference-markdown-field"><span className="reference-markdown-label">Purpose</span><ReferenceMarkdownEditor ariaLabel={`Purpose for ${target}`} value={reference?.instruction ?? ''} references={references} referenceToken={{ label: 'Instruction', value: '$instruction', title: `Insert ${target}` }} onChange={(value) => onInstructionChange(target, value)} /></div></div>}
   </div>;
 }
 
 interface ReferenceItem { label: string; value: string; type: string }
 
-function ReferenceMarkdownEditor({ ariaLabel, onChange, references, value }: { ariaLabel: string; onChange: (value: string) => void; references: ReferenceItem[]; value: string }) {
-  return <TiptapMarkdownEditor value={value} references={references} variant="compact" ariaLabel={ariaLabel} onChange={onChange} />;
+interface ReferenceToken { label: string; title: string; value: string }
+
+function ReferenceMarkdownEditor({ ariaLabel, onChange, referenceToken, references, value }: { ariaLabel: string; onChange: (value: string) => void; referenceToken?: ReferenceToken; references: ReferenceItem[]; value: string }) {
+  return <TiptapMarkdownEditor value={value} references={references} variant="compact" ariaLabel={ariaLabel} referenceToken={referenceToken} onChange={onChange} />;
 }
 
 function buildReferenceItems(pipeline: AgentPipeline): ReferenceItem[] {
@@ -474,7 +476,7 @@ function artifactActionLabel(action: string): string {
   return ({ read: 'Read', write: 'Write', append: 'Append', validate: 'Validate' } as Record<string, string>)[action] ?? action;
 }
 
-function TiptapMarkdownEditor({ ariaLabel = 'TipTap Markdown editor', onChange, references, value, variant = 'default' }: { ariaLabel?: string; onChange: (value: string) => void; references: ReferenceItem[]; value: string; variant?: 'default' | 'compact' }) {
+function TiptapMarkdownEditor({ ariaLabel = 'TipTap Markdown editor', onChange, references, referenceToken, value, variant = 'default' }: { ariaLabel?: string; onChange: (value: string) => void; references: ReferenceItem[]; referenceToken?: ReferenceToken; value: string; variant?: 'default' | 'compact' }) {
   const [query, setQuery] = useState<{ trigger: '@' | '/'; text: string } | undefined>(undefined);
   const slashItems: ReferenceItem[] = [
     { label: 'Today', value: new Date().toISOString().slice(0, 10), type: 'date' },
@@ -529,6 +531,9 @@ function TiptapMarkdownEditor({ ariaLabel = 'TipTap Markdown editor', onChange, 
     editor?.commands.setContent(markdownToTiptapHtml(next), { emitUpdate: false });
   };
   const appendMarkdown = (snippet: string) => replaceBodyMarkdown(`${lastBodyMarkdown.current}${snippet}`);
+  const insertMarkdown = (snippet: string) => {
+    editor?.chain().focus().insertContent(snippet).run();
+  };
   const insertSuggestion = (item: ReferenceItem) => {
     const current = lastBodyMarkdown.current;
     const next = current.replace(/(^|\s)([@/])([^\s@/]*)$/, (_match, prefix) => `${prefix}${item.value} `);
@@ -558,6 +563,7 @@ function TiptapMarkdownEditor({ ariaLabel = 'TipTap Markdown editor', onChange, 
       <EditorTool title="Inline code" icon="symbol-keyword" active={editor?.isActive('code')} onClick={() => editor?.chain().focus().toggleCode().run()} />
       <EditorTool title="Code block" icon="code" active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} />
       <EditorTool title="Link" icon="link" active={editor?.isActive('link')} onClick={addLink} />
+      {referenceToken && <><span className="editor-separator" /><EditorTool title={referenceToken.title} icon="references" onClick={() => insertMarkdown(referenceToken.value)}>{referenceToken.label}</EditorTool></>}
     </div>
     {variant !== 'compact' && frontmatter.current && <details className="frontmatter-drawer"><summary>Frontmatter</summary><textarea value={frontmatter.current} onChange={(event: any) => updateFrontmatter(event.target.value)} spellCheck={false} /></details>}
     <EditorContent editor={editor} />

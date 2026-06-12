@@ -92,7 +92,7 @@ describe('flow mutations', () => {
     expect(router?.type).toBe('agent');
     expect(router?.instructionRefs).toEqual([{ target: '.github/instructions/docs.instructions.md' }]);
     expect(next.edges).toContainEqual({ id: 'docs-instruction-router', from: 'docs', to: 'router', kind: 'instruction', label: 'instructs', artifact: undefined });
-    expect(generateAgentMarkdown(router!)).toContain('- Follow `.github/instructions/docs.instructions.md`.');
+    expect(generateAgentMarkdown(router!)).toContain('<!--agent-flow:begin instruction-ref target=".github/instructions/docs.instructions.md"-->');
     expect(deriveVisibleFlowEdges(next).map((edge) => [edge.source, edge.target, edge.label])).toContainEqual(['docs', 'router', 'instructs']);
   });
 
@@ -111,7 +111,7 @@ describe('flow mutations', () => {
     expect(prompt?.type).toBe('prompt');
     expect(prompt?.instructionRefs).toEqual([{ target: '.github/instructions/docs.instructions.md' }]);
     expect(next.edges).toContainEqual({ id: 'docs-instruction-start', from: 'docs', to: 'start', kind: 'instruction', label: 'instructs', artifact: undefined });
-    expect(generatePromptMarkdown(prompt!)).toContain('- Follow `.github/instructions/docs.instructions.md`.');
+    expect(generatePromptMarkdown(prompt!)).toContain('<!--agent-flow:begin instruction-ref target=".github/instructions/docs.instructions.md"-->');
     expect(deriveVisibleFlowEdges(next).map((edge) => [edge.source, edge.target, edge.label])).toContainEqual(['docs', 'start', 'instructs']);
   });
 

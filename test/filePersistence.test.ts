@@ -110,7 +110,8 @@ describe('webview file persistence', () => {
     await writeGeneratedFiles(workspace, pipeline);
 
     const agentMarkdown = await fs.readFile(path.join(workspace, '.github/agents/writer.agent.md'), 'utf8');
-    expect(agentMarkdown).toContain('- Write `.agent-output/summary.md`: Create a concise implementation summary with open risks.');
+    expect(agentMarkdown).toContain('<!--agent-flow:begin artifact-ref action="write" path=".agent-output/summary.md"-->');
+    expect(agentMarkdown).toContain('Create a concise implementation summary with open risks.');
 
     const reloaded = await loadOrInferPipeline(workspace);
     const writer = reloaded.nodes.find((node) => node.id === 'writer' && node.type === 'agent');
@@ -157,7 +158,8 @@ describe('webview file persistence', () => {
     await writeGeneratedFiles(workspace, pipeline);
 
     const agentMarkdown = await fs.readFile(path.join(workspace, '.github/agents/reader.agent.md'), 'utf8');
-    expect(agentMarkdown).toContain('- Read `.agent-output/context.md`: Use this context as the only source for acceptance criteria.');
+    expect(agentMarkdown).toContain('<!--agent-flow:begin artifact-ref action="read" path=".agent-output/context.md"-->');
+    expect(agentMarkdown).toContain('Use this context as the only source for acceptance criteria.');
 
     const reloaded = await loadOrInferPipeline(workspace);
     const reader = reloaded.nodes.find((node) => node.id === 'reader' && node.type === 'agent');
