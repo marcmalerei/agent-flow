@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+set -eu
+
+if [ "${AGENTFLOW_SKIP_VERSION_BUMP:-}" = "1" ]; then
+  exit 0
+fi
+
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Agent Flow pre-push: working tree has uncommitted changes; commit or stash them before pushing."
+  exit 1
+fi
+
+npm version patch --no-git-tag-version
+git add package.json package-lock.json
+git commit -m "chore: bump extension version"
+
+echo "Agent Flow pre-push: version bumped and committed. Re-run git push to publish this commit."
+echo "Set AGENTFLOW_SKIP_VERSION_BUMP=1 to bypass this hook when needed."
+exit 1

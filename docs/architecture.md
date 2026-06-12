@@ -1,6 +1,6 @@
-# AgentFlow Architecture
+# Agent Flow Architecture
 
-AgentFlow uses a VS Code Extension + Webview architecture.
+Agent Flow uses a VS Code extension plus webview architecture.
 
 ## Extension host
 
@@ -12,11 +12,11 @@ The extension host owns workspace file access and all write operations. Commands
 - `agentflow.validatePipeline`
 - `agentflow.createDefaultPipeline`
 
-The extension host loads or infers the pipeline, normalizes agent references, validates it, calculates risk, and sends an editable snapshot to the webview.
+The extension host infers the pipeline from `.github` Markdown customization files, normalizes references, validates the result, calculates risk, and sends an editable snapshot to the webview. A legacy `.agent-pipeline/pipeline.json` file is only read as a fallback when no `.github` customization files exist.
 
 ## Webview
 
-The webview is a React application built with Vite. It uses `@xyflow/react` to draw and reposition the graph and shows:
+The webview is a React application built with Vite. It uses `@xyflow/react` to draw an automatically arranged graph and shows:
 
 - node palette
 - canvas with typed nodes and edges
@@ -26,16 +26,16 @@ The webview is a React application built with Vite. It uses `@xyflow/react` to d
 - tool matrix
 - context risk score
 
-The webview can edit pipeline configuration and node positions, uses VS Code theme color variables, and reloads host-derived state after saves so validation, generated files, and tool matrices stay current. File writes are routed back through VS Code commands so the extension host can validate, persist `pipeline.json`, and show confirmation prompts before writing generated node files.
+The webview edits node configuration, Markdown content, graph references, and artifact usage. It uses VS Code theme color variables and avoids echo-reloading after its own autosaves so typing remains stable. File writes are routed through the extension host, which validates the update and writes the corresponding Markdown/YAML files.
 
 ## Pure pipeline modules
 
 The `src/pipeline` modules contain deterministic, testable logic:
 
 - `types.ts` defines the data model.
-- `parser.ts` validates and serializes `pipeline.json`.
+- `parser.ts` validates the legacy pipeline JSON model used by fixtures and migration fallback.
 - `defaultPipeline.ts` creates the default preset.
-- `scanner.ts` loads `pipeline.json` or infers a graph from existing files.
+- `scanner.ts` infers a graph from existing `.github` customization files.
 - `referenceResolver.ts` strips YAML quotes and resolves display-name agent references to canonical node ids.
 - `validator.ts` implements validation rules.
 - `riskScore.ts` calculates the context risk score.
@@ -43,4 +43,4 @@ The `src/pipeline` modules contain deterministic, testable logic:
 
 ## Safety model
 
-AgentFlow never deletes user files automatically. Generation builds a preview first and writes files only after explicit confirmation. Unknown workspace files are preserved.
+Agent Flow never deletes unknown user files automatically. Live webview edits write only the affected generated/customization files. The `Generate Files` command builds a preview first and writes after explicit confirmation.

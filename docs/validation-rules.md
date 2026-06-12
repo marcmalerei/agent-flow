@@ -1,6 +1,6 @@
 # Validation Rules
 
-AgentFlow validates pipeline structure, Copilot file references, tool risks, artifact boundaries, and context risk.
+Agent Flow validates pipeline structure, Copilot file references, tool risks, artifact boundaries, and context risk.
 
 ## Structural rules
 

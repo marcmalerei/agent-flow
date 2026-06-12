@@ -1,20 +1,105 @@
 import { describe, expect, it } from 'vitest';
-import { listToolOptionNames, normalizeConfiguredTools, partitionConfiguredTools } from '../src/webview/toolOptions';
+import { buildToolOptionGroups, flattenToolOptionValues, listToolOptionNames, normalizeConfiguredTools, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionSelectionState } from '../src/webview/toolOptions';
 
 describe('VS Code tool options', () => {
-  it('uses VS Code tool groups instead of raw language model tool ids', () => {
-    expect(listToolOptionNames([
-      { name: 'copilot_readFile', description: '', inputSchema: undefined, tags: [] },
-      { name: 'copilot_editFiles', description: '', inputSchema: undefined, tags: [] },
+  it('builds a VS Code-like Built-In tool tree with concrete child tools', () => {
+    const groups = buildToolOptionGroups([
+      { name: 'runSubagent', description: 'Run a task within an isolated subagent context.', inputSchema: undefined, tags: ['agent'] },
+      { name: 'open_browser_page', description: 'Open a browser page.', inputSchema: undefined, tags: [] },
+      { name: 'copilot_readFile', description: 'Read a file.', inputSchema: undefined, tags: [] },
+      { name: 'copilot_editFiles', description: 'Edit files.', inputSchema: undefined, tags: [] },
+      { name: 'run_in_terminal', description: 'Run a command.', inputSchema: undefined, tags: [] },
+      { name: 'copilot_searchWorkspaceSymbols', description: 'Find symbols.', inputSchema: undefined, tags: [] },
+      { name: 'manage_todo_list', description: 'Manage todos.', inputSchema: undefined, tags: [] },
+      { name: 'copilot_getVSCodeAPI', description: 'Use VS Code API.', inputSchema: undefined, tags: [] },
+      { name: 'copilot_fetchWebPage', description: 'Fetch a web page.', inputSchema: undefined, tags: [] },
+      { name: 'get_python_environment_details', description: 'Read Python environment details.', inputSchema: undefined, tags: [] },
       { name: '  ', description: 'ignored', inputSchema: undefined, tags: [] }
-    ])).toEqual(['agent', 'browser', 'edit', 'execute', 'read', 'search', 'todo', 'vscode', 'web']);
+    ]);
+
+    expect(groups[0].label).toBe('Built-In');
+    expect(groups[0].options.map((option) => option.value)).toEqual(['agent', 'browser', 'edit', 'execute', 'read', 'search', 'todo', 'vscode', 'web']);
+    expect(groups[0].options.find((option) => option.value === 'agent')?.children).toEqual([
+      expect.objectContaining({ value: 'agent/runSubagent', aliases: ['runSubagent'], label: 'runSubagent', description: 'Run a task within an isolated subagent context.' })
+    ]);
+    expect(groups[0].options.find((option) => option.value === 'browser')?.children).toEqual([
+      expect.objectContaining({ value: 'browser/open_browser_page', aliases: ['open_browser_page'], label: 'open_browser_page' })
+    ]);
+    expect(groups[0].options.find((option) => option.value === 'edit')?.children).toEqual([
+      expect.objectContaining({ value: 'edit/copilot_editFiles', aliases: ['copilot_editFiles'], label: 'editFiles' })
+    ]);
+    expect(groups[0].options.find((option) => option.value === 'execute')?.children).toEqual([
+      expect.objectContaining({ value: 'execute/run_in_terminal', aliases: ['run_in_terminal'], label: 'run_in_terminal' })
+    ]);
+    expect(groups[0].options.find((option) => option.value === 'read')?.children).toEqual([
+      expect.objectContaining({ value: 'read/get_python_environment_details', aliases: ['get_python_environment_details'], label: 'get_python_environment_details' }),
+      expect.objectContaining({ value: 'read/copilot_readFile', aliases: ['copilot_readFile'], label: 'readFile' })
+    ]);
+    expect(groups[0].options.find((option) => option.value === 'search')?.children).toEqual([
+      expect.objectContaining({ value: 'search/copilot_searchWorkspaceSymbols', aliases: ['copilot_searchWorkspaceSymbols'], label: 'searchWorkspaceSymbols' })
+    ]);
+    expect(groups[0].options.find((option) => option.value === 'todo')?.children).toEqual([
+      expect.objectContaining({ value: 'todo/manage_todo_list', aliases: ['manage_todo_list'], label: 'manage_todo_list' })
+    ]);
+    expect(groups[0].options.find((option) => option.value === 'vscode')?.children).toEqual([
+      expect.objectContaining({ value: 'vscode/copilot_getVSCodeAPI', aliases: ['copilot_getVSCodeAPI'], label: 'getVSCodeAPI' })
+    ]);
+    expect(groups[0].options.find((option) => option.value === 'web')?.children).toEqual([
+      expect.objectContaining({ value: 'web/copilot_fetchWebPage', aliases: ['copilot_fetchWebPage'], label: 'fetchWebPage' })
+    ]);
   });
 
-  it('adds detected MCP server wildcard groups', () => {
-    expect(listToolOptionNames([
+  it('adds detected extension/MCP tool groups with child tools', () => {
+    const groups = buildToolOptionGroups([
       { name: 'mcp_nx_mcp_server_nx_docs', description: '', inputSchema: undefined, tags: [] },
-      { name: 'mcp_nx_mcp_server_nx_projects', description: '', inputSchema: undefined, tags: [] }
-    ])).toContain('nx_mcp_server/*');
+      { name: 'mcp_nx_mcp_server_nx_projects', description: 'List projects.', inputSchema: undefined, tags: [] },
+      { name: 'dbcode_updateTools', description: 'Update database tools.', inputSchema: undefined, tags: [] }
+    ]);
+
+    expect(groups.find((group) => group.label === 'Nx Mcp Server')?.options).toEqual([
+      expect.objectContaining({ value: 'mcp_nx_mcp_server_nx_docs' }),
+      expect.objectContaining({ value: 'mcp_nx_mcp_server_nx_projects', description: 'List projects.' })
+    ]);
+    expect(groups.find((group) => group.label === 'DBCode')?.options).toEqual([
+      expect.objectContaining({ value: 'dbcode_updateTools', label: 'updateTools' })
+    ]);
+  });
+
+  it('keeps a flat compatibility list for persistence checks', () => {
+    expect(listToolOptionNames([
+      { name: 'runSubagent', description: '', inputSchema: undefined, tags: ['agent'] },
+      { name: 'mcp_nx_mcp_server_nx_docs', description: '', inputSchema: undefined, tags: [] }
+    ])).toEqual(expect.arrayContaining(['agent', 'agent/runSubagent', 'runSubagent', 'mcp_nx_mcp_server_nx_docs']));
+  });
+
+  it('marks a built-in parent checked when frontmatter selects one of its concrete child tools', () => {
+    const [builtIns] = buildToolOptionGroups([
+      { name: 'copilot_readFile', description: 'Read a file.', inputSchema: undefined, tags: [] }
+    ]);
+    const read = builtIns.options.find((option) => option.value === 'read');
+    const child = read?.children?.find((option) => option.value === 'read/copilot_readFile');
+    expect(read).toBeDefined();
+    expect(child).toBeDefined();
+
+    const selectedSet = new Set(normalizeConfiguredToolsForOptions(['copilot_readFile'], [builtIns]));
+    expect(toolOptionSelectionState(read!, selectedSet)).toEqual({ checked: true, disabled: true });
+    expect(toolOptionSelectionState(child!, selectedSet, read)).toEqual({ checked: true, disabled: false });
+  });
+
+  it('normalizes raw child tool frontmatter values to parent/tool values for UI edits', () => {
+    const groups = buildToolOptionGroups([
+      { name: 'run_in_terminal', description: 'Run a command.', inputSchema: undefined, tags: [] },
+      { name: 'execution_subagent', description: 'Run an execution subagent.', inputSchema: undefined, tags: [] },
+      { name: 'get_python_environment_details', description: 'Read Python environment details.', inputSchema: undefined, tags: [] }
+    ]);
+
+    expect(normalizeConfiguredToolsForOptions(['run_in_terminal', 'execution_subagent'], groups)).toEqual([
+      'agent/execution_subagent',
+      'execute/run_in_terminal'
+    ]);
+    expect(normalizeConfiguredToolsForOptions(['get_python_environment_details'], groups)).toEqual([
+      'read/get_python_environment_details'
+    ]);
   });
 
   it('normalizes legacy Agent Flow tool names to VS Code groups', () => {
@@ -23,7 +108,7 @@ describe('VS Code tool options', () => {
 
   it('partitions configured tools into available and unavailable groups', () => {
     expect(partitionConfiguredTools({
-      availableTools: ['read', 'search', 'execute'],
+      availableTools: flattenToolOptionValues(buildToolOptionGroups([{ name: 'runSubagent', description: '', inputSchema: undefined, tags: ['agent'] }])),
       configuredTools: ['legacyTool', 'terminal', 'missingTool', 'legacyTool', 'codebase']
     })).toEqual({
       available: ['execute', 'read', 'search'],

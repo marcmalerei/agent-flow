@@ -30,7 +30,7 @@ describe('webview save handling', () => {
     expect(calls).toEqual(['view:worker:read,search', 'markdown:2', 'state:agent']);
   });
 
-  it('writes only the pipeline JSON when saving from the webview', async () => {
+  it('normalizes save payloads before the host decides how to persist them', async () => {
     const pipeline: AgentPipeline = {
       version: 1,
       name: 'Save only',

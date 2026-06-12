@@ -1,6 +1,6 @@
-# Pipeline JSON Schema
+# Legacy Pipeline JSON Schema
 
-The pipeline source of truth lives at `.agent-pipeline/pipeline.json`.
+Agent Flow now uses `.github` Markdown customization files as the source of truth. The old `.agent-pipeline/pipeline.json` format is retained only for development fixtures and migration fallback when a workspace has no `.github` customization files yet.
 
 ```json
 {
@@ -13,45 +13,23 @@ The pipeline source of truth lives at `.agent-pipeline/pipeline.json`.
 
 ## Nodes
 
-All nodes share:
+Legacy JSON nodes share:
 
 - `id`: stable identifier used by edges and generated file names
-- `type`: `agent`, `prompt`, `instruction`, `skill`, `artifact`, `gate`, or `hook`
+- `type`: `agent`, `prompt`, `instruction`, `skill`, `role`, `artifact`, `gate`, `hook`, `handoff`, or `mcp-server`
 - `label`: display label
 - `description`: optional human-readable summary
-- `position`: optional canvas coordinates
-
-### Agent nodes
-
-Agent nodes generate `.github/agents/<id>.agent.md` and can define tools, called subagents, input artifacts, output artifacts, rules, context budget, edit rules, verification rules, allowed skills, forbidden changes, and command safety policies.
-
-### Prompt nodes
-
-Prompt nodes generate `.github/prompts/<id>.prompt.md` and define the start agent, workflow, constraints/non-goals, required artifacts, and definition of done.
-
-### Instruction nodes
-
-Instruction nodes generate `.github/instructions/<id>.instructions.md` and include `applyTo` plus scoped rules.
-
-### Skill nodes
-
-Skill nodes generate `.github/skills/<id>/SKILL.md` and include description, argument hint, activation criteria, do-not-use conditions, procedure, and resource references.
-
-### Artifact nodes
-
-Artifact nodes represent files under `.github/artifacts`. They document explicit handoff boundaries between agents.
-
-### Gate and hook nodes
-
-Gate nodes model decisions such as approval or tests passing. Hook nodes model guardrails for future automation but do not execute in the MVP.
+- `position`: optional legacy canvas coordinates. Current webview layouts are calculated automatically and are not persisted.
 
 ## Edges
 
-Edges use:
+Legacy JSON edges use:
 
 - `id`
 - `from`
 - `to`
-- `kind`: `flow`, `artifact`, `prompt`, `skill`, or `gate`
+- `kind`: `flow`, `artifact`, `prompt`, `skill`, `role`, `gate`, `handoff`, `hook`, `mcp-server`, or `instruction`
 - `artifact`: optional artifact path
 - `label`: optional display label
+
+Prefer creating or editing the corresponding `.github` Markdown files instead of authoring this JSON directly.

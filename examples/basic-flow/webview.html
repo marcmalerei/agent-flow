@@ -42,12 +42,13 @@
     import { validatePipeline } from '/src/pipeline/validator.ts';
     import { calculateRiskScore } from '/src/pipeline/riskScore.ts';
     import { generateFiles } from '/src/pipeline/generators/index.ts';
+    import { buildToolOptionGroups } from '/src/webview/toolOptions.ts';
 
     window.__AGENTFLOW_DEV_MESSAGES__ = [];
     window.acquireVsCodeApi = () => ({
       postMessage(message) {
         window.__AGENTFLOW_DEV_MESSAGES__.push(message);
-        console.log('[Agent Flow example]', message);
+        window.__AGENTFLOW_LAST_MESSAGE__ = message;
       }
     });
 
@@ -58,8 +59,12 @@
       findings: validatePipeline(pipeline),
       risk: calculateRiskScore(pipeline),
       generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })),
-      flowLayout: 'manual',
-      toolOptions: ['agent', 'browser', 'edit', 'execute', 'read', 'search', 'todo', 'vscode', 'web']
+      flowLayout: 'compact',
+      toolOptions: buildToolOptionGroups([
+        { name: 'runSubagent', description: 'Run a task within an isolated subagent context.', inputSchema: undefined, tags: ['agent'] },
+        { name: 'dbcode_updateTools', description: 'Update database tools.', inputSchema: undefined, tags: [] },
+        { name: 'gitkraken_updateTools', description: 'Update GitKraken tools.', inputSchema: undefined, tags: [] }
+      ])
     };
 
     await import('/src/webview/main.tsx');

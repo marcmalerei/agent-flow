@@ -1,6 +1,6 @@
 ---
 name: Example Orchestrator
-description: Coordinates the example AgentFlow workspace data.
+description: Coordinates the example Agent Flow workspace data.
 argument-hint: Describe the repository task to coordinate
 model:
   - GPT-5 (copilot)
