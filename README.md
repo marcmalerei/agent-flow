@@ -2,7 +2,7 @@
 
 Visualize and edit GitHub Copilot customization files as a live graph inside VS Code.
 
-![Agent Flow Studio pipeline graph](media/agent-flow-screenshot.png)
+![Agent Flow Studio interactive pipeline demo](https://raw.githubusercontent.com/marcmalerei/agent-flow/refs/heads/codex/reference-markdown-editors/media/agent-flow-preview.gif)
 
 Agent Flow Studio is a local, file-based editor for `.github` agent, prompt, instruction, skill, role, and artifact files. It helps teams understand how Copilot customization files reference each other, edit those files safely, and spot context or routing problems before they become hard to reason about.
 

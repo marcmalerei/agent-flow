@@ -3,7 +3,9 @@
 .husky/**
 .github/**
 .vscode/**
+.playwright-cli/**
 examples/**
+output/**
 scripts/**
 smoke/**
 test/**

@@ -16,7 +16,7 @@ The script builds the extension and creates:
 copilot-agent-flow-studio.vsix
 ```
 
-The package includes the compiled extension, webview assets, Marketplace icon, screenshot, README, changelog, license, support file, and user-facing docs. It excludes source, tests, smoke fixtures, examples, local `.github` customization files, and development-only scripts.
+The package includes the compiled extension, webview assets, Marketplace icon, preview GIF, README, changelog, license, support file, and user-facing docs. It excludes source, tests, smoke fixtures, examples, local `.github` customization files, local Playwright capture output, and development-only scripts.
 
 ## Version Bump Hook
 
@@ -46,7 +46,7 @@ Before publishing a new VSIX:
 4. Open a disposable workspace and run `Agent Flow: Create Default Pipeline`.
 5. Run `Agent Flow: Open Pipeline`.
 6. Confirm nodes, edges, diagnostics, tool selection, auto-save, and Markdown references behave as expected.
-7. Confirm `README.md`, `CHANGELOG.md`, `LICENSE`, `SUPPORT.md`, `media/icon.png`, and `media/agent-flow-screenshot.png` are present in the VSIX.
+7. Confirm `README.md`, `CHANGELOG.md`, `LICENSE`, `SUPPORT.md`, `media/icon.png`, and `media/agent-flow-preview.gif` are present in the VSIX.
 
 Inspect package contents with:
 

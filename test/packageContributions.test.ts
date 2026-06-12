@@ -16,6 +16,7 @@ const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.
   };
 };
 const root = fileURLToPath(new URL('..', import.meta.url));
+const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
 describe('package contributions', () => {
   it('declares marketplace presentation and packaging metadata', () => {
@@ -27,6 +28,12 @@ describe('package contributions', () => {
     expect(manifest.scripts?.['package:vsix']).toBe('vsce package --out copilot-agent-flow-studio.vsix');
     expect(manifest.scripts?.['package:marketplace']).toContain('npm run build');
     expect(manifest.scripts?.['package:marketplace']).toContain('npm run package:vsix');
+  });
+
+  it('uses an externally renderable animated Marketplace preview', () => {
+    expect(existsSync(resolve(root, 'media/agent-flow-preview.gif'))).toBe(true);
+    expect(readme).toContain('https://raw.githubusercontent.com/marcmalerei/agent-flow/refs/heads/codex/reference-markdown-editors/media/agent-flow-preview.gif');
+    expect(readme).not.toContain('](media/agent-flow-screenshot.png)');
   });
 
   it('shows one Agent Flow submenu for all markdown files under .github regardless of language id', () => {
