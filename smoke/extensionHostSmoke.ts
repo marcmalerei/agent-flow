@@ -12,7 +12,7 @@ const expectedCommands = [
 ];
 
 export async function run(): Promise<void> {
-  const extension = vscode.extensions.getExtension('marcmalerei.agentflow');
+  const extension = vscode.extensions.getExtension('marcmalerei.copilot-agent-flow-studio');
   assert.ok(extension, 'Agent Flow extension should be available in the extension host.');
 
   await extension.activate();
