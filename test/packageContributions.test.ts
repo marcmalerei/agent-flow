@@ -11,9 +11,11 @@ const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.
   scripts?: Record<string, string>;
   contributes?: {
     commands?: Array<{ category?: string; command: string; title: string }>;
+    languageModelTools?: Array<{ name: string; modelDescription?: string; inputSchema?: { properties?: Record<string, unknown> } }>;
     menus?: Record<string, Array<{ command?: string; group?: string; submenu?: string; when?: string }>>;
     submenus?: Array<{ id: string; label: string }>;
   };
+  activationEvents?: string[];
 };
 const root = fileURLToPath(new URL('..', import.meta.url));
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
@@ -65,5 +67,21 @@ describe('package contributions', () => {
       expect(command?.category).toBe('Agent Flow');
       expect(command?.title.startsWith('Agent Flow:')).toBe(false);
     }
+  });
+
+  it('contributes Agent Flow activity language model tools', () => {
+    expect(manifest.activationEvents).toEqual(expect.arrayContaining([
+      'onLanguageModelTool:agentflow_select_node',
+      'onLanguageModelTool:agentflow_report_activity',
+      'onLanguageModelTool:agentflow_complete_node'
+    ]));
+    const tools = manifest.contributes?.languageModelTools ?? [];
+    expect(tools.map((tool) => tool.name)).toEqual([
+      'agentflow_select_node',
+      'agentflow_report_activity',
+      'agentflow_complete_node'
+    ]);
+    expect(tools.find((tool) => tool.name === 'agentflow_report_activity')?.modelDescription).toContain('Do not include raw prompts');
+    expect(tools.find((tool) => tool.name === 'agentflow_report_activity')?.inputSchema?.properties).toHaveProperty('phase');
   });
 });

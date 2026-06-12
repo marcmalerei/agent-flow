@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Agent Flow Example Webview</title>
+  <link rel="icon" href="data:," />
   <style>
     :root {
       --vscode-editor-background: #1e1e1e;
@@ -64,7 +65,20 @@
         { name: 'runSubagent', description: 'Run a task within an isolated subagent context.', inputSchema: undefined, tags: ['agent'] },
         { name: 'dbcode_updateTools', description: 'Update database tools.', inputSchema: undefined, tags: [] },
         { name: 'gitkraken_updateTools', description: 'Update GitKraken tools.', inputSchema: undefined, tags: [] }
-      ])
+      ]),
+      activityEvents: [
+        { id: 'demo-1', timestamp: new Date().toISOString(), sessionId: 'demo', nodeId: 'router', phase: 'tool', summary: 'Routing with workspace context.', toolName: 'read' },
+        { id: 'demo-2', timestamp: new Date().toISOString(), sessionId: 'demo', nodeId: 'router', targetNodeId: 'implementer', phase: 'handoff', summary: 'Handing off implementation work.' }
+      ],
+      activitySources: {
+        copilotDebugLogs: {
+          enabled: true,
+          copilotFileLoggingEnabled: true,
+          discoveredRoots: ['examples/debug-logs'],
+          state: 'watching',
+          detail: 'Watching demo Copilot debug log folder.'
+        }
+      }
     };
 
     await import('/src/webview/main.tsx');

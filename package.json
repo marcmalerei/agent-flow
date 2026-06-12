@@ -37,7 +37,10 @@
     "onCommand:agentflow.scanWorkspace",
     "onCommand:agentflow.generateFiles",
     "onCommand:agentflow.validatePipeline",
-    "onCommand:agentflow.createDefaultPipeline"
+    "onCommand:agentflow.createDefaultPipeline",
+    "onLanguageModelTool:agentflow_select_node",
+    "onLanguageModelTool:agentflow_report_activity",
+    "onLanguageModelTool:agentflow_complete_node"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -60,6 +63,16 @@
             "Automatically group connected workflow components into compact collision-free shelves for large graphs."
           ],
           "description": "Controls how Agent Flow automatically arranges nodes in the flow view. Layout is derived from Markdown files and is not persisted to JSON."
+        },
+        "agentflow.activity.copilotDebugLogs.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable best-effort import of local GitHub Copilot debug-log events into the Agent Flow activity timeline when Copilot file logging is enabled."
+        },
+        "agentflow.activity.copilotDebugLogs.dataPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional folder containing Copilot debug log JSON or JSONL files. Leave empty to auto-detect VS Code Copilot debug-log folders."
         }
       }
     },
@@ -88,6 +101,70 @@
         "command": "agentflow.createDefaultPipeline",
         "title": "Create Default Pipeline",
         "category": "Agent Flow"
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "agentflow_select_node",
+        "displayName": "Select Agent Flow Node",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "agentflowSelectNode",
+        "icon": "$(graph)",
+        "userDescription": "Select a node in the Agent Flow activity context.",
+        "modelDescription": "Use this tool when work in the current chat is about a specific Agent Flow node. Provide only the node label, id, or backing file path. Do not include prompt contents.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "node": { "type": "string", "description": "Agent Flow node id, label, or backing file path." },
+            "sessionId": { "type": "string", "description": "Optional activity session id." }
+          },
+          "required": ["node"]
+        }
+      },
+      {
+        "name": "agentflow_report_activity",
+        "displayName": "Report Agent Flow Activity",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "agentflowReportActivity",
+        "icon": "$(pulse)",
+        "userDescription": "Report sanitized progress for an Agent Flow node.",
+        "modelDescription": "Use this tool to report sanitized node progress such as queued, started, thinking, tool, file, artifact, handoff, completed, failed, or cancelled. Include short summaries only. Do not include raw prompts, secrets, or full file contents.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string" },
+            "node": { "type": "string", "description": "Node id, label, or file path." },
+            "nodeFile": { "type": "string" },
+            "targetNode": { "type": "string" },
+            "phase": { "type": "string", "enum": ["queued", "started", "thinking", "tool", "file", "artifact", "handoff", "completed", "failed", "cancelled"] },
+            "summary": { "type": "string" },
+            "toolName": { "type": "string" },
+            "artifactPath": { "type": "string" },
+            "durationMs": { "type": "number" },
+            "tokenEstimate": { "type": "number" },
+            "severity": { "type": "string", "enum": ["info", "warning", "error"] }
+          }
+        }
+      },
+      {
+        "name": "agentflow_complete_node",
+        "displayName": "Complete Agent Flow Node",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "agentflowCompleteNode",
+        "icon": "$(pass)",
+        "userDescription": "Mark an Agent Flow node as completed or failed.",
+        "modelDescription": "Use this tool when work for a specific Agent Flow node is done or failed. Include a short sanitized summary and whether it failed.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "sessionId": { "type": "string" },
+            "node": { "type": "string" },
+            "failed": { "type": "boolean" },
+            "summary": { "type": "string" },
+            "durationMs": { "type": "number" }
+          },
+          "required": ["node"]
+        }
       }
     ],
     "submenus": [
@@ -130,6 +207,7 @@
     "build:webview": "vite build --config vite.webview.config.mts",
     "build": "npm run compile && npm run build:webview",
     "icon": "node scripts/generate-marketplace-icon.mjs",
+    "capture:preview": "node scripts/capture-preview-gif.mjs",
     "package:vsix": "vsce package --out copilot-agent-flow-studio.vsix",
     "package:marketplace": "npm run build && npm run package:vsix",
     "prepare": "husky",

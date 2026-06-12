@@ -16,10 +16,12 @@ import '@xyflow/react/dist/style.css';
 import '@vscode/codicons/dist/codicon.css';
 import './styles.css';
 import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationFinding, RiskScore } from '../pipeline/types';
+import { AgentFlowActivityEvent } from '../activity/types';
 import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges } from './graph';
+import { activeEdgeIds, recentActivityEvents, summarizeNodeActivity } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
 import { flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
@@ -37,9 +39,20 @@ interface State {
   generatedFiles: Array<{ path: string; kind: string }>;
   flowLayout: FlowLayout;
   toolOptions: ToolOptionGroup[];
+  activityEvents: AgentFlowActivityEvent[];
+  activitySources?: {
+    copilotDebugLogs?: {
+      enabled: boolean;
+      copilotFileLoggingEnabled: boolean;
+      configuredPath?: string;
+      discoveredRoots: string[];
+      state: 'disabled' | 'waiting-for-copilot-logging' | 'no-logs-found' | 'watching';
+      detail: string;
+    };
+  };
 }
 
-type BottomTab = 'validation' | 'files' | 'tools' | 'risk';
+type BottomTab = 'activity' | 'validation' | 'files' | 'tools' | 'risk';
 
 declare global { interface Window { __AGENTFLOW_STATE__: State; acquireVsCodeApi?: () => { postMessage(message: unknown): void } } }
 
@@ -70,6 +83,7 @@ function App() {
   const [bottomOpen, setBottomOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<BottomTab>('validation');
+  const [activityClock, setActivityClock] = useState(Date.now());
   const dirtyRef = useRef(false);
   const undoStack = useRef<AgentPipeline[]>([]);
 
@@ -81,10 +95,19 @@ function App() {
         setDraft(event.data.state.pipeline);
         setSelectedId((current) => event.data.state.pipeline.nodes.some((node: PipelineNode) => node.id === event.data.selectedId) ? event.data.selectedId : event.data.state.pipeline.nodes.some((node: PipelineNode) => node.id === current) ? current : event.data.state.pipeline.nodes[0]?.id ?? '');
       }
+      if (event.data?.command === 'activityUpdated') {
+        setState((current) => ({ ...current, activityEvents: event.data.activityEvents ?? [] }));
+      }
     };
     window.addEventListener('message', listener);
     return () => window.removeEventListener('message', listener);
   }, []);
+
+  useEffect(() => {
+    if (!state.activityEvents?.length) return;
+    const timer = window.setInterval(() => setActivityClock(Date.now()), 2000);
+    return () => window.clearInterval(timer);
+  }, [state.activityEvents?.length]);
 
   const commitDraft = useCallback((updater: (pipeline: AgentPipeline) => AgentPipeline, nextSelectedId?: string) => {
     setDraft((pipeline) => {
@@ -120,15 +143,18 @@ function App() {
   const risky = new Set(state.findings.filter((finding) => finding.nodeId).map((finding) => finding.nodeId));
   const layoutPositions = useMemo(() => layoutFlowNodes(draft, state.flowLayout), [draft, state.flowLayout]);
   const handlePositions = useMemo(() => flowHandlePositions(state.flowLayout), [state.flowLayout]);
+  const visualActivity = useMemo(() => recentActivityEvents(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
+  const activityByNode = useMemo(() => summarizeNodeActivity(visualActivity), [visualActivity]);
+  const activeEdges = useMemo(() => new Set(activeEdgeIds(draft, visualActivity)), [draft, visualActivity]);
   const nodes: Node[] = useMemo(() => draft.nodes.map((node) => ({
     id: node.id,
     position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
     draggable: false,
     type: 'tokenNode',
-    data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: typeColors[node.type] ?? 'var(--vscode-focusBorder)', ...handlePositions },
+    data: { label: `${risky.has(node.id) ? '! ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: typeColors[node.type] ?? 'var(--vscode-focusBorder)', activity: activityByNode.get(node.id), ...handlePositions },
     style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
-  })), [draft, handlePositions, layoutPositions, risky, state.flowLayout]);
-  const edges: Edge[] = useMemo(() => deriveVisibleFlowEdges(draft), [draft]);
+  })), [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout]);
+  const edges: Edge[] = useMemo(() => deriveVisibleFlowEdges(draft).map((edge) => activeEdges.has(edge.id) ? { ...edge, animated: true, className: 'activity-edge', style: { ...(edge.style ?? {}), strokeWidth: 3, opacity: 1 } } : edge), [activeEdges, draft]);
 
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
     commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? applyNodePatch(node, patch) : node) }));
@@ -200,7 +226,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeTypes.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNode(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</div>}</div></header>
     <main className="canvas"><ReactFlow key={state.flowLayout} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
-    <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} />}</section>
+    <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
 }
 
@@ -610,26 +636,74 @@ function EditorTool({ active, children, icon, title, onClick }: { active?: boole
   return <VSCodeButton type="button" className={`editor-tool${active ? ' active' : ''}`} icon={icon} title={title} aria-label={title} onMouseDown={(event: any) => event.preventDefault()} onClick={onClick}>{children}</VSCodeButton>;
 }
 
-function Bottom({ state, activeTab, setActiveTab }: { state: State; activeTab: BottomTab; setActiveTab: (tab: BottomTab) => void }) {
-  const tabs: BottomTab[] = ['validation', 'files', 'tools', 'risk'];
+function Bottom({ onSelectNode, state, activeTab, setActiveTab }: { onSelectNode: (nodeId: string) => void; state: State; activeTab: BottomTab; setActiveTab: (tab: BottomTab) => void }) {
+  const tabs: BottomTab[] = ['activity', 'validation', 'files', 'tools', 'risk'];
   const tabCounts: Record<BottomTab, number | undefined> = {
+    activity: state.activityEvents?.length ?? 0,
     validation: state.findings.length,
     files: state.generatedFiles.length,
     tools: state.pipeline.nodes.filter((node) => (node.type === 'agent' || node.type === 'prompt') && (node.tools?.length ?? 0) > 0).length,
     risk: state.risk.score
   };
-  const title = ({ validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
+  const title = ({ activity: 'Activity timeline', validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
   return <div className="diagnostics">
     <nav>{tabs.map((tab) => <VSCodeButton key={tab} variant="ghost" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}><span>{tab}</span>{tabCounts[tab] !== undefined && <span className="diagnostic-tab-count">{tabCounts[tab]}</span>}</VSCodeButton>)}</nav>
-    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
+    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} source={state.activitySources?.copilotDebugLogs} onSelectNode={onSelectNode} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
   </div>;
 }
 
 function diagnosticSummary(state: State, tab: BottomTab): string {
+  if (tab === 'activity') return state.activityEvents?.length ? `${state.activityEvents.length} live event${state.activityEvents.length === 1 ? '' : 's'}` : 'No activity reported yet';
   if (tab === 'validation') return state.findings.length ? `${state.findings.length} issue${state.findings.length === 1 ? '' : 's'} need attention` : 'No validation findings';
   if (tab === 'files') return `${state.generatedFiles.length} inferred output file${state.generatedFiles.length === 1 ? '' : 's'}`;
   if (tab === 'tools') return 'Configured tools by runnable node';
   return `${state.risk.score}/100`;
+}
+
+function ActivityDiagnostics({ events, onSelectNode, pipeline, source }: { events: AgentFlowActivityEvent[]; onSelectNode: (nodeId: string) => void; pipeline: AgentPipeline; source?: NonNullable<State['activitySources']>['copilotDebugLogs'] }) {
+  const [filters, setFilters] = useState({ sessionId: '', nodeId: '', phase: '', toolName: '', artifactPath: '', severity: '' });
+  if (!events.length) return <div className="activity-panel"><EmptyDiagnostics icon="pulse" title="No activity yet" detail="Agent Flow can show events from Agent Flow language model tools and from GitHub Copilot debug logs. It cannot observe unrelated chat extensions such as Codex through a public VS Code API." />{source && <ActivitySourceStatus source={source} />}</div>;
+  const labels = new Map(pipeline.nodes.map((node) => [node.id, node.label]));
+  const filtered = events.filter((event) =>
+    (!filters.sessionId || event.sessionId === filters.sessionId)
+    && (!filters.nodeId || event.nodeId === filters.nodeId)
+    && (!filters.phase || event.phase === filters.phase)
+    && (!filters.toolName || event.toolName === filters.toolName)
+    && (!filters.artifactPath || event.artifactPath === filters.artifactPath)
+    && (!filters.severity || (event.severity ?? (event.phase === 'failed' ? 'error' : 'info')) === filters.severity)
+  );
+  return <div className="activity-panel">
+    <div className="activity-actions"><ActivityFilter label="Session" value={filters.sessionId} options={unique(events.map((event) => event.sessionId))} onChange={(sessionId) => setFilters((current) => ({ ...current, sessionId }))} /><ActivityFilter label="Node" value={filters.nodeId} options={pipeline.nodes.filter((node) => events.some((event) => event.nodeId === node.id)).map((node) => ({ value: node.id, label: node.label }))} onChange={(nodeId) => setFilters((current) => ({ ...current, nodeId }))} /><ActivityFilter label="Phase" value={filters.phase} options={unique(events.map((event) => event.phase))} onChange={(phase) => setFilters((current) => ({ ...current, phase }))} /><ActivityFilter label="Tool" value={filters.toolName} options={unique(events.map((event) => event.toolName).filter(Boolean) as string[])} onChange={(toolName) => setFilters((current) => ({ ...current, toolName }))} /><ActivityFilter label="Artifact" value={filters.artifactPath} options={unique(events.map((event) => event.artifactPath).filter(Boolean) as string[])} onChange={(artifactPath) => setFilters((current) => ({ ...current, artifactPath }))} /><ActivityFilter label="Severity" value={filters.severity} options={['info', 'warning', 'error']} onChange={(severity) => setFilters((current) => ({ ...current, severity }))} /><VSCodeButton className="compact" icon="clear-all" onClick={() => vscode?.postMessage({ command: 'clearActivity' })}>Clear activity</VSCodeButton></div>
+    <div className="diagnostic-list activity-list">{[...filtered].reverse().map((event) => <button type="button" key={event.id} className={`diagnostic-card activity-card ${event.severity === 'error' || event.phase === 'failed' ? 'error' : event.severity === 'warning' ? 'warning' : 'neutral'}`} onClick={() => event.nodeId && onSelectNode(event.nodeId)} disabled={!event.nodeId}>
+    <Codicon name={event.phase === 'completed' ? 'pass' : event.phase === 'failed' ? 'error' : event.phase === 'tool' ? 'tools' : event.phase === 'artifact' ? 'file' : 'pulse'} />
+    <div>
+      <div className="diagnostic-card-title"><span>{event.phase}</span>{event.nodeId && <code>{labels.get(event.nodeId) ?? event.nodeId}</code>}{event.toolName && <code>{event.toolName}</code>}</div>
+      <p>{event.summary}</p>
+      <small>{new Date(event.timestamp).toLocaleTimeString()} · {event.sessionId}{event.artifactPath ? ` · ${event.artifactPath}` : ''}{event.aiCredits !== undefined ? ` · ${event.aiCredits.toFixed(3)} AI credits` : ''}</small>
+    </div>
+  </button>)}</div>
+  </div>;
+}
+
+function ActivitySourceStatus({ source }: { source: NonNullable<NonNullable<State['activitySources']>['copilotDebugLogs']> }) {
+  const icon = source.state === 'watching' ? 'eye' : source.state === 'disabled' ? 'circle-slash' : 'warning';
+  return <div className={`activity-source-status ${source.state}`}>
+    <div className="diagnostic-card-title"><Codicon name={icon} /><span>Copilot debug logs</span><code>{source.state}</code></div>
+    <p>{source.detail}</p>
+    {!source.copilotFileLoggingEnabled && <p className="diagnostic-muted">Enable <code>github.copilot.chat.agentDebugLog.fileLogging.enabled</code> in VS Code settings to import sanitized Copilot activity.</p>}
+    {source.discoveredRoots.length > 0 && <div className="diagnostic-chip-row">{source.discoveredRoots.slice(0, 3).map((root) => <span className="diagnostic-chip" key={root}>{root}</span>)}</div>}
+  </div>;
+}
+
+function ActivityFilter({ label, onChange, options, value }: { label: string; onChange: (value: string) => void; options: Array<string | { value: string; label: string }>; value: string }) {
+  return <label className="activity-filter"><span>{label}</span><select value={value} onChange={(event: any) => onChange(event.target.value)}><option value="">All</option>{options.map((option) => {
+    const item = typeof option === 'string' ? { value: option, label: option } : option;
+    return <option key={item.value} value={item.value}>{item.label}</option>;
+  })}</select></label>;
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
 
 function ValidationDiagnostics({ findings, pipeline }: { findings: ValidationFinding[]; pipeline: AgentPipeline }) {

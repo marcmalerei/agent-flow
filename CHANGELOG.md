@@ -9,3 +9,5 @@
 - Generate Copilot agent, prompt, instruction, skill, and artifact files.
 - Add validation, risk scoring, and generated-file preview commands.
 - Add Marketplace packaging metadata, icon, gallery banner, and support documentation.
+- Add local Activity telemetry with Agent Flow language model tools, node badges, active edge pulses, diagnostics timeline, and GitHub Copilot debug-log import when Copilot file logging is enabled.
+- Add a reproducible Marketplace preview GIF that demonstrates adding nodes, editing configuration, and creating reference edges.

@@ -10,8 +10,10 @@ import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMar
 import { coerceFlowLayout } from './flowLayout';
 import { AgentFlowLog, writeGeneratedFiles } from './filePersistence';
 import { FileWatchSuppression } from './fileWatchSuppression';
+import { ActivityStore } from '../activity/store';
+import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
 
-export async function openPipelinePanel(context: vscode.ExtensionContext): Promise<void> {
+export async function openPipelinePanel(context: vscode.ExtensionContext, activityStore = new ActivityStore()): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspace) { vscode.window.showErrorMessage('Open a workspace folder before opening Agent Flow.'); return; }
   const output = vscode.window.createOutputChannel('Agent Flow');
@@ -24,21 +26,25 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
     enableScripts: true,
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
   });
-  panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline));
+  panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline, activityStore));
+  const activitySubscription = activityStore.subscribe((activityEvents) => {
+    panel.webview.postMessage({ command: 'activityUpdated', activityEvents });
+  });
   const configurationListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
-    if (!event.affectsConfiguration('agentflow.flow.layout')) return;
-    log('flow layout configuration changed');
-    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId });
+    if (!event.affectsConfiguration('agentflow.flow.layout') && !event.affectsConfiguration('agentflow.activity.copilotDebugLogs') && !event.affectsConfiguration('github.copilot.chat.agentDebugLog.fileLogging.enabled')) return;
+    log('Agent Flow configuration changed');
+    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
   });
   const fileWatchers = createPipelineFileWatchers(workspace, async () => {
     log('filesystem change detected; reloading pipeline');
     pipeline = await loadOrInferPipeline(workspace);
     log(`reloaded ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges`);
-    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline), selectedId });
+    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
   }, log, selfWrites);
   panel.onDidDispose(() => {
     log('pipeline panel disposed');
     configurationListener.dispose();
+    activitySubscription.dispose();
     fileWatchers.dispose();
     output.dispose();
   });
@@ -75,7 +81,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
             log('skipped flow JSON write; Markdown files are the source of truth');
           },
           postState: async (nextPipeline, selectedId) => {
-            panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
+            panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline, activityStore), selectedId });
           },
           showSavedMessage: async () => {
             vscode.window.showInformationMessage('Agent Flow changes are saved to Markdown files.');
@@ -93,7 +99,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
             selfWrites.markSelfWrites([...result.written, ...result.removed]);
           },
           postState: async (nextPipeline, selectedId) => {
-            panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline), selectedId });
+            panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline, activityStore), selectedId });
           },
           confirmWrite: async (fileCount) => {
             const answer = await vscode.window.showWarningMessage(`Write ${fileCount} generated Agent Flow Markdown/artifact files? Existing files may be overwritten.`, { modal: true }, 'Write Files');
@@ -104,6 +110,10 @@ export async function openPipelinePanel(context: vscode.ExtensionContext): Promi
           }
         });
         if (nextPipeline) pipeline = nextPipeline;
+      }
+      if (message?.command === 'clearActivity') {
+        log('clearing activity stream');
+        activityStore.clear();
       }
     } catch (error) {
       log(`error while handling ${String(message?.command ?? 'unknown')} message: ${(error as Error).stack ?? (error as Error).message}`);
@@ -154,7 +164,7 @@ function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<
   });
 }
 
-async function buildState(workspace: string, pipeline: AgentPipeline): Promise<unknown> {
+async function buildState(workspace: string, pipeline: AgentPipeline, activityStore: ActivityStore): Promise<unknown> {
   const toolOptions = buildToolOptionGroups(vscode.lm.tools);
   const displayPipeline = normalizePipelineToolsForOptions(pipeline, toolOptions);
   const findings = validatePipeline(displayPipeline);
@@ -165,7 +175,11 @@ async function buildState(workspace: string, pipeline: AgentPipeline): Promise<u
     risk,
     generatedFiles: generateFiles(displayPipeline).map((file) => ({ path: file.path, kind: file.kind })),
     flowLayout: coerceFlowLayout(vscode.workspace.getConfiguration('agentflow.flow').get('layout')),
-    toolOptions
+    toolOptions,
+    activityEvents: activityStore.getEvents(),
+    activitySources: {
+      copilotDebugLogs: await getCopilotDebugLogStatus()
+    }
   };
 }
 
