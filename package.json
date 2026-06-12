@@ -2,7 +2,7 @@
   "name": "copilot-agent-flow-studio",
   "displayName": "Agent Flow Studio",
   "description": "Visual manager for GitHub Copilot agent pipelines.",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "marcmalerei",
   "icon": "media/icon.png",
   "license": "MIT",
@@ -115,10 +115,18 @@
         "inputSchema": {
           "type": "object",
           "properties": {
-            "node": { "type": "string", "description": "Agent Flow node id, label, or backing file path." },
-            "sessionId": { "type": "string", "description": "Optional activity session id." }
+            "node": {
+              "type": "string",
+              "description": "Agent Flow node id, label, or backing file path."
+            },
+            "sessionId": {
+              "type": "string",
+              "description": "Optional activity session id."
+            }
           },
-          "required": ["node"]
+          "required": [
+            "node"
+          ]
         }
       },
       {
@@ -132,17 +140,57 @@
         "inputSchema": {
           "type": "object",
           "properties": {
-            "sessionId": { "type": "string" },
-            "node": { "type": "string", "description": "Node id, label, or file path." },
-            "nodeFile": { "type": "string" },
-            "targetNode": { "type": "string" },
-            "phase": { "type": "string", "enum": ["queued", "started", "thinking", "tool", "file", "artifact", "handoff", "completed", "failed", "cancelled"] },
-            "summary": { "type": "string" },
-            "toolName": { "type": "string" },
-            "artifactPath": { "type": "string" },
-            "durationMs": { "type": "number" },
-            "tokenEstimate": { "type": "number" },
-            "severity": { "type": "string", "enum": ["info", "warning", "error"] }
+            "sessionId": {
+              "type": "string"
+            },
+            "node": {
+              "type": "string",
+              "description": "Node id, label, or file path."
+            },
+            "nodeFile": {
+              "type": "string"
+            },
+            "targetNode": {
+              "type": "string"
+            },
+            "phase": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "started",
+                "thinking",
+                "tool",
+                "file",
+                "artifact",
+                "handoff",
+                "completed",
+                "failed",
+                "cancelled"
+              ]
+            },
+            "summary": {
+              "type": "string"
+            },
+            "toolName": {
+              "type": "string"
+            },
+            "artifactPath": {
+              "type": "string"
+            },
+            "durationMs": {
+              "type": "number"
+            },
+            "tokenEstimate": {
+              "type": "number"
+            },
+            "severity": {
+              "type": "string",
+              "enum": [
+                "info",
+                "warning",
+                "error"
+              ]
+            }
           }
         }
       },
@@ -157,13 +205,25 @@
         "inputSchema": {
           "type": "object",
           "properties": {
-            "sessionId": { "type": "string" },
-            "node": { "type": "string" },
-            "failed": { "type": "boolean" },
-            "summary": { "type": "string" },
-            "durationMs": { "type": "number" }
+            "sessionId": {
+              "type": "string"
+            },
+            "node": {
+              "type": "string"
+            },
+            "failed": {
+              "type": "boolean"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "durationMs": {
+              "type": "number"
+            }
           },
-          "required": ["node"]
+          "required": [
+            "node"
+          ]
         }
       }
     ],
