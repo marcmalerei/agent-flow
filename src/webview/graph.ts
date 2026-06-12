@@ -194,7 +194,8 @@ function addPreviewEdge(
   const key = pairKey(edge.source, edge.target);
   if (explicitPairs.has(key)) return;
   explicitPairs.add(key);
-  edges.push({ ...edge, markerEnd: edge.markerEnd ?? edgeMarker(edge.data.kind), style: edge.style ?? previewStyle });
+  const style = edge.style ?? previewStyle;
+  edges.push({ ...edge, markerEnd: edge.markerEnd ?? edgeMarkerForStyle(edge.data.kind, style), style });
 }
 
 function addArtifactUsageEdges(
@@ -232,6 +233,7 @@ function addInstructionReferenceEdges(
   for (const ref of refs ?? []) {
     const instructionNodeIds = resolveInstructionTargets(ref.target, instructionsByTarget);
     for (const instructionNodeId of instructionNodeIds) {
+      if (instructionNodeId === nodeId) continue;
       addPreviewEdge(edges, explicitPairs, {
         id: `ref:${derivedFrom}:${instructionNodeId}:${nodeId}`,
         source: instructionNodeId,
@@ -365,13 +367,17 @@ function edgeStyle(kind: PipelineEdgeKind): Record<string, string | number> {
   return defaultEdgeStyle;
 }
 
-function edgeMarker(kind: PipelineEdgeKind | 'reference'): FlowEdgeMarker {
+function edgeMarker(kind: PipelineEdgeKind | 'reference', color = markerColor(kind)): FlowEdgeMarker {
   return {
     type: 'arrowclosed',
     width: 18,
     height: 18,
-    color: markerColor(kind)
+    color
   };
+}
+
+function edgeMarkerForStyle(kind: PipelineEdgeKind | 'reference', style: Record<string, string | number>): FlowEdgeMarker {
+  return edgeMarker(kind, typeof style.stroke === 'string' ? style.stroke : markerColor(kind));
 }
 
 function markerColor(kind: PipelineEdgeKind | 'reference'): string {

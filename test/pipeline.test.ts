@@ -546,9 +546,25 @@ describe('webview graph projection', () => {
       edges: []
     };
 
-    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label, edge.data.derivedFrom, edge.data.kind])).toEqual([
-      ['artifact', 'prompt', 'reads', 'prompt.artifactUsages', 'reference'],
-      ['docs', 'prompt', 'instructs', 'prompt.instructionRefs', 'reference']
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label, edge.data.derivedFrom, edge.data.kind, edge.markerEnd?.color])).toEqual([
+      ['artifact', 'prompt', 'reads', 'prompt.artifactUsages', 'reference', 'var(--vscode-charts-green)'],
+      ['docs', 'prompt', 'instructs', 'prompt.instructionRefs', 'reference', 'var(--vscode-charts-orange)']
+    ]);
+  });
+
+  it('does not project wildcard instruction references back to the same instruction node', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Self instruction refs',
+      nodes: [
+        { id: 'frontend', type: 'instruction', label: 'Frontend', instructionFile: '.github/instructions/frontend.instructions.md', instructionRefs: [{ target: '.github/instructions/*.instructions.md' }] },
+        { id: 'shared', type: 'instruction', label: 'Shared', instructionFile: '.github/instructions/shared.instructions.md' }
+      ],
+      edges: []
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label])).toEqual([
+      ['shared', 'frontend', 'instructs']
     ]);
   });
 
