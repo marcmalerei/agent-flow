@@ -615,7 +615,7 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     nodes.push({ id, type: 'role', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), roleFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, markdown: content, position: addPosition() });
   }
 
-  const outputFiles = await findFiles(path.join(workspace, '.agent-output'), (file) => isArtifactPath(file) && (file.endsWith('.md') || file.endsWith('.json') || file.endsWith('.txt')));
+  const outputFiles = await findFiles(path.join(workspace, '.github/artifacts'), (file) => isArtifactPath(file) && (file.endsWith('.md') || file.endsWith('.json') || file.endsWith('.txt')));
   for (const file of outputFiles.sort()) {
     const id = rel(workspace, file).replace(/[^A-Za-z0-9_-]/g, '-');
     nodes.push({ id, type: 'artifact', label: rel(workspace, file), path: rel(workspace, file), position: addPosition() });
@@ -706,6 +706,8 @@ function addReferencedArtifactNodes(nodes: PipelineNode[], addPosition: () => { 
   for (const node of nodes) {
     if (node.type === 'agent') [...(node.inputs ?? []), ...(node.outputs ?? []), ...(node.artifactUsages ?? []).map((usage) => usage.path)].forEach((item) => referenced.add(item));
     if (node.type === 'prompt') [...(node.requiredArtifacts ?? []), ...(node.artifactUsages ?? []).map((usage) => usage.path)].forEach((item) => referenced.add(item));
+    if (node.type === 'instruction') [...(node.requiredArtifacts ?? []), ...(node.artifactUsages ?? []).map((usage) => usage.path)].forEach((item) => referenced.add(item));
+    if (node.type === 'skill') [...(node.requiredArtifacts ?? []), ...(node.artifactUsages ?? []).map((usage) => usage.path)].forEach((item) => referenced.add(item));
   }
   for (const artifactPath of [...referenced].sort()) {
     if (!isArtifactPath(artifactPath) || existingPaths.has(artifactPath)) continue;

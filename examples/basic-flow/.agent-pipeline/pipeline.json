@@ -23,11 +23,11 @@
         "Keep the first response scoped to files in this workspace."
       ],
       "requiredArtifacts": [
-        ".agent-output/triage.md"
+        ".github/artifacts/triage.md"
       ],
       "artifactUsages": [
         {
-          "path": ".agent-output/triage.md",
+          "path": ".github/artifacts/triage.md",
           "action": "read",
           "instruction": "Use this artifact to decide whether the request is ready for implementation."
         }
@@ -73,11 +73,11 @@
       ],
       "inputs": [],
       "outputs": [
-        ".agent-output/triage.md"
+        ".github/artifacts/triage.md"
       ],
       "artifactUsages": [
         {
-          "path": ".agent-output/triage.md",
+          "path": ".github/artifacts/triage.md",
           "action": "write",
           "instruction": "Write the selected route, involved agents, and open risks."
         }
@@ -111,19 +111,19 @@
         "reviewer"
       ],
       "inputs": [
-        ".agent-output/triage.md"
+        ".github/artifacts/triage.md"
       ],
       "outputs": [
-        ".agent-output/implementation.md"
+        ".github/artifacts/implementation.md"
       ],
       "artifactUsages": [
         {
-          "path": ".agent-output/triage.md",
+          "path": ".github/artifacts/triage.md",
           "action": "read",
           "instruction": "Use this as the implementation scope."
         },
         {
-          "path": ".agent-output/implementation.md",
+          "path": ".github/artifacts/implementation.md",
           "action": "write",
           "instruction": "Summarize changed files and verification output."
         }
@@ -150,19 +150,19 @@
         "search"
       ],
       "inputs": [
-        ".agent-output/implementation.md"
+        ".github/artifacts/implementation.md"
       ],
       "outputs": [
-        ".agent-output/review.md"
+        ".github/artifacts/review.md"
       ],
       "artifactUsages": [
         {
-          "path": ".agent-output/implementation.md",
+          "path": ".github/artifacts/implementation.md",
           "action": "validate",
           "instruction": "Check the implementation summary against the original triage scope."
         },
         {
-          "path": ".agent-output/review.md",
+          "path": ".github/artifacts/review.md",
           "action": "write",
           "instruction": "Write blocking findings first, then residual risk."
         }
@@ -214,7 +214,7 @@
       "type": "artifact",
       "label": "Triage Artifact",
       "description": "Router output with path, scope, and chosen agents.",
-      "path": ".agent-output/triage.md",
+      "path": ".github/artifacts/triage.md",
       "template": "## Scope\n\n## Selected agents\n\n## Risks\n",
       "position": {
         "x": 330,
@@ -226,7 +226,7 @@
       "type": "artifact",
       "label": "Implementation Artifact",
       "description": "Implementation notes and verification output.",
-      "path": ".agent-output/implementation.md",
+      "path": ".github/artifacts/implementation.md",
       "template": "## Changes\n\n## Verification\n",
       "position": {
         "x": 600,
@@ -238,7 +238,7 @@
       "type": "artifact",
       "label": "Review Artifact",
       "description": "Review findings and remaining risk.",
-      "path": ".agent-output/review.md",
+      "path": ".github/artifacts/review.md",
       "template": "## Findings\n\n## Residual risk\n",
       "position": {
         "x": 870,
@@ -300,35 +300,35 @@
       "from": "router",
       "to": "triage-artifact",
       "kind": "artifact",
-      "artifact": ".agent-output/triage.md"
+      "artifact": ".github/artifacts/triage.md"
     },
     {
       "id": "triage-read-by-implementer",
       "from": "triage-artifact",
       "to": "implementer",
       "kind": "artifact",
-      "artifact": ".agent-output/triage.md"
+      "artifact": ".github/artifacts/triage.md"
     },
     {
       "id": "implementer-writes-summary",
       "from": "implementer",
       "to": "implementation-artifact",
       "kind": "artifact",
-      "artifact": ".agent-output/implementation.md"
+      "artifact": ".github/artifacts/implementation.md"
     },
     {
       "id": "summary-read-by-reviewer",
       "from": "implementation-artifact",
       "to": "reviewer",
       "kind": "artifact",
-      "artifact": ".agent-output/implementation.md"
+      "artifact": ".github/artifacts/implementation.md"
     },
     {
       "id": "reviewer-writes-review",
       "from": "reviewer",
       "to": "review-artifact",
       "kind": "artifact",
-      "artifact": ".agent-output/review.md"
+      "artifact": ".github/artifacts/review.md"
     },
     {
       "id": "reviewer-to-gate",

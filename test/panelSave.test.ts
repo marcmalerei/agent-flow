@@ -62,8 +62,8 @@ describe('webview save handling', () => {
       name: 'Write markdown',
       nodes: [
         { id: 'prompt', type: 'prompt', label: 'Prompt', startAgent: '"Agent"' },
-        { id: 'agent', type: 'agent', label: 'Agent', outputs: ['.agent-output/result.md'] },
-        { id: 'artifact', type: 'artifact', label: 'Result', path: '.agent-output/result.md' }
+        { id: 'agent', type: 'agent', label: 'Agent', outputs: ['.github/artifacts/result.md'] },
+        { id: 'artifact', type: 'artifact', label: 'Result', path: '.github/artifacts/result.md' }
       ],
       edges: []
     };

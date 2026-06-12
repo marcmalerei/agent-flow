@@ -32,7 +32,7 @@ export function renameNodeLabel(node: PipelineNode, label: string): PipelineNode
   }
   if (node.type === 'artifact') {
     const extension = fileExtension(node.path) || '.md';
-    return { ...node, label, path: managedPath(node.path, '.agent-output/', extension) ? `.agent-output/${slugFileStem(label, node.id)}${extension}` : node.path };
+    return { ...node, label, path: managedPath(node.path, '.github/artifacts/', extension) ? `.github/artifacts/${slugFileStem(label, node.id)}${extension}` : node.path };
   }
   return { ...node, label } as PipelineNode;
 }

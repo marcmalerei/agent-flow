@@ -216,7 +216,7 @@ function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: {
   if (type === 'instruction') return { ...base, type, instructionFile: `.github/instructions/${id}.instructions.md`, rules: [] };
   if (type === 'skill') return { ...base, type, skillFile: `.github/skills/${id}/SKILL.md`, activationCriteria: [], procedure: [] };
   if (type === 'role') return { ...base, type, roleFile: `.github/roles/${id}.md` };
-  if (type === 'artifact') return { ...base, type, path: `.agent-output/${id}.md` };
+  if (type === 'artifact') return { ...base, type, path: `.github/artifacts/${id}.md` };
   if (type === 'gate') return { ...base, type, condition: 'Define condition' };
   if (type === 'handoff') return { ...base, type, label: 'New handoff' };
   if (type === 'mcp-server') return { ...base, type, label: 'New MCP server' };
@@ -458,7 +458,7 @@ function upsertArtifactUsage(usages: ArtifactUsage[] | undefined, path: string, 
 function removeArtifactUsageIfUnselected(usages: ArtifactUsage[] | undefined, path: string, nextSelected: string[], node: PipelineNode): ArtifactUsage[] | undefined {
   const stillSelected = nextSelected.includes(path)
     || (node.type === 'agent' && [...(node.inputs ?? []), ...(node.outputs ?? [])].filter((value) => value === path).length > 1)
-    || (node.type === 'prompt' && (node.requiredArtifacts ?? []).filter((value) => value === path).length > 1);
+    || ((node.type === 'prompt' || node.type === 'instruction' || node.type === 'skill') && (node.requiredArtifacts ?? []).filter((value) => value === path).length > 1);
   const next = stillSelected ? usages : usages?.filter((usage) => usage.path !== path);
   return next?.length ? next : undefined;
 }

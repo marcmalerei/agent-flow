@@ -47,7 +47,7 @@ export function validatePipeline(pipeline: AgentPipeline): ValidationFinding[] {
       if (!node.description || /^(useful|helpful|general|does many things)\.?$/i.test(node.description.trim())) findings.push(finding('risk', 'generic-skill-description', `${node.id} skill has a generic description.`, node.id));
     }
     if (node.type === 'artifact') {
-      if (!node.path.startsWith('.agent-output/')) findings.push(finding('warning', 'artifact-outside-output', `${node.id} artifact is outside .agent-output.`, node.id));
+      if (!node.path.startsWith('.github/artifacts/')) findings.push(finding('warning', 'artifact-outside-artifacts', `${node.id} artifact is outside .github/artifacts.`, node.id));
     }
   }
 

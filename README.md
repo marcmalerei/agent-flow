@@ -8,7 +8,7 @@ Agent Flow does **not** integrate with Copilot internals, execute agent pipeline
 
 - `Agent Flow: Open Pipeline` opens a React + React Flow visualizer with editable node configuration.
 - `Agent Flow: Create Default Pipeline` writes safe default `.github` customization files.
-- `Agent Flow: Scan Workspace` infers a graph from `.github/agents`, `.github/prompts`, `.github/instructions`, `.github/skills`, and `.agent-output`.
+- `Agent Flow: Scan Workspace` infers a graph from `.github/agents`, `.github/prompts`, `.github/instructions`, `.github/skills`, and `.github/artifacts`.
 - `Agent Flow: Validate Pipeline` reports pipeline findings and context risk score.
 - `Agent Flow: Generate Files` previews generated files and asks for confirmation before writing.
 
@@ -17,7 +17,7 @@ Agent Flow does **not** integrate with Copilot internals, execute agent pipeline
 ```txt
 .github/{agents,prompts,instructions,skills}/** = Copilot customization source of truth
 .github/agent-flow.json                         = optional Agent Flow view state
-.agent-output/**              = explicit artifact handoff files
+.github/artifacts/**              = explicit artifact handoff files
 ```
 
 The implementation is split into testable pure modules under `src/pipeline` and VS Code/webview integration under `src/extension.ts` and `src/webview`.

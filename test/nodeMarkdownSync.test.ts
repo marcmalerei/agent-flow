@@ -73,12 +73,12 @@ None.`
     };
 
     const next = applyNodePatch(node, {
-      outputs: ['.agent-output/test.md'],
-      artifactUsages: [{ path: '.agent-output/test.md', action: 'write', instruction: 'Write the result to $artifact bla bla.' }]
+      outputs: ['.github/artifacts/test.md'],
+      artifactUsages: [{ path: '.github/artifacts/test.md', action: 'write', instruction: 'Write the result to $artifact bla bla.' }]
     });
 
-    expect(next.markdown).toContain('<!--agent-flow:begin artifact-ref action="write" path=".agent-output/test.md"-->');
-    expect(next.markdown).toContain('Write the result to `.agent-output/test.md` bla bla.');
+    expect(next.markdown).toContain('<!--agent-flow:begin artifact-ref action="write" path=".github/artifacts/test.md"-->');
+    expect(next.markdown).toContain('Write the result to `.github/artifacts/test.md` bla bla.');
   });
 
   it('updates agent artifact reference fields when markdown changes', () => {
@@ -91,16 +91,16 @@ name: "test"
 
 # Artifact work
 
-<!--agent-flow:begin artifact-ref action="read" path=".agent-output/test.md"-->
-Read \`.agent-output/test.md\` before planning bla bla.
+<!--agent-flow:begin artifact-ref action="read" path=".github/artifacts/test.md"-->
+Read \`.github/artifacts/test.md\` before planning bla bla.
 <!--agent-flow:end artifact-ref-->`
     });
 
     expect(next.type).toBe('agent');
-    expect(next.inputs).toEqual(['.agent-output/test.md']);
+    expect(next.inputs).toEqual(['.github/artifacts/test.md']);
     expect(next.outputs).toEqual([]);
     expect(next.artifactUsages).toEqual([
-      { path: '.agent-output/test.md', action: 'read', instruction: 'Read $artifact before planning bla bla.' }
+      { path: '.github/artifacts/test.md', action: 'read', instruction: 'Read $artifact before planning bla bla.' }
     ]);
   });
 
@@ -119,12 +119,12 @@ None.`
     };
 
     const fromConfig = applyNodePatch(node, {
-      requiredArtifacts: ['.agent-output/test.md'],
-      artifactUsages: [{ path: '.agent-output/test.md', action: 'validate', instruction: 'Validate $artifact before applying this instruction.' }]
+      requiredArtifacts: ['.github/artifacts/test.md'],
+      artifactUsages: [{ path: '.github/artifacts/test.md', action: 'validate', instruction: 'Validate $artifact before applying this instruction.' }]
     });
 
-    expect(fromConfig.markdown).toContain('<!--agent-flow:begin artifact-ref action="validate" path=".agent-output/test.md"-->');
-    expect(fromConfig.markdown).toContain('Validate `.agent-output/test.md` before applying this instruction.');
+    expect(fromConfig.markdown).toContain('<!--agent-flow:begin artifact-ref action="validate" path=".github/artifacts/test.md"-->');
+    expect(fromConfig.markdown).toContain('Validate `.github/artifacts/test.md` before applying this instruction.');
 
     const fromMarkdown = applyNodePatch(node, {
       markdown: `---
@@ -133,15 +133,15 @@ name: "Test Instruction"
 
 # Required artifacts
 
-<!--agent-flow:begin artifact-ref action="read" path=".agent-output/test.md"-->
-Read \`.agent-output/test.md\` before applying this instruction.
+<!--agent-flow:begin artifact-ref action="read" path=".github/artifacts/test.md"-->
+Read \`.github/artifacts/test.md\` before applying this instruction.
 <!--agent-flow:end artifact-ref-->`
     });
 
     expect(fromMarkdown.type).toBe('instruction');
-    expect(fromMarkdown.requiredArtifacts).toEqual(['.agent-output/test.md']);
+    expect(fromMarkdown.requiredArtifacts).toEqual(['.github/artifacts/test.md']);
     expect(fromMarkdown.artifactUsages).toEqual([
-      { path: '.agent-output/test.md', action: 'read', instruction: 'Read $artifact before applying this instruction.' }
+      { path: '.github/artifacts/test.md', action: 'read', instruction: 'Read $artifact before applying this instruction.' }
     ]);
   });
 
@@ -160,12 +160,12 @@ None.`
     };
 
     const fromConfig = applyNodePatch(node, {
-      requiredArtifacts: ['.agent-output/review.md'],
-      artifactUsages: [{ path: '.agent-output/review.md', action: 'write', instruction: 'Write skill notes to $artifact.' }]
+      requiredArtifacts: ['.github/artifacts/review.md'],
+      artifactUsages: [{ path: '.github/artifacts/review.md', action: 'write', instruction: 'Write skill notes to $artifact.' }]
     });
 
-    expect(fromConfig.markdown).toContain('<!--agent-flow:begin artifact-ref action="write" path=".agent-output/review.md"-->');
-    expect(fromConfig.markdown).toContain('Write skill notes to `.agent-output/review.md`.');
+    expect(fromConfig.markdown).toContain('<!--agent-flow:begin artifact-ref action="write" path=".github/artifacts/review.md"-->');
+    expect(fromConfig.markdown).toContain('Write skill notes to `.github/artifacts/review.md`.');
 
     const fromMarkdown = applyNodePatch(node, {
       markdown: `---
@@ -174,15 +174,15 @@ name: "review-skill"
 
 # Required artifacts
 
-<!--agent-flow:begin artifact-ref action="append" path=".agent-output/review.md"-->
-Append skill notes to \`.agent-output/review.md\`.
+<!--agent-flow:begin artifact-ref action="append" path=".github/artifacts/review.md"-->
+Append skill notes to \`.github/artifacts/review.md\`.
 <!--agent-flow:end artifact-ref-->`
     });
 
     expect(fromMarkdown.type).toBe('skill');
-    expect(fromMarkdown.requiredArtifacts).toEqual(['.agent-output/review.md']);
+    expect(fromMarkdown.requiredArtifacts).toEqual(['.github/artifacts/review.md']);
     expect(fromMarkdown.artifactUsages).toEqual([
-      { path: '.agent-output/review.md', action: 'append', instruction: 'Append skill notes to $artifact.' }
+      { path: '.github/artifacts/review.md', action: 'append', instruction: 'Append skill notes to $artifact.' }
     ]);
   });
 });

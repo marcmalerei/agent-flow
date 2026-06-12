@@ -23,7 +23,7 @@ describe('webview file persistence', () => {
         { id: 'new-instruction-1', type: 'instruction', label: 'New instruction', instructionFile: '.github/instructions/new-instruction-1.instructions.md' },
         { id: 'new-skill-1', type: 'skill', label: 'New skill', skillFile: '.github/skills/new-skill-1/SKILL.md', activationCriteria: [], procedure: [] },
         { id: 'new-role-1', type: 'role', label: 'New role', roleFile: '.github/roles/new-role-1.md' },
-        { id: 'new-artifact-1', type: 'artifact', label: 'New artifact', path: '.agent-output/new-artifact-1.md' },
+        { id: 'new-artifact-1', type: 'artifact', label: 'New artifact', path: '.github/artifacts/new-artifact-1.md' },
         { id: 'new-gate-1', type: 'gate', label: 'New gate', condition: 'Define condition' },
         { id: 'new-handoff-1', type: 'handoff', label: 'New handoff' },
         { id: 'new-mcp-server-1', type: 'mcp-server', label: 'New MCP server' }
@@ -39,7 +39,7 @@ describe('webview file persistence', () => {
     expect(await exists(path.join(workspace, '.github/instructions/new-instruction-1.instructions.md'))).toBe(true);
     expect(await exists(path.join(workspace, '.github/skills/new-skill-1/SKILL.md'))).toBe(true);
     expect(await exists(path.join(workspace, '.github/roles/new-role-1.md'))).toBe(true);
-    expect(await exists(path.join(workspace, '.agent-output/new-artifact-1.md'))).toBe(true);
+    expect(await exists(path.join(workspace, '.github/artifacts/new-artifact-1.md'))).toBe(true);
     expect(await exists(path.join(workspace, '.github/gates/new-gate-1.md'))).toBe(false);
     expect(await exists(path.join(workspace, '.github/handoffs/new-handoff-1.md'))).toBe(false);
     expect(await exists(path.join(workspace, '.github/mcp-servers/new-mcp-server-1.md'))).toBe(false);
@@ -53,7 +53,7 @@ describe('webview file persistence', () => {
     expect(reloaded.nodes.find((node) => node.id === 'new-instruction-1' && node.type === 'instruction')).toMatchObject({ instructionFile: '.github/instructions/new-instruction-1.instructions.md', label: 'New instruction' });
     expect(reloaded.nodes.find((node) => node.id === 'new-skill-1' && node.type === 'skill')).toMatchObject({ skillFile: '.github/skills/new-skill-1/SKILL.md' });
     expect(reloaded.nodes.find((node) => node.id === 'new-role-1' && node.type === 'role')).toMatchObject({ roleFile: '.github/roles/new-role-1.md', label: 'New role' });
-    expect(reloaded.nodes.find((node) => node.id === '-agent-output-new-artifact-1-md' && node.type === 'artifact')).toMatchObject({ path: '.agent-output/new-artifact-1.md' });
+    expect(reloaded.nodes.find((node) => node.id === '-github-artifacts-new-artifact-1-md' && node.type === 'artifact')).toMatchObject({ path: '.github/artifacts/new-artifact-1.md' });
   });
 
   it('removes stale generated files when a managed node file path changes', async () => {
@@ -92,16 +92,16 @@ describe('webview file persistence', () => {
           tools: ['read'],
           calls: [],
           inputs: [],
-          outputs: ['.agent-output/summary.md'],
+          outputs: ['.github/artifacts/summary.md'],
           artifactUsages: [
-            { path: '.agent-output/summary.md', action: 'write', instruction: 'Create a concise implementation summary with open risks.' }
+            { path: '.github/artifacts/summary.md', action: 'write', instruction: 'Create a concise implementation summary with open risks.' }
           ]
         },
         {
           id: 'summary',
           type: 'artifact',
           label: 'Summary',
-          path: '.agent-output/summary.md'
+          path: '.github/artifacts/summary.md'
         }
       ],
       edges: []
@@ -110,7 +110,7 @@ describe('webview file persistence', () => {
     await writeGeneratedFiles(workspace, pipeline);
 
     const agentMarkdown = await fs.readFile(path.join(workspace, '.github/agents/writer.agent.md'), 'utf8');
-    expect(agentMarkdown).toContain('<!--agent-flow:begin artifact-ref action="write" path=".agent-output/summary.md"-->');
+    expect(agentMarkdown).toContain('<!--agent-flow:begin artifact-ref action="write" path=".github/artifacts/summary.md"-->');
     expect(agentMarkdown).toContain('Create a concise implementation summary with open risks.');
 
     const reloaded = await loadOrInferPipeline(workspace);
@@ -118,12 +118,12 @@ describe('webview file persistence', () => {
 
     expect(writer?.type).toBe('agent');
     expect(writer).toMatchObject({
-      outputs: ['.agent-output/summary.md'],
+      outputs: ['.github/artifacts/summary.md'],
       artifactUsages: [
-        { path: '.agent-output/summary.md', action: 'write', instruction: 'Create a concise implementation summary with open risks.' }
+        { path: '.github/artifacts/summary.md', action: 'write', instruction: 'Create a concise implementation summary with open risks.' }
       ]
     });
-    expect(reloaded.nodes.find((node) => node.type === 'artifact' && node.path === '.agent-output/summary.md')).toBeDefined();
+    expect(reloaded.nodes.find((node) => node.type === 'artifact' && node.path === '.github/artifacts/summary.md')).toBeDefined();
   });
 
   it('persists an agent artifact input with its prompt instruction', async () => {
@@ -139,17 +139,17 @@ describe('webview file persistence', () => {
           agentFile: '.github/agents/reader.agent.md',
           tools: ['read'],
           calls: [],
-          inputs: ['.agent-output/context.md'],
+          inputs: ['.github/artifacts/context.md'],
           outputs: [],
           artifactUsages: [
-            { path: '.agent-output/context.md', action: 'read', instruction: 'Use this context as the only source for acceptance criteria.' }
+            { path: '.github/artifacts/context.md', action: 'read', instruction: 'Use this context as the only source for acceptance criteria.' }
           ]
         },
         {
           id: 'context',
           type: 'artifact',
           label: 'Context',
-          path: '.agent-output/context.md'
+          path: '.github/artifacts/context.md'
         }
       ],
       edges: []
@@ -158,7 +158,7 @@ describe('webview file persistence', () => {
     await writeGeneratedFiles(workspace, pipeline);
 
     const agentMarkdown = await fs.readFile(path.join(workspace, '.github/agents/reader.agent.md'), 'utf8');
-    expect(agentMarkdown).toContain('<!--agent-flow:begin artifact-ref action="read" path=".agent-output/context.md"-->');
+    expect(agentMarkdown).toContain('<!--agent-flow:begin artifact-ref action="read" path=".github/artifacts/context.md"-->');
     expect(agentMarkdown).toContain('Use this context as the only source for acceptance criteria.');
 
     const reloaded = await loadOrInferPipeline(workspace);
@@ -166,11 +166,11 @@ describe('webview file persistence', () => {
 
     expect(reader?.type).toBe('agent');
     expect(reader).toMatchObject({
-      inputs: ['.agent-output/context.md'],
+      inputs: ['.github/artifacts/context.md'],
       artifactUsages: [
-        { path: '.agent-output/context.md', action: 'read', instruction: 'Use this context as the only source for acceptance criteria.' }
+        { path: '.github/artifacts/context.md', action: 'read', instruction: 'Use this context as the only source for acceptance criteria.' }
       ]
     });
-    expect(reloaded.nodes.find((node) => node.type === 'artifact' && node.path === '.agent-output/context.md')).toBeDefined();
+    expect(reloaded.nodes.find((node) => node.type === 'artifact' && node.path === '.github/artifacts/context.md')).toBeDefined();
   });
 });

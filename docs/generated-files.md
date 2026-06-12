@@ -15,7 +15,7 @@ Generated files include a marker:
 - `.github/prompts/*.prompt.md`
 - `.github/instructions/*.instructions.md`
 - `.github/skills/*/SKILL.md`
-- `.agent-output/**` for artifact nodes
+- `.github/artifacts/**` for artifact nodes
 
 ## Safe writing
 
@@ -26,9 +26,9 @@ Generated files include a marker:
 Generated agents use explicit file handoffs, for example:
 
 ```txt
-context.agent.md writes .agent-output/TASK_CONTEXT.md
-planner.agent.md reads .agent-output/TASK_CONTEXT.md
-planner.agent.md writes .agent-output/IMPLEMENTATION_PLAN.md
+context.agent.md writes .github/artifacts/TASK_CONTEXT.md
+planner.agent.md reads .github/artifacts/TASK_CONTEXT.md
+planner.agent.md writes .github/artifacts/IMPLEMENTATION_PLAN.md
 ```
 
 This keeps agent collaboration versionable, inspectable, and less dependent on chat context.

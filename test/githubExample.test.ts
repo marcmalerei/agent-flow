@@ -19,8 +19,8 @@ describe('repository .github example data', () => {
     expect(orchestrator.handoffs).toEqual([{ label: 'Quality Review', agent: '.github/agents/qa.agent.md', prompt: 'Review the worker output and note risks.', send: false, model: 'GPT-4o (copilot)' }]);
     expect(orchestrator.hooks).toEqual({ SessionStart: [{ type: 'command', command: 'echo "Agent Flow example started"' }] });
     expect(orchestrator.mcpServers).toEqual([{ name: 'filesystem-example', command: 'npx', args: '["-y","@modelcontextprotocol/server-filesystem","."]' }]);
-    expect(orchestrator.inputs).toEqual(['.agent-output/example-input.md']);
-    expect(orchestrator.outputs).toEqual(['.agent-output/example-plan.md']);
+    expect(orchestrator.inputs).toEqual(['.github/artifacts/example-input.md']);
+    expect(orchestrator.outputs).toEqual(['.github/artifacts/example-plan.md']);
     expect(orchestrator.instructionRefs).toEqual([{ target: '.github/instructions/shared.instructions.md' }]);
 
     expect(nodesById.get('worker')?.type).toBe('agent');
@@ -32,7 +32,7 @@ describe('repository .github example data', () => {
     expect(pipeline.nodes.some((node) => node.type === 'hook' && node.id === 'orchestrator-hook-sessionstart-1')).toBe(true);
     expect(pipeline.nodes.some((node) => node.type === 'mcp-server' && node.id === 'orchestrator-mcp-filesystem-example')).toBe(true);
     expect(pipeline.nodes.some((node) => node.type === 'handoff' && node.id === 'orchestrator-handoff-quality-review')).toBe(true);
-    expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.agent-output/example-plan.md')).toBe(true);
+    expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.github/artifacts/example-plan.md')).toBe(true);
 
     expect(pipeline.nodes.some((node) => node.type === 'artifact' && ['.github/agents/worker.agent.md', '.github/prompts/implementation.prompt.md', '.github/instructions/shared.instructions.md', '.github/skills/repo-audit/SKILL.md'].includes(node.path))).toBe(false);
     expect(pipeline.edges).toContainEqual({ id: 'orchestrator-calls-worker', from: 'orchestrator', to: 'worker', kind: 'flow' });

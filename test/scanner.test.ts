@@ -332,9 +332,9 @@ mcp-servers:
 
 # Full Blown Feature
 
-Write \`.agent-output/artifact-output.md\`
+Write \`.github/artifacts/artifact-output.md\`
 
-Read \`.agent-output/artifact-input.md\`
+Read \`.github/artifacts/artifact-input.md\`
 
 # Referenced instructions
 
@@ -355,10 +355,10 @@ Read \`.agent-output/artifact-input.md\`
   expect(agent.calls).toEqual(['*']);
   expect(agent.hooks).toEqual({ SessionStart: [{ type: 'command', command: 'echo "Agent started"' }] });
   expect(agent.mcpServers).toEqual([{ name: 'my-server', command: 'npx', args: '["-y","my-mcp-server"]' }]);
-  expect(agent.outputs).toEqual(['.agent-output/artifact-output.md']);
-  expect(agent.inputs).toEqual(['.agent-output/artifact-input.md']);
+  expect(agent.outputs).toEqual(['.github/artifacts/artifact-output.md']);
+  expect(agent.inputs).toEqual(['.github/artifacts/artifact-input.md']);
   expect(agent.instructionRefs).toEqual([{ target: '.github/instructions/*.instructions.md' }]);
-  expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.agent-output/artifact-output.md')).toBe(true);
+  expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.github/artifacts/artifact-output.md')).toBe(true);
   expect(pipeline.nodes.some((node) => node.type === 'hook' && node.label === 'SessionStart hook')).toBe(true);
   expect(pipeline.nodes.some((node) => node.type === 'mcp-server' && node.label === 'my-server')).toBe(true);
 });
@@ -416,7 +416,7 @@ handoffs:
 Read \`.github/agents/worker.agent.md\`.
 Read \`.github/prompts/build.prompt.md\`.
 Read \`.github/instructions/template.instructions.md\`.
-Read \`.agent-output/result.md\`.
+Read \`.github/artifacts/result.md\`.
 `, 'utf8');
 
   const pipeline = await inferPipelineFromWorkspace(workspace);
@@ -428,7 +428,7 @@ Read \`.agent-output/result.md\`.
   expect(pipeline.nodes.find((node) => node.id === 'build')?.type).toBe('prompt');
   expect(pipeline.nodes.find((node) => node.id === 'template')?.type).toBe('instruction');
   expect(pipeline.nodes.some((node) => node.type === 'artifact' && ['.github/agents/worker.agent.md', '.github/prompts/build.prompt.md', '.github/instructions/template.instructions.md'].includes(node.path))).toBe(false);
-  expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.agent-output/result.md')).toBe(true);
+  expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.github/artifacts/result.md')).toBe(true);
 });
 
 it('reloads file-backed pipeline nodes from manual markdown edits when pipeline JSON exists', async () => {
@@ -449,7 +449,7 @@ name: Router
 
 # Router
 
-Read \`.agent-output/manual.md\`.
+Read \`.github/artifacts/manual.md\`.
 Read \`.github/instructions/manual.instructions.md\`.
 `, 'utf8');
 
@@ -457,9 +457,9 @@ Read \`.github/instructions/manual.instructions.md\`.
   const router = pipeline.nodes.find((node) => node.id === 'router' && node.type === 'agent');
 
   expect(router?.type).toBe('agent');
-  expect(router?.inputs).toEqual(['.agent-output/manual.md']);
+  expect(router?.inputs).toEqual(['.github/artifacts/manual.md']);
   expect(router?.instructionRefs).toEqual([{ target: '.github/instructions/manual.instructions.md' }]);
-  expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.agent-output/manual.md')).toBe(true);
+  expect(pipeline.nodes.some((node) => node.type === 'artifact' && node.path === '.github/artifacts/manual.md')).toBe(true);
   expect(pipeline.nodes.find((node) => node.id === 'manual')?.type).toBe('instruction');
 });
 

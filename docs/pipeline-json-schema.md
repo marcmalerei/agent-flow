@@ -39,7 +39,7 @@ Skill nodes generate `.github/skills/<id>/SKILL.md` and include description, arg
 
 ### Artifact nodes
 
-Artifact nodes represent files under `.agent-output`. They document explicit handoff boundaries between agents.
+Artifact nodes represent files under `.github/artifacts`. They document explicit handoff boundaries between agents.
 
 ### Gate and hook nodes
 

@@ -79,7 +79,31 @@
         "command": "agentflow.createDefaultPipeline",
         "title": "Agent Flow: Create Default Pipeline"
       }
-    ]
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "agentflow.openPipeline",
+          "when": "resourceScheme == file && resourceLangId == markdown && resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/]/",
+          "group": "navigation@80"
+        },
+        {
+          "command": "agentflow.scanWorkspace",
+          "when": "resourceScheme == file && resourceLangId == markdown && resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/]/",
+          "group": "navigation@81"
+        },
+        {
+          "command": "agentflow.validatePipeline",
+          "when": "resourceScheme == file && resourceLangId == markdown && resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/]/",
+          "group": "navigation@82"
+        },
+        {
+          "command": "agentflow.generateFiles",
+          "when": "resourceScheme == file && resourceLangId == markdown && resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/]/",
+          "group": "navigation@83"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
