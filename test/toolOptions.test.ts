@@ -26,26 +26,26 @@ describe('VS Code tool options', () => {
       expect.objectContaining({ value: 'browser/open_browser_page', aliases: ['open_browser_page'], label: 'open_browser_page' })
     ]);
     expect(groups[0].options.find((option) => option.value === 'edit')?.children).toEqual([
-      expect.objectContaining({ value: 'edit/copilot_editFiles', aliases: ['copilot_editFiles'], label: 'editFiles' })
+      expect.objectContaining({ value: 'edit/editFiles', aliases: ['copilot_editFiles'], label: 'editFiles' })
     ]);
     expect(groups[0].options.find((option) => option.value === 'execute')?.children).toEqual([
       expect.objectContaining({ value: 'execute/run_in_terminal', aliases: ['run_in_terminal'], label: 'run_in_terminal' })
     ]);
     expect(groups[0].options.find((option) => option.value === 'read')?.children).toEqual([
       expect.objectContaining({ value: 'read/get_python_environment_details', aliases: ['get_python_environment_details'], label: 'get_python_environment_details' }),
-      expect.objectContaining({ value: 'read/copilot_readFile', aliases: ['copilot_readFile'], label: 'readFile' })
+      expect.objectContaining({ value: 'read/readFile', aliases: ['copilot_readFile'], label: 'readFile' })
     ]);
     expect(groups[0].options.find((option) => option.value === 'search')?.children).toEqual([
-      expect.objectContaining({ value: 'search/copilot_searchWorkspaceSymbols', aliases: ['copilot_searchWorkspaceSymbols'], label: 'searchWorkspaceSymbols' })
+      expect.objectContaining({ value: 'search/searchWorkspaceSymbols', aliases: ['copilot_searchWorkspaceSymbols'], label: 'searchWorkspaceSymbols' })
     ]);
     expect(groups[0].options.find((option) => option.value === 'todo')?.children).toEqual([
       expect.objectContaining({ value: 'todo/manage_todo_list', aliases: ['manage_todo_list'], label: 'manage_todo_list' })
     ]);
     expect(groups[0].options.find((option) => option.value === 'vscode')?.children).toEqual([
-      expect.objectContaining({ value: 'vscode/copilot_getVSCodeAPI', aliases: ['copilot_getVSCodeAPI'], label: 'getVSCodeAPI' })
+      expect.objectContaining({ value: 'vscode/getVSCodeAPI', aliases: ['copilot_getVSCodeAPI'], label: 'getVSCodeAPI' })
     ]);
     expect(groups[0].options.find((option) => option.value === 'web')?.children).toEqual([
-      expect.objectContaining({ value: 'web/copilot_fetchWebPage', aliases: ['copilot_fetchWebPage'], label: 'fetchWebPage' })
+      expect.objectContaining({ value: 'web/fetchWebPage', aliases: ['copilot_fetchWebPage'], label: 'fetchWebPage' })
     ]);
   });
 
@@ -77,11 +77,11 @@ describe('VS Code tool options', () => {
       { name: 'copilot_readFile', description: 'Read a file.', inputSchema: undefined, tags: [] }
     ]);
     const read = builtIns.options.find((option) => option.value === 'read');
-    const child = read?.children?.find((option) => option.value === 'read/copilot_readFile');
+    const child = read?.children?.find((option) => option.value === 'read/readFile');
     expect(read).toBeDefined();
     expect(child).toBeDefined();
 
-    const selectedSet = new Set(normalizeConfiguredToolsForOptions(['copilot_readFile'], [builtIns]));
+    const selectedSet = new Set(normalizeConfiguredToolsForOptions(['read/readFile'], [builtIns]));
     expect(toolOptionSelectionState(read!, selectedSet)).toEqual({ checked: true, disabled: true });
     expect(toolOptionSelectionState(child!, selectedSet, read)).toEqual({ checked: true, disabled: false });
   });
@@ -104,6 +104,22 @@ describe('VS Code tool options', () => {
 
   it('normalizes legacy Agent Flow tool names to VS Code groups', () => {
     expect(normalizeConfiguredTools(['codebase', 'editFiles', 'runCommands', 'terminal'])).toEqual(['edit', 'execute', 'read', 'search']);
+  });
+
+  it('normalizes internal Copilot tool ids to public VS Code frontmatter ids', () => {
+    expect(normalizeConfiguredTools([
+      'read/copilot_readFile',
+      'search/copilot_searchWorkspaceSymbols',
+      'edit/copilot_editFiles',
+      'web/copilot_fetchWebPage',
+      'vscode/copilot_getVSCodeAPI'
+    ])).toEqual([
+      'edit/editFiles',
+      'read/readFile',
+      'search/searchWorkspaceSymbols',
+      'vscode/getVSCodeAPI',
+      'web/fetchWebPage'
+    ]);
   });
 
   it('partitions configured tools into available and unavailable groups', () => {

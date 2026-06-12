@@ -14,9 +14,9 @@ const commonVerification = [
   'Use only relevant error lines from long logs.'
 ];
 
-const readTool = 'read/copilot_readFile';
-const searchTool = 'search/copilot_searchWorkspaceSymbols';
-const editTool = 'edit/copilot_editFiles';
+const readTool = 'read/readFile';
+const searchTool = 'search/searchWorkspaceSymbols';
+const editTool = 'edit/editFiles';
 const executeTool = 'execute/run_in_terminal';
 const defaultTools = [readTool, searchTool];
 

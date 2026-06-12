@@ -8,11 +8,13 @@ const legacyToolAliases: Record<string, string[]> = {
   terminal: ['execute']
 };
 
+const internalToolPrefixes = ['copilot_'];
+
 export function normalizeToolsForVsCode(tools: readonly string[] | undefined): string[] | undefined {
   if (!tools) return undefined;
   const normalized = tools.flatMap((tool) => {
     const trimmed = tool.trim();
-    return legacyToolAliases[trimmed] ?? [trimmed];
+    return legacyToolAliases[trimmed] ?? [publicToolId(trimmed)];
   }).filter(Boolean);
   return [...new Set(normalized)].sort((a, b) => a.localeCompare(b));
 }
@@ -25,4 +27,18 @@ export function normalizePipelineTools<T extends AgentPipeline>(pipeline: T): T 
     return node;
   });
   return { ...pipeline, nodes } as T;
+}
+
+function publicToolId(tool: string): string {
+  const slash = tool.indexOf('/');
+  if (slash >= 0) {
+    const group = tool.slice(0, slash).trim();
+    const name = stripInternalToolPrefix(tool.slice(slash + 1).trim());
+    return group && name ? `${group}/${name}` : tool;
+  }
+  return stripInternalToolPrefix(tool);
+}
+
+function stripInternalToolPrefix(value: string): string {
+  return internalToolPrefixes.reduce((current, prefix) => current.startsWith(prefix) ? current.slice(prefix.length) : current, value);
 }
