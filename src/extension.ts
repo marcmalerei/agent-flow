@@ -8,10 +8,18 @@ import { calculateRiskScore } from './pipeline/riskScore';
 import { generateFiles } from './pipeline/generators';
 import { AgentPipeline, GeneratedFile } from './pipeline/types';
 import { openPipelinePanel } from './webview/panel';
+import { ActivityStore } from './activity/store';
+import { completeNodeActivity, reportActivity, selectActivityNode } from './activity/tools';
+import { startCopilotDebugLogAdapter } from './activity/copilotDebugLogAdapter';
+
+const activityStore = new ActivityStore();
 
 export function activate(context: vscode.ExtensionContext): void {
+  const activityOutput = vscode.window.createOutputChannel('Agent Flow Activity');
+  context.subscriptions.push(activityOutput, startCopilotDebugLogAdapter(activityStore, (message) => activityOutput.appendLine(`[${new Date().toISOString()}] ${message}`)));
+  context.subscriptions.push(...registerActivityTools());
   context.subscriptions.push(
-    vscode.commands.registerCommand('agentflow.openPipeline', () => openPipelinePanel(context)),
+    vscode.commands.registerCommand('agentflow.openPipeline', () => openPipelinePanel(context, activityStore)),
     vscode.commands.registerCommand('agentflow.scanWorkspace', scanWorkspaceCommand),
     vscode.commands.registerCommand('agentflow.generateFiles', generateFilesCommand),
     vscode.commands.registerCommand('agentflow.validatePipeline', validatePipelineCommand),
@@ -104,4 +112,35 @@ async function anyFileExists(workspace: string, files: GeneratedFile[]): Promise
 
 function renderValidationReport(name: string, findings: ReturnType<typeof validatePipeline>, risk: ReturnType<typeof calculateRiskScore>): string {
   return `# Agent Flow Validation: ${name}\n\n## Findings\n\n${findings.length ? findings.map((item) => `- **${item.severity.toUpperCase()}** (${item.ruleId}) ${item.message}`).join('\n') : 'No findings.'}\n\n## Context Risk Score\n\n${risk.score}/100\n\n${risk.reasons.map((reason) => `- ${reason}`).join('\n') || 'No risk reasons.'}\n`;
+}
+
+function registerActivityTools(): vscode.Disposable[] {
+  if (!vscode.lm?.registerTool) return [];
+  return [
+    vscode.lm.registerTool('agentflow_select_node', {
+      invoke: async (options) => {
+        const { pipeline } = await loadWorkspacePipeline();
+        const result = selectActivityNode(options.input as any, { pipeline, store: activityStore });
+        return toolResult(result);
+      }
+    }),
+    vscode.lm.registerTool('agentflow_report_activity', {
+      invoke: async (options) => {
+        const { pipeline } = await loadWorkspacePipeline();
+        const result = reportActivity(options.input as any, { pipeline, store: activityStore });
+        return toolResult({ eventId: result.event.id, nodeId: result.event.nodeId, phase: result.event.phase });
+      }
+    }),
+    vscode.lm.registerTool('agentflow_complete_node', {
+      invoke: async (options) => {
+        const { pipeline } = await loadWorkspacePipeline();
+        const result = completeNodeActivity(options.input as any, { pipeline, store: activityStore });
+        return toolResult({ eventId: result.event.id, nodeId: result.event.nodeId, phase: result.event.phase });
+      }
+    })
+  ];
+}
+
+function toolResult(value: unknown): vscode.LanguageModelToolResult {
+  return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(JSON.stringify(value))]);
 }

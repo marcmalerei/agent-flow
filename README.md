@@ -14,6 +14,7 @@ The extension does not execute pipelines, call Copilot agents, read private Copi
 - Edit node metadata, tools, handoffs, artifacts, references, and Markdown from a VS Code themed inspector.
 - Auto-save webview edits directly back to the relevant Markdown files.
 - Keep graph edges synchronized with Markdown references, handoffs, and artifact usage.
+- Show live node and edge activity from Agent Flow language model tools and sanitized GitHub Copilot debug logs when Copilot file logging is enabled.
 - Choose language model tools from VS Code's registered tool list.
 - Show token estimates per node and diagnostics for validation, files, tools, and context risk.
 - Create starter agents, prompts, instructions, skills, roles, artifacts, gates, hooks, and MCP server nodes.
@@ -57,6 +58,7 @@ Agent Flow Studio preserves frontmatter where possible and omits optional YAML f
 - [Customization frontmatter](docs/customization-frontmatter.md)
 - [Generated files](docs/generated-files.md)
 - [Validation rules](docs/validation-rules.md)
+- [Activity telemetry](docs/activity.md)
 - [Architecture](docs/architecture.md)
 - [Development](docs/development.md)
 - [Publishing](docs/publishing.md)
