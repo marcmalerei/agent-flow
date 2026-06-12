@@ -12,7 +12,7 @@ function basePipeline(): AgentPipeline {
       { id: 'start', type: 'prompt', label: 'Start', tools: [] },
       { id: 'router', type: 'agent', label: 'Router', calls: [], inputs: [], outputs: [] },
       { id: 'worker', type: 'agent', label: 'Worker', calls: [], inputs: [], outputs: [] },
-      { id: 'artifact', type: 'artifact', label: 'Result', path: '.agent-output/result.md' }
+      { id: 'artifact', type: 'artifact', label: 'Result', path: '.github/artifacts/result.md' }
     ],
     edges: []
   };
@@ -45,13 +45,13 @@ describe('flow mutations', () => {
 
     expect(router?.type).toBe('agent');
     expect(worker?.type).toBe('agent');
-    expect(router?.outputs).toEqual(['.agent-output/result.md']);
-    expect(router?.artifactUsages).toEqual([{ path: '.agent-output/result.md', action: 'write' }]);
-    expect(worker?.inputs).toEqual(['.agent-output/result.md']);
-    expect(worker?.artifactUsages).toEqual([{ path: '.agent-output/result.md', action: 'read' }]);
+    expect(router?.outputs).toEqual(['.github/artifacts/result.md']);
+    expect(router?.artifactUsages).toEqual([{ path: '.github/artifacts/result.md', action: 'write' }]);
+    expect(worker?.inputs).toEqual(['.github/artifacts/result.md']);
+    expect(worker?.artifactUsages).toEqual([{ path: '.github/artifacts/result.md', action: 'read' }]);
     expect(consumed.edges.map((edge) => [edge.id, edge.from, edge.to, edge.kind, edge.artifact])).toEqual([
-      ['router-artifact-artifact', 'router', 'artifact', 'artifact', '.agent-output/result.md'],
-      ['artifact-artifact-worker', 'artifact', 'worker', 'artifact', '.agent-output/result.md']
+      ['router-artifact-artifact', 'router', 'artifact', 'artifact', '.github/artifacts/result.md'],
+      ['artifact-artifact-worker', 'artifact', 'worker', 'artifact', '.github/artifacts/result.md']
     ]);
   });
 
@@ -60,8 +60,8 @@ describe('flow mutations', () => {
     const prompt = next.nodes.find((node) => node.id === 'start' && node.type === 'prompt');
 
     expect(prompt?.type).toBe('prompt');
-    expect(prompt?.requiredArtifacts).toEqual(['.agent-output/result.md']);
-    expect(prompt?.artifactUsages).toEqual([{ path: '.agent-output/result.md', action: 'read' }]);
+    expect(prompt?.requiredArtifacts).toEqual(['.github/artifacts/result.md']);
+    expect(prompt?.artifactUsages).toEqual([{ path: '.github/artifacts/result.md', action: 'read' }]);
   });
 
   it('syncs node label changes into managed file names', () => {
@@ -69,7 +69,7 @@ describe('flow mutations', () => {
     expect(renameNodeLabel({ id: 'new-prompt-1', type: 'prompt', label: 'New prompt', promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: [] }, 'Release Notes')).toMatchObject({ label: 'Release Notes', promptFile: '.github/prompts/release-notes.prompt.md' });
     expect(renameNodeLabel({ id: 'new-instruction-1', type: 'instruction', label: 'New instruction', instructionFile: '.github/instructions/new-instruction-1.instructions.md', applyTo: '**/*' }, 'Docs Scope')).toMatchObject({ label: 'Docs Scope', instructionFile: '.github/instructions/docs-scope.instructions.md' });
     expect(renameNodeLabel({ id: 'new-skill-1', type: 'skill', label: 'New skill', skillFile: '.github/skills/new-skill-1/SKILL.md' }, 'Review PR')).toMatchObject({ label: 'Review PR', skillFile: '.github/skills/review-pr/SKILL.md' });
-    expect(renameNodeLabel({ id: 'new-artifact-1', type: 'artifact', label: 'New artifact', path: '.agent-output/new-artifact-1.md' }, 'Review Result')).toMatchObject({ label: 'Review Result', path: '.agent-output/review-result.md' });
+    expect(renameNodeLabel({ id: 'new-artifact-1', type: 'artifact', label: 'New artifact', path: '.github/artifacts/new-artifact-1.md' }, 'Review Result')).toMatchObject({ label: 'Review Result', path: '.github/artifacts/review-result.md' });
   });
 
   it('keeps manually customized file paths when renaming nodes', () => {
@@ -92,7 +92,7 @@ describe('flow mutations', () => {
     expect(router?.type).toBe('agent');
     expect(router?.instructionRefs).toEqual([{ target: '.github/instructions/docs.instructions.md' }]);
     expect(next.edges).toContainEqual({ id: 'docs-instruction-router', from: 'docs', to: 'router', kind: 'instruction', label: 'instructs', artifact: undefined });
-    expect(generateAgentMarkdown(router!)).toContain('- Follow `.github/instructions/docs.instructions.md`.');
+    expect(generateAgentMarkdown(router!)).toContain('<!--agent-flow:begin instruction-ref target=".github/instructions/docs.instructions.md"-->');
     expect(deriveVisibleFlowEdges(next).map((edge) => [edge.source, edge.target, edge.label])).toContainEqual(['docs', 'router', 'instructs']);
   });
 
@@ -111,7 +111,7 @@ describe('flow mutations', () => {
     expect(prompt?.type).toBe('prompt');
     expect(prompt?.instructionRefs).toEqual([{ target: '.github/instructions/docs.instructions.md' }]);
     expect(next.edges).toContainEqual({ id: 'docs-instruction-start', from: 'docs', to: 'start', kind: 'instruction', label: 'instructs', artifact: undefined });
-    expect(generatePromptMarkdown(prompt!)).toContain('- Follow `.github/instructions/docs.instructions.md`.');
+    expect(generatePromptMarkdown(prompt!)).toContain('<!--agent-flow:begin instruction-ref target=".github/instructions/docs.instructions.md"-->');
     expect(deriveVisibleFlowEdges(next).map((edge) => [edge.source, edge.target, edge.label])).toContainEqual(['docs', 'start', 'instructs']);
   });
 
@@ -143,10 +143,10 @@ it('removes backing references when visible reference edges are deleted from the
     version: 1,
     name: 'Reference deletion',
     nodes: [
-      { id: 'prompt', type: 'prompt', label: 'Prompt', requiredArtifacts: ['.agent-output/result.md'], artifactUsages: [{ path: '.agent-output/result.md', action: 'read' }], instructionRefs: [{ target: '.github/instructions/docs.instructions.md' }] },
-      { id: 'router', type: 'agent', label: 'Router', calls: ['worker'], inputs: [], outputs: ['.agent-output/result.md'], artifactUsages: [{ path: '.agent-output/result.md', action: 'write' }], instructionRefs: [{ target: '.github/instructions/docs.instructions.md' }] },
+      { id: 'prompt', type: 'prompt', label: 'Prompt', requiredArtifacts: ['.github/artifacts/result.md'], artifactUsages: [{ path: '.github/artifacts/result.md', action: 'read' }], instructionRefs: [{ target: '.github/instructions/docs.instructions.md' }] },
+      { id: 'router', type: 'agent', label: 'Router', calls: ['worker'], inputs: [], outputs: ['.github/artifacts/result.md'], artifactUsages: [{ path: '.github/artifacts/result.md', action: 'write' }], instructionRefs: [{ target: '.github/instructions/docs.instructions.md' }] },
       { id: 'worker', type: 'agent', label: 'Worker', calls: [], inputs: [], outputs: [] },
-      { id: 'artifact', type: 'artifact', label: 'Result', path: '.agent-output/result.md' },
+      { id: 'artifact', type: 'artifact', label: 'Result', path: '.github/artifacts/result.md' },
       { id: 'docs', type: 'instruction', label: 'Docs', instructionFile: '.github/instructions/docs.instructions.md', applyTo: '**/*.md' }
     ],
     edges: []

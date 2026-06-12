@@ -1,6 +1,6 @@
 ---
 name: Shared Example Instructions
-description: Shared instructions for AgentFlow example data.
+description: Shared instructions for Agent Flow example data.
 applyTo: "**/*"
 ---
 

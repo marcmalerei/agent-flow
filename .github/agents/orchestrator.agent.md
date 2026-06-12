@@ -1,6 +1,6 @@
 ---
 name: Example Orchestrator
-description: Coordinates the example AgentFlow workspace data.
+description: Coordinates the example Agent Flow workspace data.
 argument-hint: Describe the repository task to coordinate
 model:
   - GPT-5 (copilot)
@@ -32,9 +32,9 @@ mcp-servers:
 
 # Example Orchestrator
 
-Read `.agent-output/example-input.md` before delegating.
+Read `.github/artifacts/example-input.md` before delegating.
 
-Write `.agent-output/example-plan.md`: Summarize the plan, selected agents, and risks.
+Write `.github/artifacts/example-plan.md`: Summarize the plan, selected agents, and risks.
 
 Read `.github/prompts/implementation.prompt.md` when a prompt handoff is needed.
 

@@ -30,7 +30,7 @@ describe('webview save handling', () => {
     expect(calls).toEqual(['view:worker:read,search', 'markdown:2', 'state:agent']);
   });
 
-  it('writes only the pipeline JSON when saving from the webview', async () => {
+  it('normalizes save payloads before the host decides how to persist them', async () => {
     const pipeline: AgentPipeline = {
       version: 1,
       name: 'Save only',
@@ -62,8 +62,8 @@ describe('webview save handling', () => {
       name: 'Write markdown',
       nodes: [
         { id: 'prompt', type: 'prompt', label: 'Prompt', startAgent: '"Agent"' },
-        { id: 'agent', type: 'agent', label: 'Agent', outputs: ['.agent-output/result.md'] },
-        { id: 'artifact', type: 'artifact', label: 'Result', path: '.agent-output/result.md' }
+        { id: 'agent', type: 'agent', label: 'Agent', outputs: ['.github/artifacts/result.md'] },
+        { id: 'artifact', type: 'artifact', label: 'Result', path: '.github/artifacts/result.md' }
       ],
       edges: []
     };

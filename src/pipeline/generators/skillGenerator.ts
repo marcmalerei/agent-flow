@@ -1,5 +1,5 @@
 import { SkillNode } from '../types';
-import { appendGeneratedMarker, list, mergeMarkdownWithFrontmatter, nodeFileStem, yamlBooleanLine, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, replaceMarkdownSection, yamlBooleanLine, yamlString, yamlStringLine } from './shared';
 
 export function skillFilePath(node: SkillNode): string {
   if (node.skillFile) return node.skillFile;
@@ -8,7 +8,7 @@ export function skillFilePath(node: SkillNode): string {
 
 export function generateSkillMarkdown(node: SkillNode): string {
   const frontmatter = skillFrontmatter(node);
-  if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(node.markdown, frontmatter);
+  if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)), frontmatter);
 
   return appendGeneratedMarker(`${frontmatter}
 
@@ -37,6 +37,10 @@ ${list(node.procedure)}
 ## Resource references
 
 ${list(node.resourceReferences)}
+
+# Required artifacts
+
+${artifactUsageList(node.artifactUsages, node.requiredArtifacts)}
 `);
 }
 

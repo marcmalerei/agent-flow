@@ -9,6 +9,6 @@ agents: []
 
 # Example QA
 
-Read `.agent-output/example-result.md`.
-Write `.agent-output/example-review.md`: Capture findings and approval status.
+Read `.github/artifacts/example-result.md`.
+Write `.github/artifacts/example-review.md`: Capture findings and approval status.
 Follow `.github/instructions/template.instructions.md`.

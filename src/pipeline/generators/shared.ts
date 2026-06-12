@@ -10,14 +10,24 @@ export function list(items: string[] | undefined, fallback = 'None.'): string {
 
 export function artifactUsageList(usages: ArtifactUsage[] | undefined, fallbackPaths?: string[], fallback = 'None.'): string {
   if (usages?.length) {
-    return usages.map((usage) => `- ${artifactActionLabel(usage.action)} \`${usage.path}\`${usage.instruction ? `: ${usage.instruction}` : '.'}`).join('\n');
+    return usages.map((usage) => referenceBlock('artifact-ref', { action: usage.action, path: usage.path }, usage.instruction, '$artifact', usage.path)).join('\n\n');
   }
   return list(fallbackPaths, fallback);
 }
 
 export function referenceInstructionList(refs: ReferenceInstruction[] | undefined, fallback = 'None.'): string {
   if (!refs?.length) return fallback;
-  return refs.map((ref) => `- Follow \`${ref.target}\`${ref.instruction ? `: ${ref.instruction}` : '.'}`).join('\n');
+  return refs.map((ref) => referenceBlock('instruction-ref', { target: ref.target }, ref.instruction, '$instruction', ref.target)).join('\n\n');
+}
+
+function referenceBlock(kind: string, attrs: Record<string, string>, instruction: string | undefined, placeholder: string, path: string): string {
+  const attributes = Object.entries(attrs).map(([name, value]) => `${name}="${htmlAttribute(value)}"`).join(' ');
+  const body = instruction ? instruction.replaceAll(placeholder, `\`${path}\``).trim() : '';
+  return [`<!--agent-flow:begin ${kind} ${attributes}-->`, body, `<!--agent-flow:end ${kind}-->`].filter((part, index) => index !== 1 || part).join('\n');
+}
+
+function htmlAttribute(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
 function artifactActionLabel(action: string): string {

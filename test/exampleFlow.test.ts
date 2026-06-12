@@ -47,15 +47,18 @@ describe('basic example flow', () => {
     expect(paths).toContain('.github/prompts/triage-request.prompt.md');
     expect(paths).toContain('.github/instructions/docs-scope.instructions.md');
     expect(paths).toContain('.github/skills/review-pr/SKILL.md');
-    expect(paths).toContain('.agent-output/triage.md');
+    expect(paths).toContain('.github/artifacts/triage.md');
     expect(routerAgent?.content).toContain('handoffs:\n  - label: "Review Plan"');
     expect(routerAgent?.content).toContain('tools:\n  - "agent"\n  - "read"\n  - "search"');
     expect(routerAgent?.content).toContain('agents:\n  - "implementer"');
-    expect(routerAgent?.content).toContain('- Write `.agent-output/triage.md`: Write the selected route, involved agents, and open risks.');
-    expect(routerAgent?.content).toContain('- Follow `.github/instructions/docs-scope.instructions.md`: Apply if the route includes documentation work.');
+    expect(routerAgent?.content).toContain('<!--agent-flow:begin artifact-ref action="write" path=".github/artifacts/triage.md"-->');
+    expect(routerAgent?.content).toContain('Write the selected route, involved agents, and open risks.');
+    expect(routerAgent?.content).toContain('<!--agent-flow:begin instruction-ref target=".github/instructions/docs-scope.instructions.md"-->');
+    expect(routerAgent?.content).toContain('Apply if the route includes documentation work.');
     expect(prompt?.content).toContain('agent: "router"');
     expect(prompt?.content).toContain('Start with `router`.');
-    expect(prompt?.content).toContain('- Read `.agent-output/triage.md`: Use this artifact to decide whether the request is ready for implementation.');
+    expect(prompt?.content).toContain('<!--agent-flow:begin artifact-ref action="read" path=".github/artifacts/triage.md"-->');
+    expect(prompt?.content).toContain('Use this artifact to decide whether the request is ready for implementation.');
   });
 
   it('auto-persists generated Markdown files from webview messages without flow JSON', async () => {
@@ -98,10 +101,10 @@ describe('basic example flow', () => {
     expect(prompt?.type).toBe('prompt');
     expect(router?.calls).toEqual(['implementer']);
     expect(router?.handoffs).toEqual([{ label: 'Review Plan', agent: 'reviewer', prompt: 'Review the triage and implementation plan before code changes.', send: false }]);
-    expect(router?.artifactUsages).toEqual([{ path: '.agent-output/triage.md', action: 'write', instruction: 'Write the selected route, involved agents, and open risks.' }]);
+    expect(router?.artifactUsages).toEqual([{ path: '.github/artifacts/triage.md', action: 'write', instruction: 'Write the selected route, involved agents, and open risks.' }]);
     expect(router?.instructionRefs).toEqual([{ target: '.github/instructions/docs-scope.instructions.md', instruction: 'Apply if the route includes documentation work.' }]);
     expect(prompt?.startAgent).toBe('router');
-    expect(prompt?.artifactUsages).toEqual([{ path: '.agent-output/triage.md', action: 'read', instruction: 'Use this artifact to decide whether the request is ready for implementation.' }]);
+    expect(prompt?.artifactUsages).toEqual([{ path: '.github/artifacts/triage.md', action: 'read', instruction: 'Use this artifact to decide whether the request is ready for implementation.' }]);
     expect(prompt?.instructionRefs).toEqual([{ target: '.github/instructions/docs-scope.instructions.md', instruction: 'Apply when the prompt asks for documentation changes.' }]);
     expect(validatePipeline(inferred).filter((finding) => finding.severity === 'error')).toEqual([]);
   });

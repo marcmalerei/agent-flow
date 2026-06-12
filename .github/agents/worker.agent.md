@@ -9,6 +9,6 @@ agents: []
 
 # Example Worker
 
-Read `.agent-output/example-plan.md`.
-Write `.agent-output/example-result.md`: Capture implementation notes.
+Read `.github/artifacts/example-plan.md`.
+Write `.github/artifacts/example-result.md`: Capture implementation notes.
 Follow `.github/instructions/shared.instructions.md`.

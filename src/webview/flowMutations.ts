@@ -32,7 +32,7 @@ export function renameNodeLabel(node: PipelineNode, label: string): PipelineNode
   }
   if (node.type === 'artifact') {
     const extension = fileExtension(node.path) || '.md';
-    return { ...node, label, path: managedPath(node.path, '.agent-output/', extension) ? `.agent-output/${slugFileStem(label, node.id)}${extension}` : node.path };
+    return { ...node, label, path: managedPath(node.path, '.github/artifacts/', extension) ? `.github/artifacts/${slugFileStem(label, node.id)}${extension}` : node.path };
   }
   return { ...node, label } as PipelineNode;
 }
@@ -78,6 +78,12 @@ function updateNodeReferences(node: PipelineNode, source: PipelineNode, target: 
   }
   if (node.id === target.id && source.type === 'artifact' && target.type === 'prompt') {
     return { ...target, requiredArtifacts: addUnique(target.requiredArtifacts, source.path), artifactUsages: upsertArtifactUsage(target.artifactUsages, source.path, 'read') };
+  }
+  if (node.id === source.id && supportsRequiredArtifactRefs(source) && target.type === 'artifact') {
+    return { ...source, requiredArtifacts: addUnique(source.requiredArtifacts, target.path), artifactUsages: upsertArtifactUsage(source.artifactUsages, target.path, 'read') } as PipelineNode;
+  }
+  if (node.id === target.id && source.type === 'artifact' && supportsRequiredArtifactRefs(target)) {
+    return { ...target, requiredArtifacts: addUnique(target.requiredArtifacts, source.path), artifactUsages: upsertArtifactUsage(target.artifactUsages, source.path, 'read') } as PipelineNode;
   }
   return node;
 }
@@ -154,7 +160,16 @@ function removeNodeReferences(node: PipelineNode, deletedNodeIds: Set<string>, d
   if (node.type === 'instruction') {
     return {
       ...node,
+      requiredArtifacts: node.requiredArtifacts?.filter((path) => !deletedArtifactPaths.has(path)),
+      artifactUsages: node.artifactUsages?.filter((usage) => !deletedArtifactPaths.has(usage.path)),
       instructionRefs: node.instructionRefs?.filter((ref) => !deletedInstructionTargets.has(ref.target))
+    };
+  }
+  if (node.type === 'skill') {
+    return {
+      ...node,
+      requiredArtifacts: node.requiredArtifacts?.filter((path) => !deletedArtifactPaths.has(path)),
+      artifactUsages: node.artifactUsages?.filter((usage) => !deletedArtifactPaths.has(usage.path))
     };
   }
   return node;
@@ -173,6 +188,8 @@ function removeEdgeReference(node: PipelineNode, edge: PipelineEdge, nodes: Pipe
   if (node.type === 'agent' && node.id === edge.to && source?.type === 'artifact') return { ...node, inputs: node.inputs?.filter((path) => path !== source.path), artifactUsages: node.artifactUsages?.filter((usage) => usage.path !== source.path) };
   if (node.type === 'prompt' && node.id === edge.from && target?.type === 'artifact') return { ...node, requiredArtifacts: node.requiredArtifacts?.filter((path) => path !== target.path), artifactUsages: node.artifactUsages?.filter((usage) => usage.path !== target.path) };
   if (node.type === 'prompt' && node.id === edge.to && source?.type === 'artifact') return { ...node, requiredArtifacts: node.requiredArtifacts?.filter((path) => path !== source.path), artifactUsages: node.artifactUsages?.filter((usage) => usage.path !== source.path) };
+  if (supportsRequiredArtifactRefs(node) && node.id === edge.from && target?.type === 'artifact') return { ...node, requiredArtifacts: node.requiredArtifacts?.filter((path) => path !== target.path), artifactUsages: node.artifactUsages?.filter((usage) => usage.path !== target.path) } as PipelineNode;
+  if (supportsRequiredArtifactRefs(node) && node.id === edge.to && source?.type === 'artifact') return { ...node, requiredArtifacts: node.requiredArtifacts?.filter((path) => path !== source.path), artifactUsages: node.artifactUsages?.filter((usage) => usage.path !== source.path) } as PipelineNode;
   return node;
 }
 
@@ -210,6 +227,10 @@ function instructionReferenceForConnection(source: PipelineNode, target: Pipelin
 
 function supportsInstructionRefs(node: PipelineNode | undefined): node is Extract<PipelineNode, { type: 'agent' | 'prompt' | 'instruction' }> {
   return node?.type === 'agent' || node?.type === 'prompt' || node?.type === 'instruction';
+}
+
+function supportsRequiredArtifactRefs(node: PipelineNode | undefined): node is Extract<PipelineNode, { type: 'instruction' | 'skill' }> {
+  return node?.type === 'instruction' || node?.type === 'skill';
 }
 
 function roleReferenceForConnection(source: PipelineNode, target: PipelineNode): { roleNode: Extract<PipelineNode, { type: 'role' }>; referencingNode: PipelineNode; target: string } | undefined {

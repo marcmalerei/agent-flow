@@ -5,7 +5,7 @@ import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { AgentPipeline } from '../pipeline/types';
-import { listToolOptionNames } from './toolOptions';
+import { buildToolOptionGroups, normalizePipelineToolsForOptions } from './toolOptions';
 import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from './panelMessages';
 import { coerceFlowLayout } from './flowLayout';
 import { AgentFlowLog, writeGeneratedFiles } from './filePersistence';
@@ -121,7 +121,7 @@ function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<
     '.github/instructions/**/*.instructions.md',
     '.github/skills/**/SKILL.md',
     '.github/roles/**/*.md',
-    '.agent-output/**/*.{md,json,txt}'
+    '.github/artifacts/**/*.{md,json,txt}'
   ];
   const watchers = patterns.map((pattern) => vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(workspace, pattern)));
   log?.(`watching ${patterns.join(', ')}`);
@@ -155,15 +155,17 @@ function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<
 }
 
 async function buildState(workspace: string, pipeline: AgentPipeline): Promise<unknown> {
-  const findings = validatePipeline(pipeline);
-  const risk = calculateRiskScore(pipeline, { copilotInstructionsLines: await countCopilotInstructionLines(workspace) });
+  const toolOptions = buildToolOptionGroups(vscode.lm.tools);
+  const displayPipeline = normalizePipelineToolsForOptions(pipeline, toolOptions);
+  const findings = validatePipeline(displayPipeline);
+  const risk = calculateRiskScore(displayPipeline, { copilotInstructionsLines: await countCopilotInstructionLines(workspace) });
   return {
-    pipeline,
+    pipeline: displayPipeline,
     findings,
     risk,
-    generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })),
+    generatedFiles: generateFiles(displayPipeline).map((file) => ({ path: file.path, kind: file.kind })),
     flowLayout: coerceFlowLayout(vscode.workspace.getConfiguration('agentflow.flow').get('layout')),
-    toolOptions: listToolOptionNames(vscode.lm.tools)
+    toolOptions
   };
 }
 

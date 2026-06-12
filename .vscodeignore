@@ -1,9 +1,11 @@
 .git/**
 .gitignore
+.husky/**
 .github/**
 .vscode/**
-docs/**
+.playwright-cli/**
 examples/**
+output/**
 scripts/**
 smoke/**
 test/**

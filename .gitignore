@@ -3,4 +3,6 @@ dist/
 dist-smoke/
 webview-dist/
 .vscode-test/
+.playwright-cli/
+output/
 *.vsix

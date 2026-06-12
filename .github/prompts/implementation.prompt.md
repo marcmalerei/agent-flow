@@ -14,7 +14,7 @@ Start with `Example Orchestrator`.
 
 # Required artifacts
 
-- Read `.agent-output/example-input.md`: Use this as the request source.
+- Read `.github/artifacts/example-input.md`: Use this as the request source.
 
 # Referenced instructions
 

@@ -1,0 +1,69 @@
+import { describe, expect, it } from 'vitest';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+  displayName?: string;
+  galleryBanner?: { color?: string; theme?: string };
+  icon?: string;
+  name?: string;
+  scripts?: Record<string, string>;
+  contributes?: {
+    commands?: Array<{ category?: string; command: string; title: string }>;
+    menus?: Record<string, Array<{ command?: string; group?: string; submenu?: string; when?: string }>>;
+    submenus?: Array<{ id: string; label: string }>;
+  };
+};
+const root = fileURLToPath(new URL('..', import.meta.url));
+const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+
+describe('package contributions', () => {
+  it('declares marketplace presentation and packaging metadata', () => {
+    expect(manifest.name).toBe('copilot-agent-flow-studio');
+    expect(manifest.displayName).toBe('Agent Flow Studio');
+    expect(manifest.icon).toBe('media/icon.png');
+    expect(existsSync(resolve(root, manifest.icon))).toBe(true);
+    expect(manifest.galleryBanner).toEqual({ color: '#0F1216', theme: 'dark' });
+    expect(manifest.scripts?.['package:vsix']).toBe('vsce package --out copilot-agent-flow-studio.vsix');
+    expect(manifest.scripts?.['package:marketplace']).toContain('npm run build');
+    expect(manifest.scripts?.['package:marketplace']).toContain('npm run package:vsix');
+  });
+
+  it('uses an externally renderable animated Marketplace preview', () => {
+    expect(existsSync(resolve(root, 'media/agent-flow-preview.gif'))).toBe(true);
+    expect(readme).toContain('https://raw.githubusercontent.com/marcmalerei/agent-flow/refs/heads/codex/reference-markdown-editors/media/agent-flow-preview.gif');
+    expect(readme).not.toContain('](media/agent-flow-screenshot.png)');
+  });
+
+  it('shows one Agent Flow submenu for all markdown files under .github regardless of language id', () => {
+    const entries = manifest.contributes?.menus?.['explorer/context'] ?? [];
+    const submenuEntry = entries.find((entry) => entry.submenu === 'agentflow.context');
+    expect(manifest.contributes?.submenus).toContainEqual({ id: 'agentflow.context', label: 'Agent Flow' });
+    expect(submenuEntry).toEqual(expect.objectContaining({
+      group: 'navigation@80',
+      when: expect.stringContaining('resourceScheme == file')
+    }));
+    expect(submenuEntry?.when).toContain('resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/].*\\.md$/');
+    expect(submenuEntry?.when).not.toContain('resourceLangId');
+    expect(entries.filter((entry) => entry.command?.startsWith('agentflow.'))).toHaveLength(0);
+  });
+
+  it('keeps Agent Flow actions as submenu entries with short titles', () => {
+    const submenuEntries = manifest.contributes?.menus?.['agentflow.context'] ?? [];
+    expect(submenuEntries.map((entry) => entry.command)).toEqual([
+      'agentflow.openPipeline',
+      'agentflow.scanWorkspace',
+      'agentflow.validatePipeline',
+      'agentflow.generateFiles'
+    ]);
+    expect(submenuEntries.every((entry) => !entry.when)).toBe(true);
+
+    const commands = new Map((manifest.contributes?.commands ?? []).map((command) => [command.command, command]));
+    for (const entry of submenuEntries) {
+      const command = commands.get(entry.command!);
+      expect(command?.category).toBe('Agent Flow');
+      expect(command?.title.startsWith('Agent Flow:')).toBe(false);
+    }
+  });
+});

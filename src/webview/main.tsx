@@ -16,18 +16,19 @@ import '@xyflow/react/dist/style.css';
 import '@vscode/codicons/dist/codicon.css';
 import './styles.css';
 import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationFinding, RiskScore } from '../pipeline/types';
-import { validatePipeline } from '../pipeline/validator';
+import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges } from './graph';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
-import { normalizeConfiguredTools, partitionConfiguredTools } from './toolOptions';
+import { flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 import { TokenNode, flowHandlePositions } from './TokenNode';
 import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renameNodeLabel } from './flowMutations';
 import { optionalTextValue, referenceInstructionTextValue } from './formState';
 import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } from './components';
+import { applyNodePatch } from './nodeMarkdownSync';
 
 interface State {
   pipeline: AgentPipeline;
@@ -35,7 +36,7 @@ interface State {
   risk: RiskScore;
   generatedFiles: Array<{ path: string; kind: string }>;
   flowLayout: FlowLayout;
-  toolOptions: string[];
+  toolOptions: ToolOptionGroup[];
 }
 
 type BottomTab = 'validation' | 'files' | 'tools' | 'risk';
@@ -124,13 +125,13 @@ function App() {
     position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
     draggable: false,
     type: 'tokenNode',
-    data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), ...handlePositions },
+    data: { label: `${risky.has(node.id) ? '⚠ ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: typeColors[node.type] ?? 'var(--vscode-focusBorder)', ...handlePositions },
     style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
   })), [draft, handlePositions, layoutPositions, risky, state.flowLayout]);
   const edges: Edge[] = useMemo(() => deriveVisibleFlowEdges(draft), [draft]);
 
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
-    commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? { ...node, ...patch } as PipelineNode : node) }));
+    commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? applyNodePatch(node, patch) : node) }));
   };
   const connectNodes = (sourceId: string, targetId: string) => commitDraft((pipeline) => connectPipelineNodes(pipeline, sourceId, targetId));
   const deleteNodes = (nodeIds: string[]) => {
@@ -215,7 +216,7 @@ function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: {
   if (type === 'instruction') return { ...base, type, instructionFile: `.github/instructions/${id}.instructions.md`, rules: [] };
   if (type === 'skill') return { ...base, type, skillFile: `.github/skills/${id}/SKILL.md`, activationCriteria: [], procedure: [] };
   if (type === 'role') return { ...base, type, roleFile: `.github/roles/${id}.md` };
-  if (type === 'artifact') return { ...base, type, path: `.agent-output/${id}.md` };
+  if (type === 'artifact') return { ...base, type, path: `.github/artifacts/${id}.md` };
   if (type === 'gate') return { ...base, type, condition: 'Define condition' };
   if (type === 'handoff') return { ...base, type, label: 'New handoff' };
   if (type === 'mcp-server') return { ...base, type, label: 'New MCP server' };
@@ -262,7 +263,7 @@ function nodeFileSummary(node: PipelineNode): string {
   return node.id;
 }
 
-function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?: PipelineNode; pipeline: AgentPipeline; toolOptions: string[]; findings: ValidationFinding[]; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void }) {
+function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?: PipelineNode; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[]; findings: ValidationFinding[]; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void }) {
   if (!node) return <p>Select a node.</p>;
   const agents = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'agent' }> => item.type === 'agent' && item.id !== node.id);
   const artifacts = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'artifact' }> => item.type === 'artifact');
@@ -272,7 +273,7 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
   const setHandoffs = (handoffs: AgentHandoff[]) => onChange(node.id, { handoffs } as Partial<PipelineNode>);
   const toggleListItem = (field: string, item: string, checked: boolean) => {
     const rawCurrent = Array.isArray((node as any)[field]) ? (node as any)[field] as string[] : [];
-    const current = field === 'tools' ? normalizeConfiguredTools(rawCurrent) : rawCurrent;
+    const current = field === 'tools' ? normalizeConfiguredToolsForOptions(rawCurrent, toolOptions) : rawCurrent;
     onChange(node.id, { [field]: checked ? [...new Set([...current, item])] : current.filter((value) => value !== item) } as Partial<PipelineNode>);
   };
   const toggleArtifact = (field: 'inputs' | 'outputs' | 'requiredArtifacts', path: string, checked: boolean, action: ArtifactAction) => {
@@ -292,16 +293,16 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
   const updateInstructionRef = (target: string, instruction: string) => {
     onChange(node.id, { instructionRefs: upsertInstructionRef((node as any).instructionRefs, target, instruction) } as Partial<PipelineNode>);
   };
-  const toolGroups = (node.type === 'agent' || node.type === 'prompt') ? partitionConfiguredTools({ availableTools: toolOptions, configuredTools: node.tools ?? [] }) : { available: [], unavailable: [] };
-  return <div className="config"><div className="config-header"><div><h2>{node.label}</h2><span className="config-subtitle">{nodeFileSummary(node)}</span></div><span className="pill">{node.type}</span></div>
+  const toolGroups = (node.type === 'agent' || node.type === 'prompt') ? partitionConfiguredTools({ availableTools: flattenToolOptionValues(toolOptions), configuredTools: node.tools ?? [] }) : { available: [], unavailable: [] };
+  return <div className="config"><div className="config-header"><div><h2>{node.label}</h2><span className="config-subtitle">{nodeFileSummary(node)}</span></div><span className="pill node-type-pill" style={{ background: typeColors[node.type] }}>{node.type}</span></div>
     <VSCodeInput label="Label" value={node.label} onChange={(event: any) => onChange(node.id, renameNodeLabel(node, event.target.value) as Partial<PipelineNode>)} />
     <VSCodeTextarea label="Description" value={node.description ?? ''} onChange={(event: any) => setOptionalString('description', event.target.value)} />
     {node.type === 'agent' && <details><summary>Agent metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Target<select value={node.target ?? ''} onChange={(event: any) => setOptionalString('target', event.target.value)}><option value="">Both environments</option><option value="vscode">VS Code</option><option value="github-copilot">GitHub Copilot</option></select></label><label className="inline-check"><input type="checkbox" checked={node.userInvocable ?? true} onChange={(event: any) => onChange(node.id, { userInvocable: event.target.checked ? undefined : false } as Partial<PipelineNode>)} /> User invocable</label><label className="inline-check"><input type="checkbox" checked={node.disableModelInvocation ?? false} onChange={(event: any) => onChange(node.id, { disableModelInvocation: event.target.checked || undefined } as Partial<PipelineNode>)} /> Disable model invocation</label><HandoffEditor handoffs={node.handoffs ?? []} agents={agents} onChange={setHandoffs} /></details>}
-    {(node.type === 'agent' || node.type === 'prompt') && <details><summary>Tools</summary>{toolGroups.available.length ? <div className="checks">{toolGroups.available.map((tool) => <label key={tool}><input type="checkbox" checked={(node.tools ?? []).includes(tool)} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div> : <p className="hint">No VS Code language model tools are registered.</p>}{toolGroups.unavailable.length > 0 && <><h4>Selected tools</h4><p className="hint">Selected on this node, but not registered by VS Code right now.</p><div className="checks selected-tools">{toolGroups.unavailable.map((tool) => <label key={tool} title="Selected on this node, but not registered by VS Code right now."><input type="checkbox" checked={true} onChange={(event: any) => toggleListItem('tools', tool, event.target.checked)} />{tool}</label>)}</div></>}</details>}
-    {node.type === 'agent' && <details><summary>Routing and references</summary><h4>Subagents</h4><div className="checks">{agents.map((agent) => <label key={agent.id}><input type="checkbox" checked={(node.calls ?? []).includes(agent.id)} onChange={(event: any) => toggleListItem('calls', agent.id, event.target.checked)} />{agent.label}</label>)}</div><AgentArtifactSelector artifacts={artifacts} inputs={node.inputs ?? []} outputs={node.outputs ?? []} usages={node.artifactUsages ?? []} onInputToggle={(path, checked) => toggleArtifact('inputs', path, checked, 'read')} onOutputToggle={(path, checked) => toggleArtifact('outputs', path, checked, 'write')} onUsageChange={(path, patch, action) => updateArtifactUsage(path, patch, action)} /><InstructionReferenceSelector instructions={instructions} refs={node.instructionRefs ?? []} onToggle={toggleInstructionRef} onInstructionChange={updateInstructionRef} /></details>}
-    {node.type === 'prompt' && <details open><summary>Prompt metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Agent<select value={node.startAgent ?? ''} onChange={(event: any) => onChange(node.id, { startAgent: event.target.value || undefined } as Partial<PipelineNode>)}><option value="">Current agent</option><option value="ask">ask</option><option value="agent">agent</option><option value="plan">plan</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}</select></label><ArtifactSelector title="Required artifacts" artifacts={artifacts} selected={node.requiredArtifacts ?? []} usages={node.artifactUsages ?? []} defaultAction="read" actionOptions={['read', 'validate']} onToggle={(path, checked) => toggleArtifact('requiredArtifacts', path, checked, 'read')} onUsageChange={(path, patch) => updateArtifactUsage(path, patch, 'read')} /><InstructionReferenceSelector instructions={instructions} refs={node.instructionRefs ?? []} onToggle={toggleInstructionRef} onInstructionChange={updateInstructionRef} /></details>}
-    {node.type === 'instruction' && <details open><summary>Instruction scope</summary><label>applyTo<input value={node.applyTo ?? ''} onChange={(event: any) => setOptionalString('applyTo', event.target.value)} /></label><label>Exclude agent<select value={node.excludeAgent ?? ''} onChange={(event: any) => setOptionalString('excludeAgent', event.target.value)}><option value="">None</option><option value="code-review">code-review</option><option value="cloud-agent">cloud-agent</option></select></label></details>}
-    {node.type === 'skill' && <details open><summary>Skill metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label className="inline-check"><input type="checkbox" checked={node.userInvocable ?? true} onChange={(event: any) => onChange(node.id, { userInvocable: event.target.checked ? undefined : false } as Partial<PipelineNode>)} /> User invocable</label><label className="inline-check"><input type="checkbox" checked={node.disableModelInvocation ?? false} onChange={(event: any) => onChange(node.id, { disableModelInvocation: event.target.checked || undefined } as Partial<PipelineNode>)} /> Disable model invocation</label><label>Context<select value={node.context ?? ''} onChange={(event: any) => setOptionalString('context', event.target.value)}><option value="">inline</option><option value="fork">fork</option></select></label></details>}
+    {(node.type === 'agent' || node.type === 'prompt') && <details key={`tools-${node.id}`}><summary>Tools</summary><ToolTree groups={toolOptions} selected={node.tools ?? []} unavailable={toolGroups.unavailable} onToggle={(tool, checked) => toggleListItem('tools', tool, checked)} /></details>}
+    {node.type === 'agent' && <details><summary>Routing and references</summary><h4>Subagents</h4><div className="checks">{agents.map((agent) => <label key={agent.id}><input type="checkbox" checked={(node.calls ?? []).includes(agent.id)} onChange={(event: any) => toggleListItem('calls', agent.id, event.target.checked)} />{agent.label}</label>)}</div><AgentArtifactSelector artifacts={artifacts} inputs={node.inputs ?? []} outputs={node.outputs ?? []} usages={node.artifactUsages ?? []} references={references} onInputToggle={(path, checked) => toggleArtifact('inputs', path, checked, 'read')} onOutputToggle={(path, checked) => toggleArtifact('outputs', path, checked, 'write')} onUsageChange={(path, patch, action) => updateArtifactUsage(path, patch, action)} /><InstructionReferenceSelector instructions={instructions} refs={node.instructionRefs ?? []} references={references} onToggle={toggleInstructionRef} onInstructionChange={updateInstructionRef} /></details>}
+    {node.type === 'prompt' && <details open><summary>Prompt metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Agent<select value={node.startAgent ?? ''} onChange={(event: any) => onChange(node.id, { startAgent: event.target.value || undefined } as Partial<PipelineNode>)}><option value="">Current agent</option><option value="ask">ask</option><option value="agent">agent</option><option value="plan">plan</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}</select></label><ArtifactSelector title="Required artifacts" artifacts={artifacts} selected={node.requiredArtifacts ?? []} usages={node.artifactUsages ?? []} references={references} defaultAction="read" actionOptions={['read', 'validate']} onToggle={(path, checked) => toggleArtifact('requiredArtifacts', path, checked, 'read')} onUsageChange={(path, patch) => updateArtifactUsage(path, patch, 'read')} /><InstructionReferenceSelector instructions={instructions} refs={node.instructionRefs ?? []} references={references} onToggle={toggleInstructionRef} onInstructionChange={updateInstructionRef} /></details>}
+    {node.type === 'instruction' && <details open><summary>Instruction scope</summary><label>applyTo<input value={node.applyTo ?? ''} onChange={(event: any) => setOptionalString('applyTo', event.target.value)} /></label><label>Exclude agent<select value={node.excludeAgent ?? ''} onChange={(event: any) => setOptionalString('excludeAgent', event.target.value)}><option value="">None</option><option value="code-review">code-review</option><option value="cloud-agent">cloud-agent</option></select></label><ArtifactSelector title="Artifacts" artifacts={artifacts} selected={node.requiredArtifacts ?? []} usages={node.artifactUsages ?? []} references={references} defaultAction="read" actionOptions={['read', 'write', 'append', 'validate']} onToggle={(path, checked) => toggleArtifact('requiredArtifacts', path, checked, 'read')} onUsageChange={(path, patch) => updateArtifactUsage(path, patch, 'read')} /></details>}
+    {node.type === 'skill' && <details open><summary>Skill metadata</summary><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label className="inline-check"><input type="checkbox" checked={node.userInvocable ?? true} onChange={(event: any) => onChange(node.id, { userInvocable: event.target.checked ? undefined : false } as Partial<PipelineNode>)} /> User invocable</label><label className="inline-check"><input type="checkbox" checked={node.disableModelInvocation ?? false} onChange={(event: any) => onChange(node.id, { disableModelInvocation: event.target.checked || undefined } as Partial<PipelineNode>)} /> Disable model invocation</label><label>Context<select value={node.context ?? ''} onChange={(event: any) => setOptionalString('context', event.target.value)}><option value="">inline</option><option value="fork">fork</option></select></label><ArtifactSelector title="Artifacts" artifacts={artifacts} selected={node.requiredArtifacts ?? []} usages={node.artifactUsages ?? []} references={references} defaultAction="read" actionOptions={['read', 'write', 'append', 'validate']} onToggle={(path, checked) => toggleArtifact('requiredArtifacts', path, checked, 'read')} onUsageChange={(path, patch) => updateArtifactUsage(path, patch, 'read')} /></details>}
     {node.type === 'role' && <details open><summary>Role file</summary><label>Path<input value={node.roleFile ?? `.github/roles/${node.id}.md`} onChange={(event: any) => setOptionalString('roleFile', event.target.value)} /></label></details>}
     {node.type === 'artifact' && <details open><summary>Artifact file</summary><label>Path<input value={node.path} onChange={(event: any) => onChange(node.id, { path: event.target.value } as Partial<PipelineNode>)} /></label></details>}
     {node.type === 'gate' && <details open><summary>Gate condition</summary><label>Condition<input value={node.condition} onChange={(event: any) => onChange(node.id, { condition: event.target.value } as Partial<PipelineNode>)} /></label></details>}
@@ -311,6 +312,40 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
     <details><summary>Markdown editor</summary><TiptapMarkdownEditor value={node.markdown ?? ''} references={references} onChange={(value) => onChange(node.id, { markdown: value } as Partial<PipelineNode>)} /></details>
     <details open={findings.length > 0}><summary>Findings</summary>{findings.length ? findings.map((finding) => <p key={`${finding.ruleId}-${finding.message}`} className={finding.severity}>{finding.message}</p>) : <p>No node findings.</p>}</details>
   </div>;
+}
+
+function ToolTree({ groups, onToggle, selected, unavailable }: { groups: readonly ToolOptionGroup[]; selected: readonly string[]; unavailable: readonly string[]; onToggle: (tool: string, checked: boolean) => void }) {
+  const selectedSet = new Set(normalizeConfiguredToolsForOptions(selected, groups));
+  return <div className="tool-tree">
+    {groups.length ? groups.map((group) => <details className="tool-group" key={group.id}>
+      <summary>{group.icon && <Codicon name={group.icon} />}<span>{group.label}</span></summary>
+      <div className="tool-group-options">{group.options.map((option) => <ToolOptionRow key={option.value} option={option} selectedSet={selectedSet} onToggle={onToggle} />)}</div>
+    </details>) : <p className="hint">No VS Code language model tools are registered.</p>}
+    {unavailable.length > 0 && <details className="tool-group unavailable-tools">
+      <summary><Codicon name="warning" /><span>Selected tools</span></summary>
+      <div className="tool-group-options">{unavailable.map((tool) => <label className="tool-option-row unavailable" key={tool} title="Selected on this node, but not registered by VS Code right now."><input type="checkbox" checked={true} onChange={(event: any) => onToggle(tool, event.target.checked)} /><span className="tool-option-icon"><Codicon name="question" /></span><span className="tool-option-text"><span className="tool-option-label">{tool}</span></span></label>)}</div>
+    </details>}
+  </div>;
+}
+
+function ToolOptionRow({ onToggle, option, parent, selectedSet }: { option: ToolOption; parent?: ToolOption; selectedSet: Set<string>; onToggle: (tool: string, checked: boolean) => void }) {
+  const { checked, disabled } = toolOptionSelectionState(option, selectedSet, parent);
+  const inputId = `tool-${option.value.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  const checkbox = <div className={`tool-option-row${disabled ? ' inherited' : ''}`}>
+    <input id={inputId} type="checkbox" checked={checked} disabled={disabled} onChange={(event: any) => onToggle(option.value, event.target.checked)} />
+    <span className="tool-option-icon"><Codicon name={option.icon ?? 'symbol-method'} /></span>
+    <label className="tool-option-text" htmlFor={inputId}><span className="tool-option-label">{option.label}</span></label>
+    {option.description && <span className="tool-option-help" data-tooltip={option.description} tabIndex={0} aria-label={option.description} role="img"><Codicon name="info" /></span>}
+  </div>;
+
+  if (!option.children?.length) return checkbox;
+
+  return <details className="tool-option-branch">
+    <summary onClick={(event) => {
+      if ((event.target as HTMLElement | null)?.closest('input')) event.preventDefault();
+    }}>{checkbox}</summary>
+    <div className="tool-children">{option.children.map((child) => <ToolOptionRow key={child.value} option={child} parent={option} selectedSet={selectedSet} onToggle={onToggle} />)}</div>
+  </details>;
 }
 
 function HandoffEditor({ agents, handoffs, onChange }: { agents: Array<Extract<PipelineNode, { type: 'agent' }>>; handoffs: AgentHandoff[]; onChange: (handoffs: AgentHandoff[]) => void }) {
@@ -352,28 +387,28 @@ function normalizeHandoff(handoff: AgentHandoff): AgentHandoff {
   };
 }
 
-function ArtifactSelector({ actionOptions, artifacts, defaultAction, onToggle, onUsageChange, selected, title, usages }: { actionOptions: ArtifactAction[]; artifacts: Array<Extract<PipelineNode, { type: 'artifact' }>>; defaultAction: ArtifactAction; onToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>) => void; selected: string[]; title: string; usages: ArtifactUsage[] }) {
+function ArtifactSelector({ actionOptions, artifacts, defaultAction, onToggle, onUsageChange, references, selected, title, usages }: { actionOptions: ArtifactAction[]; artifacts: Array<Extract<PipelineNode, { type: 'artifact' }>>; defaultAction: ArtifactAction; onToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>) => void; references: ReferenceItem[]; selected: string[]; title: string; usages: ArtifactUsage[] }) {
   const artifactPaths = new Set(artifacts.map((artifact) => artifact.path));
   const selectedWithoutNode = selected.filter((path) => !artifactPaths.has(path));
   const rows = artifacts.map((artifact) => ({ id: artifact.id, label: artifact.label, path: artifact.path }));
   return <section className="artifact-picker">
     <h4>{title}</h4>
-    {rows.length ? <div className="reference-list">{rows.map((artifact) => <ArtifactUsageRow key={artifact.id} actionOptions={actionOptions} checked={selected.includes(artifact.path)} defaultAction={defaultAction} label={artifact.label} path={artifact.path} usage={usages.find((usage) => usage.path === artifact.path)} onToggle={onToggle} onUsageChange={onUsageChange} />)}</div> : <p className="hint">Create an artifact node to select it here.</p>}
-    {selectedWithoutNode.length > 0 && <><p className="hint">Selected paths without an artifact node.</p><div className="reference-list selected-tools">{selectedWithoutNode.map((path) => <ArtifactUsageRow key={path} actionOptions={actionOptions} checked={true} defaultAction={defaultAction} label={path} path={path} usage={usages.find((usage) => usage.path === path)} onToggle={onToggle} onUsageChange={onUsageChange} />)}</div></>}
+    {rows.length ? <div className="reference-list">{rows.map((artifact) => <ArtifactUsageRow key={artifact.id} actionOptions={actionOptions} checked={selected.includes(artifact.path)} defaultAction={defaultAction} label={artifact.label} path={artifact.path} usage={usages.find((usage) => usage.path === artifact.path)} references={references} onToggle={onToggle} onUsageChange={onUsageChange} />)}</div> : <p className="hint">Create an artifact node to select it here.</p>}
+    {selectedWithoutNode.length > 0 && <><p className="hint">Selected paths without an artifact node.</p><div className="reference-list selected-tools">{selectedWithoutNode.map((path) => <ArtifactUsageRow key={path} actionOptions={actionOptions} checked={true} defaultAction={defaultAction} label={path} path={path} usage={usages.find((usage) => usage.path === path)} references={references} onToggle={onToggle} onUsageChange={onUsageChange} />)}</div></>}
   </section>;
 }
 
-function AgentArtifactSelector({ artifacts, inputs, onInputToggle, onOutputToggle, onUsageChange, outputs, usages }: { artifacts: Array<Extract<PipelineNode, { type: 'artifact' }>>; inputs: string[]; onInputToggle: (path: string, checked: boolean) => void; onOutputToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>, action: ArtifactAction) => void; outputs: string[]; usages: ArtifactUsage[] }) {
+function AgentArtifactSelector({ artifacts, inputs, onInputToggle, onOutputToggle, onUsageChange, outputs, references, usages }: { artifacts: Array<Extract<PipelineNode, { type: 'artifact' }>>; inputs: string[]; onInputToggle: (path: string, checked: boolean) => void; onOutputToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>, action: ArtifactAction) => void; outputs: string[]; references: ReferenceItem[]; usages: ArtifactUsage[] }) {
   const artifactPaths = new Set(artifacts.map((artifact) => artifact.path));
   const missing = [...new Set([...inputs, ...outputs].filter((path) => !artifactPaths.has(path)))].map((path) => ({ id: path, label: path, path }));
   const rows = [...artifacts.map((artifact) => ({ id: artifact.id, label: artifact.label, path: artifact.path })), ...missing];
   return <section className="artifact-picker">
     <h4>Artifacts</h4>
-    {rows.length ? <div className="reference-list compact-reference-list">{rows.map((artifact) => <AgentArtifactRow key={artifact.id} checkedInput={inputs.includes(artifact.path)} checkedOutput={outputs.includes(artifact.path)} label={artifact.label} path={artifact.path} usage={usages.find((usage) => usage.path === artifact.path)} onInputToggle={onInputToggle} onOutputToggle={onOutputToggle} onUsageChange={onUsageChange} />)}</div> : <p className="hint">Create an artifact node to select it here.</p>}
+    {rows.length ? <div className="reference-list compact-reference-list">{rows.map((artifact) => <AgentArtifactRow key={artifact.id} checkedInput={inputs.includes(artifact.path)} checkedOutput={outputs.includes(artifact.path)} label={artifact.label} path={artifact.path} usage={usages.find((usage) => usage.path === artifact.path)} references={references} onInputToggle={onInputToggle} onOutputToggle={onOutputToggle} onUsageChange={onUsageChange} />)}</div> : <p className="hint">Create an artifact node to select it here.</p>}
   </section>;
 }
 
-function AgentArtifactRow({ checkedInput, checkedOutput, label, onInputToggle, onOutputToggle, onUsageChange, path, usage }: { checkedInput: boolean; checkedOutput: boolean; label: string; onInputToggle: (path: string, checked: boolean) => void; onOutputToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>, action: ArtifactAction) => void; path: string; usage?: ArtifactUsage }) {
+function AgentArtifactRow({ checkedInput, checkedOutput, label, onInputToggle, onOutputToggle, onUsageChange, path, references, usage }: { checkedInput: boolean; checkedOutput: boolean; label: string; onInputToggle: (path: string, checked: boolean) => void; onOutputToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>, action: ArtifactAction) => void; path: string; references: ReferenceItem[]; usage?: ArtifactUsage }) {
   const checked = checkedInput || checkedOutput;
   const currentAction = usage?.action ?? (checkedOutput ? 'write' : 'read');
   return <div className={`reference-row compact-reference-row${checked ? ' selected' : ''}`}>
@@ -384,21 +419,21 @@ function AgentArtifactRow({ checkedInput, checkedOutput, label, onInputToggle, o
         <label><input type="checkbox" checked={checkedOutput} onChange={(event: any) => onOutputToggle(path, event.target.checked)} />Output</label>
       </div>
     </div>
-    {checked && <div className="compact-reference-fields"><select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value }, event.target.value)}>{['read', 'write', 'append', 'validate'].map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select><textarea aria-label={`Instruction for ${label}`} value={usage?.instruction ?? ''} placeholder="Add the instruction for this artifact." onChange={(event: any) => onUsageChange(path, { instruction: referenceInstructionTextValue(event.target.value) }, currentAction)} /></div>}
+    {checked && <div className="compact-reference-fields"><label className="reference-action-field">Action<select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value }, event.target.value)}>{['read', 'write', 'append', 'validate'].map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label><div className="reference-markdown-field"><span className="reference-markdown-label">Instruction</span><ReferenceMarkdownEditor ariaLabel={`Instruction for ${label}`} value={usage?.instruction ?? ''} references={references} referenceToken={{ icon: 'file-symlink-file', label: 'Artifact', value: '$artifact', title: `Insert ${path}` }} onChange={(value) => onUsageChange(path, { instruction: referenceInstructionTextValue(value) }, currentAction)} /></div></div>}
   </div>;
 }
 
-function ArtifactUsageRow({ actionOptions, checked, defaultAction, label, onToggle, onUsageChange, path, usage }: { actionOptions: ArtifactAction[]; checked: boolean; defaultAction: ArtifactAction; label: string; onToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>) => void; path: string; usage?: ArtifactUsage }) {
+function ArtifactUsageRow({ actionOptions, checked, defaultAction, label, onToggle, onUsageChange, path, references, usage }: { actionOptions: ArtifactAction[]; checked: boolean; defaultAction: ArtifactAction; label: string; onToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>) => void; path: string; references: ReferenceItem[]; usage?: ArtifactUsage }) {
   const currentAction = usage?.action ?? defaultAction;
   return <div className={`reference-row compact-reference-row${checked ? ' selected' : ''}`}>
     <div className="reference-row-header">
       <label className="reference-check" title={path}><input type="checkbox" checked={checked} onChange={(event: any) => onToggle(path, event.target.checked)} /><span className="artifact-option"><span>{label}</span><small>{path}</small></span></label>
     </div>
-    {checked && <div className="compact-reference-fields"><select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value })}>{actionOptions.map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select><textarea aria-label={`Instruction for ${label}`} value={usage?.instruction ?? ''} placeholder="Add the instruction for this artifact." onChange={(event: any) => onUsageChange(path, { instruction: referenceInstructionTextValue(event.target.value) })} /></div>}
+    {checked && <div className="compact-reference-fields"><label className="reference-action-field">Action<select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value })}>{actionOptions.map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label><div className="reference-markdown-field"><span className="reference-markdown-label">Instruction</span><ReferenceMarkdownEditor ariaLabel={`Instruction for ${label}`} value={usage?.instruction ?? ''} references={references} referenceToken={{ icon: 'file-symlink-file', label: 'Artifact', value: '$artifact', title: `Insert ${path}` }} onChange={(value) => onUsageChange(path, { instruction: referenceInstructionTextValue(value) })} /></div></div>}
   </div>;
 }
 
-function InstructionReferenceSelector({ instructions, onInstructionChange, onToggle, refs }: { instructions: Array<Extract<PipelineNode, { type: 'instruction' }>>; onInstructionChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; refs: ReferenceInstruction[] }) {
+function InstructionReferenceSelector({ instructions, onInstructionChange, onToggle, references, refs }: { instructions: Array<Extract<PipelineNode, { type: 'instruction' }>>; onInstructionChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; references: ReferenceItem[]; refs: ReferenceInstruction[] }) {
   const targets = new Set(instructions.map(instructionReferenceTarget));
   const missing = refs.filter((ref) => !targets.has(ref.target));
   return <section className="reference-picker">
@@ -406,20 +441,26 @@ function InstructionReferenceSelector({ instructions, onInstructionChange, onTog
     {instructions.length ? <div className="reference-list">{instructions.map((instruction) => {
       const target = instructionReferenceTarget(instruction);
       const ref = refs.find((item) => item.target === target);
-      return <InstructionReferenceRow key={target} checked={Boolean(ref)} instruction={instruction} reference={ref} target={target} onToggle={onToggle} onInstructionChange={onInstructionChange} />;
+      return <InstructionReferenceRow key={target} checked={Boolean(ref)} instruction={instruction} reference={ref} references={references} target={target} onToggle={onToggle} onInstructionChange={onInstructionChange} />;
     })}</div> : <p className="hint">Create an instruction node to reference it here.</p>}
-    {missing.length > 0 && <><p className="hint">Selected instruction references without an instruction node.</p><div className="reference-list selected-tools">{missing.map((ref) => <InstructionReferenceRow key={ref.target} checked={true} reference={ref} target={ref.target} onToggle={onToggle} onInstructionChange={onInstructionChange} />)}</div></>}
+    {missing.length > 0 && <><p className="hint">Selected instruction references without an instruction node.</p><div className="reference-list selected-tools">{missing.map((ref) => <InstructionReferenceRow key={ref.target} checked={true} reference={ref} references={references} target={ref.target} onToggle={onToggle} onInstructionChange={onInstructionChange} />)}</div></>}
   </section>;
 }
 
-function InstructionReferenceRow({ checked, instruction, onInstructionChange, onToggle, reference, target }: { checked: boolean; instruction?: Extract<PipelineNode, { type: 'instruction' }>; onInstructionChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; reference?: ReferenceInstruction; target: string }) {
+function InstructionReferenceRow({ checked, instruction, onInstructionChange, onToggle, reference, references, target }: { checked: boolean; instruction?: Extract<PipelineNode, { type: 'instruction' }>; onInstructionChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; reference?: ReferenceInstruction; references: ReferenceItem[]; target: string }) {
   return <div className={`reference-row${checked ? ' selected' : ''}`}>
     <label className="reference-check" title={target}><input type="checkbox" checked={checked} onChange={(event: any) => onToggle(target, event.target.checked)} /><span className="artifact-option"><span>{instruction?.label ?? target}</span><small>{target}</small></span></label>
-    {checked && <div className="reference-fields"><label>Purpose<textarea value={reference?.instruction ?? ''} placeholder={`How should this node apply ${target}?`} onChange={(event: any) => onInstructionChange(target, event.target.value)} /></label></div>}
+    {checked && <div className="reference-fields"><div className="reference-markdown-field"><span className="reference-markdown-label">Purpose</span><ReferenceMarkdownEditor ariaLabel={`Purpose for ${target}`} value={reference?.instruction ?? ''} references={references} referenceToken={{ icon: 'references', label: 'Instruction', value: '$instruction', title: `Insert ${target}` }} onChange={(value) => onInstructionChange(target, value)} /></div></div>}
   </div>;
 }
 
 interface ReferenceItem { label: string; value: string; type: string }
+
+interface ReferenceToken { icon?: string; label: string; title: string; value: string }
+
+function ReferenceMarkdownEditor({ ariaLabel, onChange, referenceToken, references, value }: { ariaLabel: string; onChange: (value: string) => void; referenceToken?: ReferenceToken; references: ReferenceItem[]; value: string }) {
+  return <TiptapMarkdownEditor value={value} references={references} variant="compact" ariaLabel={ariaLabel} referenceToken={referenceToken} onChange={onChange} />;
+}
 
 function buildReferenceItems(pipeline: AgentPipeline): ReferenceItem[] {
   const generated = pipeline.nodes.flatMap((node) => {
@@ -451,7 +492,7 @@ function upsertArtifactUsage(usages: ArtifactUsage[] | undefined, path: string, 
 function removeArtifactUsageIfUnselected(usages: ArtifactUsage[] | undefined, path: string, nextSelected: string[], node: PipelineNode): ArtifactUsage[] | undefined {
   const stillSelected = nextSelected.includes(path)
     || (node.type === 'agent' && [...(node.inputs ?? []), ...(node.outputs ?? [])].filter((value) => value === path).length > 1)
-    || (node.type === 'prompt' && (node.requiredArtifacts ?? []).filter((value) => value === path).length > 1);
+    || ((node.type === 'prompt' || node.type === 'instruction' || node.type === 'skill') && (node.requiredArtifacts ?? []).filter((value) => value === path).length > 1);
   const next = stillSelected ? usages : usages?.filter((usage) => usage.path !== path);
   return next?.length ? next : undefined;
 }
@@ -470,7 +511,7 @@ function artifactActionLabel(action: string): string {
   return ({ read: 'Read', write: 'Write', append: 'Append', validate: 'Validate' } as Record<string, string>)[action] ?? action;
 }
 
-function TiptapMarkdownEditor({ value, references, onChange }: { value: string; references: ReferenceItem[]; onChange: (value: string) => void }) {
+function TiptapMarkdownEditor({ ariaLabel = 'TipTap Markdown editor', onChange, references, referenceToken, value, variant = 'default' }: { ariaLabel?: string; onChange: (value: string) => void; references: ReferenceItem[]; referenceToken?: ReferenceToken; value: string; variant?: 'default' | 'compact' }) {
   const [query, setQuery] = useState<{ trigger: '@' | '/'; text: string } | undefined>(undefined);
   const slashItems: ReferenceItem[] = [
     { label: 'Today', value: new Date().toISOString().slice(0, 10), type: 'date' },
@@ -486,8 +527,8 @@ function TiptapMarkdownEditor({ value, references, onChange }: { value: string; 
     content: markdownToTiptapHtml(initialMarkdown.body),
     editorProps: {
       attributes: {
-        class: 'tiptap-editor',
-        'aria-label': 'TipTap Markdown editor',
+        class: `tiptap-editor${variant === 'compact' ? ' tiptap-editor-compact' : ''}`,
+        'aria-label': ariaLabel,
         spellcheck: 'false'
       }
     },
@@ -525,6 +566,9 @@ function TiptapMarkdownEditor({ value, references, onChange }: { value: string; 
     editor?.commands.setContent(markdownToTiptapHtml(next), { emitUpdate: false });
   };
   const appendMarkdown = (snippet: string) => replaceBodyMarkdown(`${lastBodyMarkdown.current}${snippet}`);
+  const insertMarkdown = (snippet: string) => {
+    editor?.chain().focus().insertContent(snippet).run();
+  };
   const insertSuggestion = (item: ReferenceItem) => {
     const current = lastBodyMarkdown.current;
     const next = current.replace(/(^|\s)([@/])([^\s@/]*)$/, (_match, prefix) => `${prefix}${item.value} `);
@@ -541,7 +585,7 @@ function TiptapMarkdownEditor({ value, references, onChange }: { value: string; 
     if (!href) return;
     editor?.chain().focus().setLink({ href }).run();
   };
-  return <div className="markdown-shell tiptap-shell">
+  return <div className={`markdown-shell tiptap-shell${variant === 'compact' ? ' compact-markdown-shell' : ''}`}>
     <div className="editor-toolbar" role="toolbar" aria-label="Markdown formatting">
       <EditorTool title="Heading 1" active={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</EditorTool>
       <EditorTool title="Heading 2" active={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</EditorTool>
@@ -554,8 +598,9 @@ function TiptapMarkdownEditor({ value, references, onChange }: { value: string; 
       <EditorTool title="Inline code" icon="symbol-keyword" active={editor?.isActive('code')} onClick={() => editor?.chain().focus().toggleCode().run()} />
       <EditorTool title="Code block" icon="code" active={editor?.isActive('codeBlock')} onClick={() => editor?.chain().focus().toggleCodeBlock().run()} />
       <EditorTool title="Link" icon="link" active={editor?.isActive('link')} onClick={addLink} />
+      {referenceToken && <><span className="editor-separator" /><EditorTool title={referenceToken.title} icon={referenceToken.icon ?? 'references'} onClick={() => insertMarkdown(referenceToken.value)} /></>}
     </div>
-    {frontmatter.current && <details className="frontmatter-drawer"><summary>Frontmatter</summary><textarea value={frontmatter.current} onChange={(event: any) => updateFrontmatter(event.target.value)} spellCheck={false} /></details>}
+    {variant !== 'compact' && frontmatter.current && <details className="frontmatter-drawer"><summary>Frontmatter</summary><textarea value={frontmatter.current} onChange={(event: any) => updateFrontmatter(event.target.value)} spellCheck={false} /></details>}
     <EditorContent editor={editor} />
     {suggestions.length > 0 && <div className="reference-menu">{suggestions.map((item) => <button key={`${item.type}-${item.value}`} onClick={() => insertSuggestion(item)}><span>{item.label}</span><small>{item.type} · {item.value}</small></button>)}</div>}
   </div>;
@@ -566,8 +611,100 @@ function EditorTool({ active, children, icon, title, onClick }: { active?: boole
 }
 
 function Bottom({ state, activeTab, setActiveTab }: { state: State; activeTab: BottomTab; setActiveTab: (tab: BottomTab) => void }) {
-  const matrix = state.pipeline.nodes.filter((node) => node.type === 'agent').map((node) => `${node.id}: ${(node.tools ?? []).join(', ') || 'none'}`);
-  return <div className="diagnostics"><nav>{(['validation', 'files', 'tools', 'risk'] as BottomTab[]).map((tab) => <VSCodeButton key={tab} variant="ghost" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tab}</VSCodeButton>)}</nav><article>{activeTab === 'validation' && (state.findings.length ? state.findings.map((finding, index) => <p key={index} className={finding.severity}>{finding.severity.toUpperCase()}: {finding.message}</p>) : <p>No findings.</p>)}{activeTab === 'files' && <ul>{state.generatedFiles.map((file) => <li key={file.path}>{file.kind}: {file.path}</li>)}</ul>}{activeTab === 'tools' && <pre>{matrix.join('\n')}</pre>}{activeTab === 'risk' && <><strong>{state.risk.score}/100</strong><ul>{state.risk.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul></>}</article></div>;
+  const tabs: BottomTab[] = ['validation', 'files', 'tools', 'risk'];
+  const tabCounts: Record<BottomTab, number | undefined> = {
+    validation: state.findings.length,
+    files: state.generatedFiles.length,
+    tools: state.pipeline.nodes.filter((node) => (node.type === 'agent' || node.type === 'prompt') && (node.tools?.length ?? 0) > 0).length,
+    risk: state.risk.score
+  };
+  const title = ({ validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
+  return <div className="diagnostics">
+    <nav>{tabs.map((tab) => <VSCodeButton key={tab} variant="ghost" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}><span>{tab}</span>{tabCounts[tab] !== undefined && <span className="diagnostic-tab-count">{tabCounts[tab]}</span>}</VSCodeButton>)}</nav>
+    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
+  </div>;
+}
+
+function diagnosticSummary(state: State, tab: BottomTab): string {
+  if (tab === 'validation') return state.findings.length ? `${state.findings.length} issue${state.findings.length === 1 ? '' : 's'} need attention` : 'No validation findings';
+  if (tab === 'files') return `${state.generatedFiles.length} inferred output file${state.generatedFiles.length === 1 ? '' : 's'}`;
+  if (tab === 'tools') return 'Configured tools by runnable node';
+  return `${state.risk.score}/100`;
+}
+
+function ValidationDiagnostics({ findings, pipeline }: { findings: ValidationFinding[]; pipeline: AgentPipeline }) {
+  if (!findings.length) return <EmptyDiagnostics icon="pass" title="No findings" detail="The inferred flow has no validation warnings right now." />;
+  const nodeLabels = new Map(pipeline.nodes.map((node) => [node.id, node.label]));
+  return <div className="diagnostic-list">{findings.map((finding, index) => <div key={`${finding.ruleId}-${index}`} className={`diagnostic-card ${finding.severity}`}>
+    <Codicon name={finding.severity === 'error' ? 'error' : finding.severity === 'warning' ? 'warning' : finding.severity === 'risk' ? 'flame' : 'info'} />
+    <div><div className="diagnostic-card-title"><span>{finding.severity}</span>{finding.nodeId && <code>{nodeLabels.get(finding.nodeId) ?? finding.nodeId}</code>}</div><p>{finding.message}</p><small>{finding.ruleId}</small></div>
+  </div>)}</div>;
+}
+
+function FileDiagnostics({ files }: { files: State['generatedFiles'] }) {
+  if (!files.length) return <EmptyDiagnostics icon="files" title="No generated files" detail="Agent Flow did not infer any files for this workspace." />;
+  const groups = [...files.reduce((map, file) => {
+    const current = map.get(file.kind) ?? [];
+    current.push(file.path);
+    map.set(file.kind, current);
+    return map;
+  }, new Map<string, string[]>()).entries()].sort(([a], [b]) => a.localeCompare(b));
+  return <div className="diagnostic-file-groups">{groups.map(([kind, paths]) => <section key={kind} className="diagnostic-file-group"><h4><span>{kind}</span><small>{paths.length}</small></h4><ul>{paths.sort((a, b) => a.localeCompare(b)).map((path) => <li key={path}><Codicon name="file-code" /><code>{path}</code></li>)}</ul></section>)}</div>;
+}
+
+function ToolDiagnostics({ pipeline }: { pipeline: AgentPipeline }) {
+  const nodes = pipeline.nodes.filter((node): node is Extract<PipelineNode, { type: 'agent' | 'prompt' }> => (node.type === 'agent' || node.type === 'prompt'));
+  if (!nodes.length) return <EmptyDiagnostics icon="tools" title="No runnable nodes" detail="Create an agent or prompt node to configure tools." />;
+  return <div className="diagnostic-list">{nodes.map((node) => <div key={node.id} className="diagnostic-card neutral"><Codicon name={node.type === 'agent' ? 'hubot' : 'comment-discussion'} /><div><div className="diagnostic-card-title"><span>{node.label}</span><code>{node.type}</code></div>{node.tools?.length ? <div className="diagnostic-chip-row">{node.tools.map((tool) => <span key={tool} className="diagnostic-chip">{tool}</span>)}</div> : <p className="diagnostic-muted">No tools selected.</p>}</div></div>)}</div>;
+}
+
+function RiskDiagnostics({ pipeline, risk }: { pipeline: AgentPipeline; risk: RiskScore }) {
+  return <div className="diagnostic-risk"><div className="diagnostic-score"><strong>{risk.score}</strong><span>/100</span></div>{risk.reasons.length ? <ul>{risk.reasons.map((reason) => <li key={reason}><Codicon name="circle-filled" /><div><span>{reason}</span><RiskReasonDetails pipeline={pipeline} reason={reason} /></div></li>)}</ul> : <p className="diagnostic-muted">No risk reasons reported.</p>}</div>;
+}
+
+function RiskReasonDetails({ pipeline, reason }: { pipeline: AgentPipeline; reason: string }) {
+  const details = riskReasonDetails(pipeline, reason);
+  if (!details.length) return null;
+  return <div className="diagnostic-risk-details">{details.map((detail) => <code key={detail}>{detail}</code>)}</div>;
+}
+
+function riskReasonDetails(pipeline: AgentPipeline, reason: string): string[] {
+  if (reason.includes('broad applyTo')) {
+    return pipeline.nodes
+      .filter((node): node is Extract<PipelineNode, { type: 'instruction' }> => node.type === 'instruction' && Boolean(node.applyTo && ['**/*', '**/*.md'].includes(node.applyTo)))
+      .map((node) => `${node.label} (${node.instructionFile ?? `${node.id}.instructions.md`}, applyTo ${node.applyTo})`);
+  }
+  if (reason.includes('can run commands')) {
+    return pipeline.nodes
+      .filter((node): node is Extract<PipelineNode, { type: 'agent' }> => node.type === 'agent' && Boolean(node.tools?.includes('execute') || node.tools?.includes('runCommands')))
+      .map((node) => `${node.label} (${node.agentFile ?? `${node.id}.agent.md`})`);
+  }
+  if (reason.includes('generic descriptions')) {
+    return pipeline.nodes
+      .filter((node): node is Extract<PipelineNode, { type: 'skill' }> => node.type === 'skill' && (!node.description || /general|helpful|useful/i.test(node.description)))
+      .map((node) => `${node.label} (${node.skillFile ?? `${node.id}/SKILL.md`})`);
+  }
+  if (reason.includes('embedded examples or samples')) {
+    return pipeline.nodes
+      .filter((node): node is Extract<PipelineNode, { type: 'skill' }> => node.type === 'skill' && Boolean(node.procedure?.some((step) => /example|sample/i.test(step))))
+      .map((node) => `${node.label} (${node.skillFile ?? `${node.id}/SKILL.md`})`);
+  }
+  if (reason.includes('context budget')) {
+    return pipeline.nodes
+      .filter((node): node is Extract<PipelineNode, { type: 'agent' }> => node.type === 'agent' && !node.contextBudget?.length)
+      .map((node) => `${node.label} (${node.agentFile ?? `${node.id}.agent.md`})`);
+  }
+  if (reason.includes('input or output artifact boundaries')) {
+    return pipeline.nodes
+      .filter((node): node is Extract<PipelineNode, { type: 'agent' }> => node.type === 'agent' && (!node.inputs?.length || !node.outputs?.length))
+      .map((node) => `${node.label} (${node.agentFile ?? `${node.id}.agent.md`})`);
+  }
+  if (reason.includes('cycles exist')) return findCycles(pipeline.nodes, pipeline.edges).map((cycle) => cycle.join(' -> '));
+  return [];
+}
+
+function EmptyDiagnostics({ detail, icon, title }: { detail: string; icon: string; title: string }) {
+  return <div className="diagnostic-empty"><Codicon name={icon} /><strong>{title}</strong><span>{detail}</span></div>;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);

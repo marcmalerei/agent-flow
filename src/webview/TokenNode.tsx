@@ -5,14 +5,17 @@ export interface TokenNodeData {
   label: string;
   type: string;
   tokenBadge: string;
+  tokenColor: string;
   sourcePosition: Position;
   targetPosition: Position;
 }
 
 export function TokenNode({ data }: { data: TokenNodeData }) {
+  const tokenBadgeStyle = { '--agentflow-token-color': data.tokenColor } as React.CSSProperties;
+
   return <div className="flow-node">
     <Handle type="target" position={data.targetPosition} />
-    <span className="token-badge" title="Estimated token count">{data.tokenBadge}</span>
+    <span className="token-badge" style={tokenBadgeStyle} title="Estimated token count">{data.tokenBadge}</span>
     <span>{data.label}</span>
     <small>{data.type}</small>
     <Handle type="source" position={data.sourcePosition} />

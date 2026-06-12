@@ -1,10 +1,15 @@
 {
-  "name": "agentflow",
-  "displayName": "Agent Flow",
+  "name": "copilot-agent-flow-studio",
+  "displayName": "Agent Flow Studio",
   "description": "Visual manager for GitHub Copilot agent pipelines.",
-  "version": "0.0.1",
+  "version": "0.0.5",
   "publisher": "marcmalerei",
+  "icon": "media/icon.png",
   "license": "MIT",
+  "galleryBanner": {
+    "color": "#0F1216",
+    "theme": "dark"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/marcmalerei/agent-flow.git"
@@ -61,49 +66,93 @@
     "commands": [
       {
         "command": "agentflow.openPipeline",
-        "title": "Agent Flow: Open Pipeline"
+        "title": "Open Pipeline",
+        "category": "Agent Flow"
       },
       {
         "command": "agentflow.scanWorkspace",
-        "title": "Agent Flow: Scan Workspace"
+        "title": "Scan Workspace",
+        "category": "Agent Flow"
       },
       {
         "command": "agentflow.generateFiles",
-        "title": "Agent Flow: Generate Files"
+        "title": "Generate Files",
+        "category": "Agent Flow"
       },
       {
         "command": "agentflow.validatePipeline",
-        "title": "Agent Flow: Validate Pipeline"
+        "title": "Validate Pipeline",
+        "category": "Agent Flow"
       },
       {
         "command": "agentflow.createDefaultPipeline",
-        "title": "Agent Flow: Create Default Pipeline"
+        "title": "Create Default Pipeline",
+        "category": "Agent Flow"
       }
-    ]
+    ],
+    "submenus": [
+      {
+        "id": "agentflow.context",
+        "label": "Agent Flow"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "submenu": "agentflow.context",
+          "when": "resourceScheme == file && resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/].*\\.md$/",
+          "group": "navigation@80"
+        }
+      ],
+      "agentflow.context": [
+        {
+          "command": "agentflow.openPipeline",
+          "group": "1_pipeline@1"
+        },
+        {
+          "command": "agentflow.scanWorkspace",
+          "group": "1_pipeline@2"
+        },
+        {
+          "command": "agentflow.validatePipeline",
+          "group": "2_checks@1"
+        },
+        {
+          "command": "agentflow.generateFiles",
+          "group": "3_generation@1"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
     "dev:webview:example": "vite --config vite.webview.dev.config.mts --host 127.0.0.1",
     "build:webview": "vite build --config vite.webview.config.mts",
     "build": "npm run compile && npm run build:webview",
-    "package:vsix": "vsce package --out agentflow-0.0.1.vsix",
+    "icon": "node scripts/generate-marketplace-icon.mjs",
+    "package:vsix": "vsce package --out copilot-agent-flow-studio.vsix",
+    "package:marketplace": "npm run build && npm run package:vsix",
+    "prepare": "husky",
     "compile:smoke": "tsc -p tsconfig.smoke.json",
     "test:smoke": "npm run compile && npm run compile:smoke && node scripts/run-smoke-tests.mjs",
     "test": "vitest run --config vitest.config.mts",
     "check": "npm run compile && npm run test"
   },
   "devDependencies": {
-    "@tiptap/extension-bold": "^3.26.0",
-    "@tiptap/extension-bullet-list": "^3.26.0",
-    "@tiptap/extension-code": "^3.26.0",
-    "@tiptap/extension-code-block": "^3.26.0",
-    "@tiptap/extension-document": "^3.26.0",
-    "@tiptap/extension-heading": "^3.26.0",
-    "@tiptap/extension-link": "^3.26.0",
-    "@tiptap/extension-list-item": "^3.26.0",
-    "@tiptap/extension-paragraph": "^3.26.0",
-    "@tiptap/extension-text": "^3.26.0",
-    "@tiptap/react": "^3.26.0",
+    "@tiptap/core": "^3.26.1",
+    "@tiptap/extension-bold": "^3.26.1",
+    "@tiptap/extension-bullet-list": "^3.26.1",
+    "@tiptap/extension-code": "^3.26.1",
+    "@tiptap/extension-code-block": "^3.26.1",
+    "@tiptap/extension-document": "^3.26.1",
+    "@tiptap/extension-heading": "^3.26.1",
+    "@tiptap/extension-link": "^3.26.1",
+    "@tiptap/extension-list": "^3.26.1",
+    "@tiptap/extension-list-item": "^3.26.1",
+    "@tiptap/extension-paragraph": "^3.26.1",
+    "@tiptap/extension-text": "^3.26.1",
+    "@tiptap/pm": "^3.26.1",
+    "@tiptap/react": "^3.26.1",
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
@@ -113,6 +162,7 @@
     "@vscode/test-electron": "^3.0.0",
     "@vscode/vsce": "^3.9.2",
     "@xyflow/react": "^12.6.4",
+    "husky": "^9.1.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.5.3",
