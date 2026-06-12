@@ -38,6 +38,57 @@ describe('default pipeline', () => {
       expect(ids).toContain(id);
     }
   });
+
+  it('uses lower-case default agent names', () => {
+    const agents = createDefaultPipeline().nodes.filter((node) => node.type === 'agent');
+
+    for (const agent of agents) {
+      expect(agent.label).toBe(agent.label.toLowerCase());
+      expect(generateAgentMarkdown(agent)).toContain(`name: "${agent.label}"`);
+    }
+  });
+
+  it('contains artifact nodes for all default artifact references', () => {
+    const pipeline = createDefaultPipeline();
+    const referencedArtifacts = new Set<string>();
+    for (const node of pipeline.nodes) {
+      if (node.type === 'prompt') for (const artifact of node.requiredArtifacts ?? []) referencedArtifacts.add(artifact);
+      if (node.type === 'agent') {
+        for (const artifact of node.inputs ?? []) referencedArtifacts.add(artifact);
+        for (const artifact of node.outputs ?? []) referencedArtifacts.add(artifact);
+      }
+    }
+    for (const edge of pipeline.edges) {
+      if (edge.artifact) referencedArtifacts.add(edge.artifact);
+    }
+
+    const artifactNodes = new Set(pipeline.nodes.filter((node) => node.type === 'artifact').map((node) => node.path));
+    const generatedArtifacts = new Set(generateFiles(pipeline).filter((file) => file.kind === 'artifact').map((file) => file.path));
+
+    for (const artifact of referencedArtifacts) {
+      expect(artifactNodes).toContain(artifact);
+      expect(generatedArtifacts).toContain(artifact);
+    }
+  });
+
+  it('uses concrete VS Code tool ids in default tool lists', () => {
+    const pipeline = createDefaultPipeline();
+    const toolNodes = pipeline.nodes.filter((node) => (node.type === 'agent' || node.type === 'prompt') && node.tools?.length);
+
+    expect(toolNodes.length).toBeGreaterThan(0);
+    for (const node of toolNodes) {
+      expect(node.tools).not.toEqual(expect.arrayContaining(['read', 'search', 'edit', 'execute']));
+      if (node.type === 'agent' && ((node.calls?.length ?? 0) > 0 || (node.handoffs?.length ?? 0) > 0)) {
+        expect(node.tools).toContain('agent');
+      }
+    }
+    expect(toolNodes.flatMap((node) => node.tools ?? [])).toEqual(expect.arrayContaining([
+      'read/copilot_readFile',
+      'search/copilot_searchWorkspaceSymbols',
+      'edit/copilot_editFiles',
+      'execute/run_in_terminal'
+    ]));
+  });
 });
 
 describe('markdown generators', () => {

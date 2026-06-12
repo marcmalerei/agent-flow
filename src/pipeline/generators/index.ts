@@ -16,7 +16,7 @@ export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
     if (node.type === 'role') files.push({ path: roleFilePath(node), content: generateRoleMarkdown(node), kind: 'role' });
     if (node.type === 'artifact') files.push({ path: node.path, content: appendGeneratedMarker(`# ${node.label}\n\n${node.template ?? 'Artifact content will be written by agents.'}`), kind: 'artifact' });
   }
-  return files.sort((a, b) => a.path.localeCompare(b.path));
+  return files.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 }
 
 export function generateFileForNode(pipeline: AgentPipeline, nodeId: string): GeneratedFile | undefined {
