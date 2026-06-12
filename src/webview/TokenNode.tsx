@@ -19,7 +19,7 @@ export function TokenNode({ data }: { data: TokenNodeData }) {
     <Handle type="target" position={data.targetPosition} />
     <span className="token-badge" style={tokenBadgeStyle} title="Estimated token count">{data.tokenBadge}</span>
     {data.activity && <span className={`activity-badge activity-${data.activity.phase}`} title={data.activity.summary}>{activityIcon(data.activity.phase)} {activityLabel(data.activity)}</span>}
-    <span>{data.label}</span>
+    <span className="flow-node-label" title={data.label}>{data.label}</span>
     <small>{data.type}</small>
     <Handle type="source" position={data.sourcePosition} />
   </div>;

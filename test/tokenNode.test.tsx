@@ -19,4 +19,12 @@ describe('TokenNode', () => {
 
     expect(html).toContain('--agentflow-token-color:var(--vscode-charts-purple)');
   });
+
+  it('renders long labels in a dedicated bounded label element', () => {
+    const label = '.github/artifacts/results/final-review-result.md';
+    const html = renderToStaticMarkup(<ReactFlowProvider><TokenNode data={{ label, type: 'artifact', tokenBadge: '~77 tok', tokenColor: 'var(--vscode-charts-green)', sourcePosition: 'right', targetPosition: 'left' }} /></ReactFlowProvider>);
+
+    expect(html).toContain('class="flow-node-label"');
+    expect(html).toContain(`title="${label}"`);
+  });
 });

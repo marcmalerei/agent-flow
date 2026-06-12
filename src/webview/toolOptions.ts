@@ -51,7 +51,7 @@ export function buildToolOptionGroups(tools: readonly ToolInformation[]): ToolOp
     const builtInParent = builtInParentForTool(tool);
     if (builtInParent) {
       const children = builtInChildren.get(builtInParent) ?? [];
-      children.push({ value: `${builtInParent}/${tool.value}`, aliases: [tool.value], label: tool.label, description: tool.description, icon: tool.icon });
+      children.push({ value: `${builtInParent}/${tool.label}`, aliases: [tool.value], label: tool.label, description: tool.description, icon: tool.icon });
       builtInChildren.set(builtInParent, children);
       continue;
     }

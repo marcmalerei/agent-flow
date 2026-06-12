@@ -14,7 +14,8 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .toolbar > span { flex: 1; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toolbar .autosave-status { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: 12px; }
 .canvas { min-height: 0; background: var(--vscode-editor-background); }
-.flow-node { position: relative; display: grid; min-height: 72px; place-items: center; padding: 22px 12px 12px; text-align: center; white-space: normal; }
+.flow-node { position: relative; display: grid; min-height: 72px; min-width: 0; place-items: center; padding: 24px 18px 12px; text-align: center; white-space: normal; overflow: hidden; }
+.flow-node-label { box-sizing: border-box; display: block; max-width: 100%; min-width: 0; padding: 0 8px; overflow-wrap: anywhere; word-break: break-word; line-height: 1.25; }
 .flow-node small { color: var(--vscode-descriptionForeground); font-size: 12px; }
 .token-badge { position: absolute; top: 6px; right: 8px; padding: 1px 6px; border-radius: 999px; background: var(--agentflow-token-color, var(--vscode-badge-background)); color: var(--vscode-badge-foreground); font-size: 10px; font-weight: 700; line-height: 16px; }
 .activity-badge { position: absolute; left: 8px; bottom: 6px; max-width: calc(100% - 16px); padding: 1px 6px; border: 1px solid var(--agentflow-token-color, var(--vscode-focusBorder)); border-radius: 999px; background: color-mix(in srgb, var(--vscode-editor-background) 78%, var(--agentflow-token-color, var(--vscode-focusBorder))); color: var(--vscode-foreground); font-size: 10px; font-weight: 700; line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

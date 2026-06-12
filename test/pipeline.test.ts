@@ -83,9 +83,9 @@ describe('default pipeline', () => {
       }
     }
     expect(toolNodes.flatMap((node) => node.tools ?? [])).toEqual(expect.arrayContaining([
-      'read/copilot_readFile',
-      'search/copilot_searchWorkspaceSymbols',
-      'edit/copilot_editFiles',
+      'read/readFile',
+      'search/searchWorkspaceSymbols',
+      'edit/editFiles',
       'execute/run_in_terminal'
     ]));
   });
