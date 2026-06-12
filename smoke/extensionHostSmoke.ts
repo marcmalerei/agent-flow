@@ -28,7 +28,8 @@ export async function run(): Promise<void> {
   await vscode.commands.executeCommand('agentflow.createDefaultPipeline');
 
   await assert.rejects(fs.readFile(path.join(workspace, '.github', 'agent-flow.json'), 'utf8'));
-  assert.match(await fs.readFile(path.join(workspace, '.github/agents/router.agent.md'), 'utf8'), /name: "Router"/);
+  assert.match(await fs.readFile(path.join(workspace, '.github/agents/router.agent.md'), 'utf8'), /name: "router"/);
+  assert.match(await fs.readFile(path.join(workspace, '.github/artifacts/ROUTING.md'), 'utf8'), /# routing/i);
   assert.match(await fs.readFile(path.join(workspace, '.github/prompts/start-implementation.prompt.md'), 'utf8'), /name: "Start Implementation Prompt"/);
   assert.match(await fs.readFile(path.join(workspace, '.github/skills/ui-implementation/SKILL.md'), 'utf8'), /name: "ui-implementation"/);
 

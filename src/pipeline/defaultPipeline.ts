@@ -14,24 +14,48 @@ const commonVerification = [
   'Use only relevant error lines from long logs.'
 ];
 
-function agent(id: string, label: string, description: string, x: number, y: number, options: Partial<AgentNode> = {}): AgentNode {
+const readTool = 'read/copilot_readFile';
+const searchTool = 'search/copilot_searchWorkspaceSymbols';
+const editTool = 'edit/copilot_editFiles';
+const executeTool = 'execute/run_in_terminal';
+const defaultTools = [readTool, searchTool];
+
+function toolsForAgent(options: Partial<AgentNode>): string[] {
+  const tools = [...(options.tools ?? defaultTools)];
+  if (((options.calls?.length ?? 0) > 0 || (options.handoffs?.length ?? 0) > 0) && !tools.includes('agent')) return ['agent', ...tools];
+  return tools;
+}
+
+function agent(id: string, _label: string, description: string, x: number, y: number, options: Partial<AgentNode> = {}): AgentNode {
   return {
     id,
     type: 'agent',
-    label,
+    label: id,
     agentFile: `.github/agents/${id}.agent.md`,
     description,
-    tools: options.tools ?? ['read', 'search'],
+    tools: toolsForAgent(options),
     calls: options.calls ?? [],
     inputs: options.inputs ?? [],
     outputs: options.outputs ?? [`.github/artifacts/results/${id}-result.md`],
     allowedSkills: options.allowedSkills ?? [],
-    rules: options.rules ?? [`Complete the ${label.toLowerCase()} responsibility with minimal context.`],
+    rules: options.rules ?? [`Complete the ${id} responsibility with minimal context.`],
     contextBudget: options.contextBudget ?? commonContextBudget,
     editRules: options.editRules ?? ['Do not refactor unrelated files.', 'Do not add dependencies unless explicitly requested.'],
     verificationRules: options.verificationRules ?? commonVerification,
     forbiddenChanges: options.forbiddenChanges ?? ['Do not modify unrelated production files.'],
     commandSafety: options.commandSafety,
+    position: { x, y }
+  };
+}
+
+function artifact(path: string, x: number, y: number): PipelineNode {
+  const fileName = path.split('/').pop() ?? path;
+  const label = fileName.replace(/\.[^.]+$/, '').toLowerCase();
+  return {
+    id: `artifact-${path.replace(/^\.github\/artifacts\//, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase()}`,
+    type: 'artifact',
+    label,
+    path,
     position: { x, y }
   };
 }
@@ -45,7 +69,7 @@ export function createDefaultPipeline(): AgentPipeline {
       promptFile: '.github/prompts/start-implementation.prompt.md',
       description: 'Starts the default Agent Flow implementation pipeline.',
       startAgent: 'router',
-      tools: ['read', 'search'],
+      tools: defaultTools,
       workflow: ['Collect the request.', 'Run the router agent.', 'Follow generated artifact handoffs.'],
       constraints: ['Do not bypass artifact handoff files.', 'Do not make destructive changes without approval.'],
       requiredArtifacts: ['.github/artifacts/TASK_CONTEXT.md', '.github/artifacts/IMPLEMENTATION_PLAN.md'],
@@ -56,15 +80,29 @@ export function createDefaultPipeline(): AgentPipeline {
     agent('context', 'Context', 'Gathers focused task context and writes a compact context artifact.', 260, 180, { inputs: ['.github/artifacts/ROUTING.md'], calls: ['planner'], outputs: ['.github/artifacts/TASK_CONTEXT.md'] }),
     agent('planner', 'Planner', 'Creates an implementation plan from task context.', 440, 180, { inputs: ['.github/artifacts/TASK_CONTEXT.md'], calls: ['task-splitter'], outputs: ['.github/artifacts/IMPLEMENTATION_PLAN.md'] }),
     agent('task-splitter', 'Task Splitter', 'Splits the plan into frontend and backend task artifacts.', 620, 180, { inputs: ['.github/artifacts/IMPLEMENTATION_PLAN.md'], calls: ['frontend', 'backend'], outputs: ['.github/artifacts/tasks/frontend.md', '.github/artifacts/tasks/backend.md'] }),
-    agent('frontend', 'Frontend Agent', 'Implements frontend tasks with minimal context and focused tests.', 820, 80, { tools: ['read', 'search', 'edit', 'execute'], inputs: ['.github/artifacts/tasks/frontend.md'], outputs: ['.github/artifacts/results/frontend-result.md'], calls: ['frontend-review'], allowedSkills: ['ui-implementation', 'vitest-testing'], commandSafety: ['Run focused tests first.', 'Do not install dependencies without approval.'], rules: ['Read only the frontend task first.', 'Do not modify backend APIs.', 'Do not add dependencies.', 'Run focused tests first.'] }),
-    agent('backend', 'Backend Agent', 'Implements backend tasks with minimal context and focused tests.', 820, 300, { tools: ['read', 'search', 'edit', 'execute'], inputs: ['.github/artifacts/tasks/backend.md'], outputs: ['.github/artifacts/results/backend-result.md'], calls: ['backend-review'], commandSafety: ['Run focused tests first.', 'Do not run destructive database commands.'] }),
-    agent('frontend-review', 'Frontend Review', 'Reviews frontend changes without editing production files.', 1040, 80, { inputs: ['.github/artifacts/results/frontend-result.md'], outputs: ['.github/artifacts/reviews/frontend-review.md'], calls: ['integration'], tools: ['read', 'search'], editRules: ['Read-only review. Do not edit files.'] }),
-    agent('backend-review', 'Backend Review', 'Reviews backend changes without editing production files.', 1040, 300, { inputs: ['.github/artifacts/results/backend-result.md'], outputs: ['.github/artifacts/reviews/backend-review.md'], calls: ['integration'], tools: ['read', 'search'], editRules: ['Read-only review. Do not edit files.'] }),
-    agent('integration', 'Integration', 'Integrates reviewed frontend and backend results.', 1260, 190, { tools: ['read', 'search', 'edit', 'execute'], inputs: ['.github/artifacts/reviews/frontend-review.md', '.github/artifacts/reviews/backend-review.md'], outputs: ['.github/artifacts/results/integration-result.md'], calls: ['test'], commandSafety: ['Run integration checks only after reviewing artifacts.'] }),
-    agent('test', 'Test', 'Runs focused validation and records failures for the fix agent.', 1460, 190, { tools: ['read', 'search', 'execute'], inputs: ['.github/artifacts/results/integration-result.md'], outputs: ['.github/artifacts/results/test-result.md'], calls: ['fix', 'docs'], commandSafety: ['Prefer package scripts and focused tests.', 'Do not run destructive commands.'] }),
-    agent('fix', 'Fix If Needed', 'Applies bounded fixes from test results and returns to tests.', 1460, 390, { tools: ['read', 'search', 'edit', 'execute'], inputs: ['.github/artifacts/results/test-result.md'], outputs: ['.github/artifacts/results/fix-result.md'], calls: ['test'], commandSafety: ['Only fix failures documented in the test artifact.'] }),
-    agent('docs', 'Docs', 'Updates documentation after tests pass.', 1660, 190, { tools: ['read', 'search', 'edit'], inputs: ['.github/artifacts/results/test-result.md'], outputs: ['.github/artifacts/results/docs-result.md'], calls: ['final-review'], editRules: ['Only edit documentation unless explicitly approved.'] }),
-    agent('final-review', 'Final Review', 'Performs final read-only review and release checklist.', 1860, 190, { tools: ['read', 'search'], inputs: ['.github/artifacts/results/docs-result.md'], outputs: ['.github/artifacts/FINAL_REVIEW.md'], editRules: ['Read-only review. Do not edit files.'] }),
+    agent('frontend', 'Frontend Agent', 'Implements frontend tasks with minimal context and focused tests.', 820, 80, { tools: [readTool, searchTool, editTool, executeTool], inputs: ['.github/artifacts/tasks/frontend.md'], outputs: ['.github/artifacts/results/frontend-result.md'], calls: ['frontend-review'], allowedSkills: ['ui-implementation', 'vitest-testing'], commandSafety: ['Run focused tests first.', 'Do not install dependencies without approval.'], rules: ['Read only the frontend task first.', 'Do not modify backend APIs.', 'Do not add dependencies.', 'Run focused tests first.'] }),
+    agent('backend', 'Backend Agent', 'Implements backend tasks with minimal context and focused tests.', 820, 300, { tools: [readTool, searchTool, editTool, executeTool], inputs: ['.github/artifacts/tasks/backend.md'], outputs: ['.github/artifacts/results/backend-result.md'], calls: ['backend-review'], commandSafety: ['Run focused tests first.', 'Do not run destructive database commands.'] }),
+    agent('frontend-review', 'Frontend Review', 'Reviews frontend changes without editing production files.', 1040, 80, { inputs: ['.github/artifacts/results/frontend-result.md'], outputs: ['.github/artifacts/reviews/frontend-review.md'], calls: ['integration'], tools: defaultTools, editRules: ['Read-only review. Do not edit files.'] }),
+    agent('backend-review', 'Backend Review', 'Reviews backend changes without editing production files.', 1040, 300, { inputs: ['.github/artifacts/results/backend-result.md'], outputs: ['.github/artifacts/reviews/backend-review.md'], calls: ['integration'], tools: defaultTools, editRules: ['Read-only review. Do not edit files.'] }),
+    agent('integration', 'Integration', 'Integrates reviewed frontend and backend results.', 1260, 190, { tools: [readTool, searchTool, editTool, executeTool], inputs: ['.github/artifacts/reviews/frontend-review.md', '.github/artifacts/reviews/backend-review.md'], outputs: ['.github/artifacts/results/integration-result.md'], calls: ['test'], commandSafety: ['Run integration checks only after reviewing artifacts.'] }),
+    agent('test', 'Test', 'Runs focused validation and records failures for the fix agent.', 1460, 190, { tools: [readTool, searchTool, executeTool], inputs: ['.github/artifacts/results/integration-result.md'], outputs: ['.github/artifacts/results/test-result.md'], calls: ['fix', 'docs'], commandSafety: ['Prefer package scripts and focused tests.', 'Do not run destructive commands.'] }),
+    agent('fix', 'Fix If Needed', 'Applies bounded fixes from test results and returns to tests.', 1460, 390, { tools: [readTool, searchTool, editTool, executeTool], inputs: ['.github/artifacts/results/test-result.md'], outputs: ['.github/artifacts/results/fix-result.md'], calls: ['test'], commandSafety: ['Only fix failures documented in the test artifact.'] }),
+    agent('docs', 'Docs', 'Updates documentation after tests pass.', 1660, 190, { tools: [readTool, searchTool, editTool], inputs: ['.github/artifacts/results/test-result.md'], outputs: ['.github/artifacts/results/docs-result.md'], calls: ['final-review'], editRules: ['Only edit documentation unless explicitly approved.'] }),
+    agent('final-review', 'Final Review', 'Performs final read-only review and release checklist.', 1860, 190, { tools: defaultTools, inputs: ['.github/artifacts/results/docs-result.md'], outputs: ['.github/artifacts/FINAL_REVIEW.md'], editRules: ['Read-only review. Do not edit files.'] }),
+    artifact('.github/artifacts/ROUTING.md', 170, 320),
+    artifact('.github/artifacts/TASK_CONTEXT.md', 350, 320),
+    artifact('.github/artifacts/IMPLEMENTATION_PLAN.md', 530, 320),
+    artifact('.github/artifacts/tasks/frontend.md', 720, -40),
+    artifact('.github/artifacts/tasks/backend.md', 720, 420),
+    artifact('.github/artifacts/results/frontend-result.md', 940, -40),
+    artifact('.github/artifacts/results/backend-result.md', 940, 420),
+    artifact('.github/artifacts/reviews/frontend-review.md', 1140, -40),
+    artifact('.github/artifacts/reviews/backend-review.md', 1140, 420),
+    artifact('.github/artifacts/results/integration-result.md', 1360, 320),
+    artifact('.github/artifacts/results/test-result.md', 1560, 320),
+    artifact('.github/artifacts/results/fix-result.md', 1560, 520),
+    artifact('.github/artifacts/results/docs-result.md', 1760, 320),
+    artifact('.github/artifacts/FINAL_REVIEW.md', 1960, 320),
     { id: 'tests-green', type: 'gate', label: 'Tests Green?', description: 'Routes failures to fix and passing runs to docs.', condition: 'Tests pass without relevant failures.', trueBranch: 'docs', falseBranch: 'fix', maxIterations: 3, position: { x: 1460, y: 40 } },
     { id: 'ui-implementation', type: 'skill', label: 'UI Implementation Skill', description: 'Use for narrowly scoped UI implementation in existing project patterns.', skillFile: '.github/skills/ui-implementation/SKILL.md', argumentHint: 'component or UI area', activationCriteria: ['A task explicitly changes frontend UI.', 'Existing UI patterns need to be followed.'], doNotUseWhen: ['The task is backend-only.', 'No UI files are affected.'], procedure: ['Inspect the target component first.', 'Reuse existing styles and tests.', 'Run focused UI tests.'], resourceReferences: ['project UI components'], position: { x: 820, y: -110 } },
     { id: 'vitest-testing', type: 'skill', label: 'Vitest Testing Skill', description: 'Use for focused Vitest test creation and debugging.', skillFile: '.github/skills/vitest-testing/SKILL.md', argumentHint: 'test file or failing behavior', activationCriteria: ['A TypeScript unit test is needed.', 'A Vitest failure must be debugged.'], doNotUseWhen: ['The repository does not use Vitest.'], procedure: ['Find nearest existing test.', 'Add the smallest assertion that covers behavior.', 'Run the focused test command.'], resourceReferences: ['package scripts', 'existing test files'], position: { x: 1040, y: -110 } }
