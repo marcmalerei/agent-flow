@@ -81,6 +81,9 @@ describe('default pipeline', () => {
       if (node.type === 'agent' && ((node.calls?.length ?? 0) > 0 || (node.handoffs?.length ?? 0) > 0)) {
         expect(node.tools).toContain('agent');
       }
+      if (node.type === 'agent' && ((node.outputs?.length ?? 0) > 0 || node.artifactUsages?.some((usage) => usage.action === 'write' || usage.action === 'append'))) {
+        expect(node.tools).toContain('edit/editFiles');
+      }
     }
     expect(toolNodes.flatMap((node) => node.tools ?? [])).toEqual(expect.arrayContaining([
       'read/readFile',
