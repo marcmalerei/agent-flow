@@ -32,4 +32,17 @@ describe('webview assets', () => {
     expect(webviewSource).not.toContain('placeholder="Add the instruction for this artifact." onChange');
     expect(webviewSource).not.toContain('placeholder={`How should this node apply');
   });
+
+  test('stabilizes React Flow sizing inside VS Code webviews', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+    const panelSource = readFileSync('src/webview/panel.ts', 'utf8');
+
+    expect(webviewSource).toContain('scheduleFlowFit');
+    expect(webviewSource).toContain("event.data?.command === 'refitFlow'");
+    expect(webviewSource).toContain('ResizeObserver');
+    expect(css).toContain('.canvas .react-flow');
+    expect(panelSource).toContain('onDidChangeViewState');
+    expect(panelSource).toContain("command: 'refitFlow'");
+  });
 });

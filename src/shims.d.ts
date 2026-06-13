@@ -20,7 +20,7 @@ declare module 'vscode' {
   export namespace Uri { export function file(path: string): Uri }
   export enum ViewColumn { One = 1 }
   export interface Webview { html: string; cspSource: string; asWebviewUri(uri: Uri): Uri; onDidReceiveMessage(listener: (message: any) => any): Disposable; postMessage(message: any): Thenable<boolean> }
-  export interface WebviewPanel { webview: Webview; onDidDispose(listener: () => any): Disposable }
+  export interface WebviewPanel { webview: Webview; visible: boolean; onDidDispose(listener: () => any): Disposable; onDidChangeViewState(listener: (event: { webviewPanel: WebviewPanel }) => any): Disposable }
   export interface ConfigurationChangeEvent { affectsConfiguration(section: string): boolean }
   export interface WorkspaceConfiguration { get<T>(section: string): T | undefined }
   export namespace window {
@@ -45,7 +45,7 @@ declare module 'vscode' {
 
 declare module 'react' { export function useCallback<T extends (...args: any[]) => any>(callback: T, deps: unknown[]): T; export function useEffect(effect: () => void | (() => void), deps?: unknown[]): void; export function useMemo<T>(factory: () => T, deps: unknown[]): T; export function useRef<T>(initial: T): { current: T }; export function useState<T>(initial: T): [T, (value: T | ((previous: T) => T)) => void]; const React: any; export default React; }
 declare module 'react-dom/client' { export function createRoot(element: Element): { render(node: unknown): void } }
-declare module '@xyflow/react' { export interface Node { id: string; position: { x: number; y: number }; type?: string; data?: any; style?: any; draggable?: boolean } export interface Edge { id: string; source: string; target: string; label?: string; animated?: boolean } export interface Connection { source?: string | null; target?: string | null; sourceHandle?: string | null; targetHandle?: string | null } export enum Position { Left = 'left', Top = 'top', Right = 'right', Bottom = 'bottom' } export function addEdge(connection: Connection, edges: Edge[]): Edge[]; export function useReactFlow(): { screenToFlowPosition(position: { x: number; y: number }): { x: number; y: number } }; export const Background: any; export const Controls: any; export const Handle: any; export const MiniMap: any; export const ReactFlow: any; export const ReactFlowProvider: any; }
+declare module '@xyflow/react' { export interface Node { id: string; position: { x: number; y: number }; type?: string; data?: any; style?: any; draggable?: boolean } export interface Edge { id: string; source: string; target: string; label?: string; animated?: boolean } export interface Connection { source?: string | null; target?: string | null; sourceHandle?: string | null; targetHandle?: string | null } export enum Position { Left = 'left', Top = 'top', Right = 'right', Bottom = 'bottom' } export function addEdge(connection: Connection, edges: Edge[]): Edge[]; export function useReactFlow(): { fitView(options?: { padding?: number; duration?: number }): Promise<boolean>; screenToFlowPosition(position: { x: number; y: number }): { x: number; y: number } }; export const Background: any; export const Controls: any; export const Handle: any; export const MiniMap: any; export const ReactFlow: any; export const ReactFlowProvider: any; }
 declare module 'react/jsx-runtime' { export const jsx: any; export const jsxs: any; export const Fragment: any }
 declare module '*.css';
 

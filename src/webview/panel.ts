@@ -62,6 +62,12 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     if (!event.affectsConfiguration('agentflow.flow.layout') && !event.affectsConfiguration('agentflow.activity.copilotDebugLogs') && !event.affectsConfiguration('github.copilot.chat.agentDebugLog.fileLogging.enabled')) return;
     log('Agent Flow configuration changed');
     panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
+    panel.webview.postMessage({ command: 'refitFlow' });
+  });
+  const viewStateListener = panel.onDidChangeViewState((event) => {
+    if (!event.webviewPanel.visible) return;
+    log('pipeline panel became visible; requesting React Flow refit');
+    panel.webview.postMessage({ command: 'refitFlow' });
   });
   const fileWatchers = createPipelineFileWatchers(workspace, async (changedFiles) => {
     log(`filesystem change detected; reloading pipeline (${changedFiles.length} changed path${changedFiles.length === 1 ? '' : 's'})`);
@@ -86,6 +92,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   panel.onDidDispose(() => {
     log('pipeline panel disposed');
     configurationListener.dispose();
+    viewStateListener.dispose();
     activitySubscription.dispose();
     fileWatchers.dispose();
     latestPanelSnapshot = { ...latestPanelSnapshot, open: false, lastReason: 'disposed', updatedAt: new Date().toISOString() };

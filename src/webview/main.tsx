@@ -85,6 +85,7 @@ function App() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<BottomTab>('validation');
   const [activityClock, setActivityClock] = useState(Date.now());
+  const [viewportSignal, setViewportSignal] = useState(0);
   const dirtyRef = useRef(false);
   const draftRef = useRef(draft);
   const undoStack = useRef<AgentPipeline[]>([]);
@@ -97,6 +98,7 @@ function App() {
     const listener = (event: MessageEvent) => {
       if (event.data?.command === 'stateUpdated') {
         const incoming = event.data.state as State;
+        setViewportSignal((signal) => signal + 1);
         setState((current) => {
           const merged = mergeRemoteStateUpdate({
             currentState: current,
@@ -113,6 +115,8 @@ function App() {
         });
       }
       if (event.data?.command === 'activityUpdated') {
+        setViewportSignal((signal) => signal + 1);
+        setActivityClock(Date.now());
         setState((current) => ({ ...current, activityEvents: event.data.activityEvents ?? [] }));
       }
     };
@@ -189,14 +193,16 @@ function App() {
     }, node.id);
     setInspectorOpen(true);
   };
-  return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} canUndo={undoStack.current.length > 0} undoLast={undoLast} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} /></ReactFlowProvider>;
+  return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} canUndo={undoStack.current.length > 0} undoLast={undoLast} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} /></ReactFlowProvider>;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, canUndo, undoLast, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, connectNodes, deleteNodes, deleteEdges, addNode }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: Node[]; edges: Edge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; canUndo: boolean; undoLast: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void }) {
-  const { screenToFlowPosition } = useReactFlow();
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, viewportSignal, canUndo, undoLast, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, connectNodes, deleteNodes, deleteEdges, addNode }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: Node[]; edges: Edge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; viewportSignal: number; canUndo: boolean; undoLast: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void }) {
+  const { fitView, screenToFlowPosition } = useReactFlow();
   const connectingNodeId = useRef<string | null>(null);
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLElement | null>(null);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
+  const [viewportRevision, setViewportRevision] = useState(0);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -238,13 +244,50 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     }
     connectingNodeId.current = null;
   }, [addNode, screenToFlowPosition]);
+  useEffect(() => {
+    if (!nodes.length) return;
+    const refit = () => scheduleFlowFit(fitView, canvasRef.current);
+    refit();
+    const observer = typeof ResizeObserver !== 'undefined' && canvasRef.current ? new ResizeObserver(refit) : undefined;
+    if (observer && canvasRef.current) observer.observe(canvasRef.current);
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.command === 'refitFlow') refit();
+    };
+    const onVisibility = () => {
+      if (!document.hidden) refit();
+    };
+    window.addEventListener('resize', refit);
+    window.addEventListener('focus', refit);
+    window.addEventListener('message', onMessage);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', refit);
+      window.removeEventListener('focus', refit);
+      window.removeEventListener('message', onMessage);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [bottomOpen, edges.length, fitView, inspectorOpen, nodes.length, state.flowLayout, viewportRevision, viewportSignal]);
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeTypes.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNode(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</div>}</div></header>
-    <main className="canvas"><ReactFlow key={state.flowLayout} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} fitView><Controls /><Background /></ReactFlow></main>
+    <main className="canvas" ref={canvasRef}><ReactFlow key={state.flowLayout} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} onInit={() => setViewportRevision((revision) => revision + 1)} fitView><Controls /><Background /></ReactFlow></main>
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
+}
+
+function scheduleFlowFit(fitView: (options?: { padding?: number; duration?: number }) => unknown, container: HTMLElement | null): void {
+  const run = () => {
+    const rect = container?.getBoundingClientRect();
+    if (!rect || rect.width < 20 || rect.height < 20) return;
+    fitView({ padding: 0.16, duration: 0 });
+  };
+  window.requestAnimationFrame(() => {
+    run();
+    window.setTimeout(run, 80);
+    window.setTimeout(run, 240);
+  });
 }
 
 function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: { x: number; y: number }): PipelineNode {
