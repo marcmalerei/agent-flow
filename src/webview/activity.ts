@@ -52,6 +52,9 @@ export function activeEdgeIds(pipeline: AgentPipeline, events: AgentFlowActivity
       for (const edge of pipeline.edges) {
         if (edge.from === event.nodeId && edge.to === event.targetNodeId) ids.add(edge.id);
       }
+      for (const edge of visibleEdges) {
+        if (edge.source === event.nodeId && edge.target === event.targetNodeId) ids.add(edge.id);
+      }
     }
     if (event.nodeId && event.artifactPath) {
       const artifactPath = normalizePath(event.artifactPath);
