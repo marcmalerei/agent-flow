@@ -1,5 +1,7 @@
 import { AgentFlowActivityEvent, NodeActivitySummary } from '../activity/types';
 import { AgentPipeline, PipelineNode } from '../pipeline/types';
+import { nodeBackingFile } from '../activity/store';
+import { deriveVisibleFlowEdges } from './graph';
 
 export function summarizeNodeActivity(events: AgentFlowActivityEvent[]): Map<string, NodeActivitySummary> {
   const summaries = new Map<string, NodeActivitySummary>();
@@ -32,6 +34,11 @@ export function activeEdgeIds(pipeline: AgentPipeline, events: AgentFlowActivity
   const nodesById = new Map(pipeline.nodes.map((node) => [node.id, node]));
   const artifactByPath = new Map(pipeline.nodes.filter((node) => node.type === 'artifact').map((node) => [node.path, node.id]));
   const instructionByFile = new Map(pipeline.nodes.filter((node) => node.type === 'instruction').map((node) => [node.instructionFile ?? `.github/instructions/${node.id}.instructions.md`, node.id]));
+  const nodeIdByFile = new Map(pipeline.nodes.flatMap((node) => {
+    const file = nodeBackingFile(node);
+    return file ? [[file, node.id] as const] : [];
+  }));
+  const visibleEdges = deriveVisibleFlowEdges(pipeline);
 
   for (const event of events) {
     if (event.nodeId && event.targetNodeId) {
@@ -48,8 +55,20 @@ export function activeEdgeIds(pipeline: AgentPipeline, events: AgentFlowActivity
       }
     }
     if (event.nodeId && event.nodeFile) {
+      const artifactNodeId = artifactByPath.get(event.nodeFile);
+      const eventNode = nodesById.get(event.nodeId);
+      if (artifactNodeId && eventNode) {
+        if (writesArtifact(eventNode, event.nodeFile)) ids.add(`ref:artifact-output:${event.nodeId}:${artifactNodeId}`);
+        else ids.add(`ref:artifact-input:${artifactNodeId}:${event.nodeId}`);
+      }
       const instructionNodeId = instructionByFile.get(event.nodeFile);
       if (instructionNodeId && instructionNodeId !== event.nodeId) ids.add(`ref:agent.instructionRefs:${instructionNodeId}:${event.nodeId}`);
+      const fileNodeId = nodeIdByFile.get(event.nodeFile);
+      if (fileNodeId && fileNodeId !== event.nodeId) {
+        for (const edge of visibleEdges) {
+          if ((edge.source === fileNodeId && edge.target === event.nodeId) || (edge.source === event.nodeId && edge.target === fileNodeId)) ids.add(edge.id);
+        }
+      }
     }
   }
   return [...ids];

@@ -25,14 +25,29 @@ describe('Copilot debug log parser', () => {
   it('reports malformed rows and maps tool-call style rows when present', () => {
     const content = [
       '{broken',
-      JSON.stringify({ type: 'tool_call', timestamp: '2026-06-12T10:02:00.000Z', name: 'run_in_terminal', sessionId: 'chat-2', nodeId: 'router' })
+      JSON.stringify({ type: 'tool_call', timestamp: '2026-06-12T10:02:00.000Z', name: 'run_in_terminal', sessionId: 'chat-2', nodeId: 'router', attrs: { filePath: '.github/agents/router.agent.md' } })
     ].join('\n');
 
     const result = parseCopilotDebugLogContent(content, { sourceFile: '/tmp/debug.jsonl' });
 
     expect(result.events).toHaveLength(1);
-    expect(result.events[0]).toEqual(expect.objectContaining({ phase: 'tool', sessionId: 'chat-2', toolName: 'run_in_terminal', nodeId: 'router' }));
+    expect(result.events[0]).toEqual(expect.objectContaining({ phase: 'tool', sessionId: 'chat-2', toolName: 'run_in_terminal', nodeId: 'router', nodeFile: '.github/agents/router.agent.md' }));
     expect(result.diagnostics[0]).toContain('line 1');
+  });
+
+  it('maps artifact paths from tool-call rows into artifact activity fields', () => {
+    const content = JSON.stringify({ type: 'tool_call', timestamp: '2026-06-12T10:03:00.000Z', name: 'readFile', sessionId: 'chat-3', nodeId: 'router', attrs: { path: '.github/artifacts/plan.md' } });
+
+    const result = parseCopilotDebugLogContent(content, { sourceFile: '/tmp/debug.jsonl' });
+
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toEqual(expect.objectContaining({
+      phase: 'tool',
+      sessionId: 'chat-3',
+      toolName: 'readFile',
+      nodeId: 'router',
+      artifactPath: '.github/artifacts/plan.md'
+    }));
   });
 
   it('parses generic Copilot debug spans without billing data', () => {

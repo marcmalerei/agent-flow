@@ -68,6 +68,8 @@ export function parseCopilotDebugRow(row: any, sourceFile: string, nextId?: () =
     }, nextId);
   }
   if (type === 'tool_call' || type === 'toolCall' || type === 'tool_call_started' || /tool/i.test(type) || /tool/i.test(name ?? '')) {
+    const file = stringValue(row.nodeFile ?? attrs.nodeFile ?? row.filePath ?? attrs.filePath ?? row.file ?? attrs.file ?? row.path ?? attrs.path);
+    const isArtifact = file?.replace(/\\/g, '/').startsWith('.github/artifacts/');
     return normalizeActivityInput({
       timestamp: timestampValue(row.timestamp ?? row.ts ?? attrs.timestamp ?? attrs.ts),
       sessionId: stringValue(row.sessionId ?? attrs.sessionId ?? row.sid ?? attrs.sid) ?? 'copilot-debug',
@@ -75,6 +77,8 @@ export function parseCopilotDebugRow(row: any, sourceFile: string, nextId?: () =
       phase: 'tool',
       summary: `Tool ${name ?? 'call'} recorded.`,
       toolName: name,
+      nodeFile: isArtifact ? undefined : file,
+      artifactPath: isArtifact ? file : undefined,
       sourceFile
     }, nextId);
   }

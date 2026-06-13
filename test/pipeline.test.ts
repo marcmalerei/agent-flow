@@ -549,6 +549,29 @@ describe('webview graph projection', () => {
     expect(Math.max(...positions.map((position) => position.x))).toBeLessThan(245 * 8);
   });
 
+  it('wraps long directed compact layouts instead of drawing one endless row', () => {
+    const nodes: AgentPipeline['nodes'] = Array.from({ length: 18 }, (_, index) => ({
+      id: `step-${index}`,
+      type: index % 2 === 0 ? 'agent' : 'artifact',
+      label: `Step ${index}`,
+      ...(index % 2 === 1 ? { path: `.github/artifacts/step-${index}.md` } : {})
+    } as AgentPipeline['nodes'][number]));
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Long flow',
+      nodes,
+      edges: nodes.slice(1).map((node, index) => ({ id: `edge-${index}`, from: nodes[index].id, to: node.id, kind: index % 2 === 0 ? 'artifact' : 'flow' }))
+    };
+
+    const positions = layoutFlowNodes(pipeline, 'compact');
+    const maxX = Math.max(...[...positions.values()].map((position) => position.x));
+    const maxY = Math.max(...[...positions.values()].map((position) => position.y));
+
+    expect(maxX).toBeLessThan(245 * 8);
+    expect(maxY).toBeGreaterThan(150);
+    expect((positions.get('step-9')?.y ?? 0)).toBeGreaterThan(positions.get('step-7')?.y ?? 0);
+  });
+
   it('estimates token badges for generated node content', () => {
     const pipeline = createDefaultPipeline();
     const frontend = pipeline.nodes.find((node) => node.id === 'frontend');

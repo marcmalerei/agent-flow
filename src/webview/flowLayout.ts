@@ -40,32 +40,76 @@ function layoutByType(pipeline: AgentPipeline): Map<string, Position> {
 function layoutCompactGrid(pipeline: AgentPipeline): Map<string, Position> {
   const components = connectedComponents(pipeline);
   const result = new Map<string, Position>();
-  let shelfX = 0;
-  let shelfY = 0;
-  let shelfHeight = 0;
-  const maxShelfWidth = Math.max(compactNodeWidth * 4, Math.ceil(Math.sqrt(Math.max(1, pipeline.nodes.length))) * compactNodeWidth * 2.4);
-
+  let offsetY = 0;
   for (const component of components) {
-    const columns = Math.min(compactMaxColumns, Math.max(2, Math.ceil(Math.sqrt(component.length * 1.25))));
-    const rows = Math.ceil(component.length / columns);
-    const width = columns * compactNodeWidth;
-    const height = rows * compactNodeHeight;
-    if (shelfX > 0 && shelfX + width > maxShelfWidth) {
-      shelfX = 0;
-      shelfY += shelfHeight + compactNodeHeight * 0.9;
-      shelfHeight = 0;
-    }
-
-    sortNodesForOverview(component, pipeline).forEach((node, index) => {
-      result.set(node.id, {
-        x: shelfX + (index % columns) * compactNodeWidth,
-        y: shelfY + Math.floor(index / columns) * compactNodeHeight
-      });
-    });
-    shelfX += width + compactNodeWidth * 0.7;
-    shelfHeight = Math.max(shelfHeight, height);
+    const componentPositions = layoutWrappedComponent(pipeline, component);
+    const bounds = positionBounds(componentPositions);
+    for (const [nodeId, position] of componentPositions) result.set(nodeId, { x: position.x, y: position.y + offsetY });
+    offsetY += bounds.height + compactNodeHeight * 0.9;
   }
   return result;
+}
+
+function layoutWrappedComponent(pipeline: AgentPipeline, component: PipelineNode[]): Map<string, Position> {
+  const levels = graphLevels(pipeline);
+  const levelGroups = new Map<number, PipelineNode[]>();
+  for (const node of component) {
+    const level = levels.get(node.id) ?? 0;
+    levelGroups.set(level, [...(levelGroups.get(level) ?? []), node]);
+  }
+
+  if (levelGroups.size <= 1 && component.length > 1) return layoutComponentGrid(component, pipeline);
+
+  const result = new Map<string, Position>();
+  const orderedLevels = [...levelGroups.keys()].sort((a, b) => a - b);
+  const bandRows = new Map<number, number>();
+  orderedLevels.forEach((level, index) => {
+    const band = Math.floor(index / compactMaxColumns);
+    bandRows.set(band, Math.max(bandRows.get(band) ?? 1, levelGroups.get(level)?.length ?? 1));
+  });
+
+  const bandY = new Map<number, number>();
+  let y = 0;
+  for (const band of [...bandRows.keys()].sort((a, b) => a - b)) {
+    bandY.set(band, y);
+    y += (bandRows.get(band) ?? 1) * compactNodeHeight + compactNodeHeight * 0.85;
+  }
+
+  orderedLevels.forEach((level, index) => {
+    const band = Math.floor(index / compactMaxColumns);
+    const column = index % compactMaxColumns;
+    const rowNodes = sortNodesForOverview(levelGroups.get(level) ?? [], pipeline);
+    rowNodes.forEach((node, row) => {
+      result.set(node.id, {
+        x: column * compactNodeWidth,
+        y: (bandY.get(band) ?? 0) + row * compactNodeHeight
+      });
+    });
+  });
+
+  return result;
+}
+
+function layoutComponentGrid(component: PipelineNode[], pipeline: AgentPipeline): Map<string, Position> {
+  const result = new Map<string, Position>();
+  const columns = Math.min(compactMaxColumns, Math.max(2, Math.ceil(Math.sqrt(component.length * 1.25))));
+  sortNodesForOverview(component, pipeline).forEach((node, index) => {
+    result.set(node.id, {
+      x: (index % columns) * compactNodeWidth,
+      y: Math.floor(index / columns) * compactNodeHeight
+    });
+  });
+  return result;
+}
+
+function positionBounds(positions: Map<string, Position>): { width: number; height: number } {
+  if (!positions.size) return { width: 0, height: 0 };
+  const values = [...positions.values()];
+  const minX = Math.min(...values.map((position) => position.x));
+  const maxX = Math.max(...values.map((position) => position.x));
+  const minY = Math.min(...values.map((position) => position.y));
+  const maxY = Math.max(...values.map((position) => position.y));
+  return { width: maxX - minX + compactNodeWidth, height: maxY - minY + compactNodeHeight };
 }
 
 function layoutLayered(pipeline: AgentPipeline, layout: 'vertical' | 'horizontal'): Map<string, Position> {

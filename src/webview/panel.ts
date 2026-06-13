@@ -13,6 +13,7 @@ import { FileWatchSuppression } from './fileWatchSuppression';
 import { refreshPipelineAfterWorkspaceChange } from './pipelineRefresh';
 import { ActivityStore } from '../activity/store';
 import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
+import { activityInputsForChangedFiles } from '../activity/fileActivity';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext, activityStore = new ActivityStore()): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -36,15 +37,17 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     log('Agent Flow configuration changed');
     panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
   });
-  const fileWatchers = createPipelineFileWatchers(workspace, async () => {
-    log('filesystem change detected; reloading pipeline');
+  const fileWatchers = createPipelineFileWatchers(workspace, async (changedFiles) => {
+    log(`filesystem change detected; reloading pipeline (${changedFiles.length} changed path${changedFiles.length === 1 ? '' : 's'})`);
     const refresh = await refreshPipelineAfterWorkspaceChange(workspace, pipeline);
     if (!refresh.changed) {
-      log('ignored transient empty pipeline refresh');
+      log(`ignored ${refresh.reason} pipeline refresh after ${refresh.attempts} scan attempt${refresh.attempts === 1 ? '' : 's'}`);
+      for (const activity of activityInputsForChangedFiles(pipeline, changedFiles, workspace)) activityStore.append(activity);
       return;
     }
     pipeline = refresh.pipeline;
-    log(`reloaded ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges`);
+    for (const activity of activityInputsForChangedFiles(pipeline, changedFiles, workspace)) activityStore.append(activity);
+    log(`reloaded ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges after ${refresh.attempts} scan attempt${refresh.attempts === 1 ? '' : 's'}`);
     panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
   }, log, selfWrites);
   panel.onDidDispose(() => {
@@ -129,7 +132,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
 }
 
 
-function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<void>, log?: AgentFlowLog, selfWrites?: FileWatchSuppression): vscode.Disposable {
+function createPipelineFileWatchers(workspace: string, onRefresh: (changedFiles: string[]) => Promise<void>, log?: AgentFlowLog, selfWrites?: FileWatchSuppression): vscode.Disposable {
   const patterns = [
     '.agent-pipeline/pipeline.json',
     '.github/agents/**/*.agent.md',
@@ -143,20 +146,24 @@ function createPipelineFileWatchers(workspace: string, onRefresh: () => Promise<
   log?.(`watching ${patterns.join(', ')}`);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
+  const pendingFiles = new Set<string>();
   const schedule = (uri: vscode.Uri) => {
     if (disposed) return;
     if (selfWrites?.consumeIfSelfWrite(uri.fsPath)) {
       log?.(`ignored self-triggered filesystem event for ${path.relative(workspace, uri.fsPath).replace(/\\/g, '/')}`);
       return;
     }
+    pendingFiles.add(uri.fsPath);
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = undefined;
-      onRefresh().catch((error) => {
+      const changedFiles = [...pendingFiles];
+      pendingFiles.clear();
+      onRefresh(changedFiles).catch((error) => {
         log?.(`filesystem refresh failed: ${(error as Error).stack ?? (error as Error).message}`);
         vscode.window.showWarningMessage(`Agent Flow could not refresh the pipeline after file changes: ${(error as Error).message}`);
       });
-    }, 250);
+    }, 600);
   };
   for (const watcher of watchers) {
     watcher.onDidCreate(schedule);
