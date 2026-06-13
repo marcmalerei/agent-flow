@@ -7,7 +7,7 @@ import { validatePipeline } from './pipeline/validator';
 import { calculateRiskScore } from './pipeline/riskScore';
 import { generateFiles } from './pipeline/generators';
 import { AgentPipeline, GeneratedFile } from './pipeline/types';
-import { openPipelinePanel } from './webview/panel';
+import { getLatestPipelinePanelSnapshot, openPipelinePanel } from './webview/panel';
 import { ActivityStore } from './activity/store';
 import { completeNodeActivity, reportActivity, selectActivityNode } from './activity/tools';
 import { startCopilotDebugLogAdapter } from './activity/copilotDebugLogAdapter';
@@ -27,7 +27,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('agentflow.generateFiles', generateFilesCommand),
     vscode.commands.registerCommand('agentflow.validatePipeline', validatePipelineCommand),
     vscode.commands.registerCommand('agentflow.createDefaultPipeline', createDefaultPipelineCommand),
-    vscode.commands.registerCommand('agentflow.playDemoActivity', playDemoActivityCommand)
+    vscode.commands.registerCommand('agentflow.playDemoActivity', playDemoActivityCommand),
+    vscode.commands.registerCommand('agentflow.debugSnapshot', () => getLatestPipelinePanelSnapshot())
   );
 }
 

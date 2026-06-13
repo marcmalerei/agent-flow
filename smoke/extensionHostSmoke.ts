@@ -8,7 +8,9 @@ const expectedCommands = [
   'agentflow.scanWorkspace',
   'agentflow.generateFiles',
   'agentflow.validatePipeline',
-  'agentflow.createDefaultPipeline'
+  'agentflow.createDefaultPipeline',
+  'agentflow.playDemoActivity',
+  'agentflow.debugSnapshot'
 ];
 
 export async function run(): Promise<void> {
@@ -26,6 +28,10 @@ export async function run(): Promise<void> {
   assert.ok(workspace, 'Smoke test should run with a workspace folder.');
 
   await vscode.commands.executeCommand('agentflow.createDefaultPipeline');
+  await vscode.commands.executeCommand('agentflow.openPipeline');
+
+  const openedSnapshot = await waitForSnapshot((snapshot) => snapshot.open && snapshot.nodeCount > 0);
+  assert.ok(openedSnapshot.nodeIds.includes('router'), 'Open Agent Flow panel should load the default router node.');
 
   await assert.rejects(fs.readFile(path.join(workspace, '.github', 'agent-flow.json'), 'utf8'));
   assert.match(await fs.readFile(path.join(workspace, '.github/agents/router.agent.md'), 'utf8'), /name: "router"/);
@@ -75,6 +81,17 @@ description: Smoke skill description.
 
 # Smoke Skill
 `, 'utf8');
+  await fs.writeFile(path.join(workspace, '.github/agents/smoke-live.agent.md'), `---
+name: smoke-live
+tools:
+  - read/readFile
+---
+
+# Smoke Live
+`, 'utf8');
+
+  const refreshedSnapshot = await waitForSnapshot((snapshot) => snapshot.nodeIds.includes('smoke-live'));
+  assert.ok(refreshedSnapshot.nodeCount >= openedSnapshot.nodeCount, 'File refresh should keep existing panel nodes while adding new file-backed nodes.');
 
   const originalShowWarningMessage = vscode.window.showWarningMessage;
   (vscode.window as unknown as { showWarningMessage: typeof vscode.window.showWarningMessage }).showWarningMessage = async (_message: string, ...items: unknown[]) => {
@@ -105,4 +122,25 @@ description: Smoke skill description.
   assert.match(generatedSkill, /name: "smoke-skill"/);
   assert.match(generatedSkill, /# Smoke Skill/);
   assert.match(generatedArtifact, /# \.github\/artifacts\/smoke\.md/);
+}
+
+interface DebugSnapshot {
+  open: boolean;
+  nodeIds: string[];
+  nodeCount: number;
+}
+
+async function waitForSnapshot(predicate: (snapshot: DebugSnapshot) => boolean, timeoutMs = 8000): Promise<DebugSnapshot> {
+  const started = Date.now();
+  let last: DebugSnapshot | undefined;
+  while (Date.now() - started < timeoutMs) {
+    last = await vscode.commands.executeCommand<DebugSnapshot>('agentflow.debugSnapshot');
+    if (predicate(last)) return last;
+    await delay(100);
+  }
+  assert.fail(`Timed out waiting for Agent Flow snapshot. Last snapshot: ${JSON.stringify(last)}`);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -15,6 +15,28 @@ export interface PipelineRefreshOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
+export interface CoordinatedPipelineRefreshResult {
+  result: PipelineRefreshResult;
+  generation: number;
+  applied: boolean;
+  stale: boolean;
+}
+
+export class PipelineRefreshCoordinator {
+  private generation = 0;
+
+  async run(
+    current: AgentPipeline,
+    refresh: (current: AgentPipeline) => Promise<PipelineRefreshResult>
+  ): Promise<CoordinatedPipelineRefreshResult> {
+    const generation = this.generation + 1;
+    this.generation = generation;
+    const result = await refresh(current);
+    const stale = generation !== this.generation;
+    return { result, generation, applied: !stale, stale };
+  }
+}
+
 export async function refreshPipelineAfterWorkspaceChange(
   workspace: string,
   current: AgentPipeline,

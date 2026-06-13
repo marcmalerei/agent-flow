@@ -88,4 +88,39 @@ describe('Copilot debug log parser', () => {
     }));
     expect(result.events[0].timestamp).toBe('2026-06-12T18:57:51.370Z');
   });
+
+  it('parses exported nested debug JSON and extracts pipeline file activity', () => {
+    const content = JSON.stringify({
+      resourceSpans: [
+        {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  name: 'tool_call',
+                  startTimeUnixNano: '1781290671370000000',
+                  attributes: [
+                    { key: 'toolName', value: { stringValue: 'readFile' } },
+                    { key: 'sessionId', value: { stringValue: 'exported-session' } },
+                    { key: 'input', value: { stringValue: '{"path":".github/prompts/start.prompt.md"}' } }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+
+    const result = parseCopilotDebugLogContent(content, { sourceFile: '/tmp/exported-session.json' });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toEqual(expect.objectContaining({
+      phase: 'tool',
+      sessionId: 'exported-session',
+      toolName: 'readFile',
+      nodeFile: '.github/prompts/start.prompt.md'
+    }));
+  });
 });

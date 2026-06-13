@@ -1,8 +1,45 @@
 import { describe, expect, it } from 'vitest';
-import { refreshPipelineAfterWorkspaceChange } from '../src/webview/pipelineRefresh';
+import { PipelineRefreshCoordinator, refreshPipelineAfterWorkspaceChange } from '../src/webview/pipelineRefresh';
 import { AgentPipeline } from '../src/pipeline/types';
 
 describe('pipeline workspace refresh', () => {
+  it('drops stale refresh results when a newer refresh finishes first', async () => {
+    const current: AgentPipeline = {
+      version: 1,
+      name: 'Current',
+      nodes: [{ id: 'router', type: 'agent', label: 'router', agentFile: '.github/agents/router.agent.md', tools: [], calls: [], outputs: [] }],
+      edges: []
+    };
+    const stale: AgentPipeline = {
+      version: 1,
+      name: 'Stale',
+      nodes: [{ id: 'router', type: 'agent', label: 'old router', agentFile: '.github/agents/router.agent.md', tools: [], calls: [], outputs: [] }],
+      edges: []
+    };
+    const fresh: AgentPipeline = {
+      version: 1,
+      name: 'Fresh',
+      nodes: [{ id: 'router', type: 'agent', label: 'fresh router', agentFile: '.github/agents/router.agent.md', tools: [], calls: [], outputs: [] }],
+      edges: []
+    };
+    let releaseStale: (() => void) | undefined;
+    const coordinator = new PipelineRefreshCoordinator();
+
+    const first = coordinator.run(current, async () => {
+      await new Promise<void>((resolve) => { releaseStale = resolve; });
+      return { pipeline: stale, changed: true, reason: 'accepted', attempts: 1 };
+    });
+    const second = await coordinator.run(current, async () => ({ pipeline: fresh, changed: true, reason: 'accepted', attempts: 1 }));
+    releaseStale?.();
+    const firstResult = await first;
+
+    expect(second.applied).toBe(true);
+    expect(second.result.pipeline).toBe(fresh);
+    expect(firstResult.applied).toBe(false);
+    expect(firstResult.stale).toBe(true);
+    expect(firstResult.result.pipeline).toBe(stale);
+  });
+
   it('keeps the current non-empty pipeline when a transient file scan is empty', async () => {
     const current: AgentPipeline = {
       version: 1,
