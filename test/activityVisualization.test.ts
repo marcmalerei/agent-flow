@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeEdgeIds, recentActivityEvents, summarizeNodeActivity } from '../src/webview/activity';
+import { activeEdgeIds, recentActivityEvents, resolveActivityEventsForPipeline, summarizeNodeActivity } from '../src/webview/activity';
 import { AgentFlowActivityEvent } from '../src/activity/types';
 import { AgentPipeline } from '../src/pipeline/types';
 
@@ -49,6 +49,22 @@ describe('activity visualization helpers', () => {
       'ref:agent.instructionRefs:docs:worker',
       'ref:prompt:start:startAgent:router'
     ]));
+  });
+
+  it('resolves file-only activity events to pipeline nodes for visual updates', () => {
+    const events: AgentFlowActivityEvent[] = [
+      { id: '1', timestamp: now, sessionId: 's', nodeFile: '.github/prompts/start.prompt.md', phase: 'file', summary: 'Read prompt file' },
+      { id: '2', timestamp: now, sessionId: 's', artifactPath: '.github/artifacts/plan.md', phase: 'artifact', summary: 'Read artifact file' }
+    ];
+
+    const resolved = resolveActivityEventsForPipeline(pipeline, events);
+
+    expect(resolved).toEqual([
+      expect.objectContaining({ id: '1', nodeId: 'start', nodeFile: '.github/prompts/start.prompt.md' }),
+      expect.objectContaining({ id: '2', nodeId: 'plan', artifactPath: '.github/artifacts/plan.md' })
+    ]);
+    expect(summarizeNodeActivity(resolved).get('start')).toMatchObject({ summary: 'Read prompt file' });
+    expect(summarizeNodeActivity(resolved).get('plan')).toMatchObject({ summary: 'Read artifact file' });
   });
 
   it('expires visual activity without removing timeline history', () => {

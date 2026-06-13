@@ -43,7 +43,7 @@ function suspiciousNodeLossReason(current: AgentPipeline, next: AgentPipeline, m
   if (next.nodes.length === 0) return 'transient-empty';
 
   const currentFileBackedIds = fileBackedNodeIds(current);
-  if (currentFileBackedIds.size < 3) return undefined;
+  if (currentFileBackedIds.size < 2) return undefined;
 
   const nextIds = new Set(next.nodes.map((node) => node.id));
   const retained = [...currentFileBackedIds].filter((id) => nextIds.has(id)).length;

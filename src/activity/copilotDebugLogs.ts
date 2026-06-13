@@ -68,7 +68,7 @@ export function parseCopilotDebugRow(row: any, sourceFile: string, nextId?: () =
     }, nextId);
   }
   if (type === 'tool_call' || type === 'toolCall' || type === 'tool_call_started' || /tool/i.test(type) || /tool/i.test(name ?? '')) {
-    const file = stringValue(row.nodeFile ?? attrs.nodeFile ?? row.filePath ?? attrs.filePath ?? row.file ?? attrs.file ?? row.path ?? attrs.path);
+    const file = pipelineFilePath(row.nodeFile ?? attrs.nodeFile ?? row.filePath ?? attrs.filePath ?? row.file ?? attrs.file ?? row.path ?? attrs.path) ?? findPipelineFilePath(row) ?? findPipelineFilePath(attrs);
     const isArtifact = file?.replace(/\\/g, '/').startsWith('.github/artifacts/');
     return normalizeActivityInput({
       timestamp: timestampValue(row.timestamp ?? row.ts ?? attrs.timestamp ?? attrs.ts),
@@ -110,4 +110,31 @@ function timestampValue(value: unknown): string | undefined {
     return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
   }
   return undefined;
+}
+
+function findPipelineFilePath(value: unknown, depth = 0): string | undefined {
+  if (depth > 5 || value == null) return undefined;
+  const direct = pipelineFilePath(value);
+  if (direct) return direct;
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findPipelineFilePath(item, depth + 1);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (typeof value === 'object') {
+    for (const item of Object.values(value as Record<string, unknown>)) {
+      const found = findPipelineFilePath(item, depth + 1);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+function pipelineFilePath(value: unknown): string | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const normalized = value.trim().replace(/\\/g, '/');
+  const match = normalized.match(/(?:^|\/)(\.github\/(?:agents\/[^"'`\s]+\.agent\.md|prompts\/[^"'`\s]+\.prompt\.md|instructions\/[^"'`\s]+\.instructions\.md|skills\/[^"'`\s]+\/SKILL\.md|roles\/[^"'`\s]+\.md|artifacts\/[^"'`\s]+\.(?:md|json|txt)))/);
+  return match?.[1];
 }

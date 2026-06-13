@@ -11,20 +11,38 @@ import { openPipelinePanel } from './webview/panel';
 import { ActivityStore } from './activity/store';
 import { completeNodeActivity, reportActivity, selectActivityNode } from './activity/tools';
 import { startCopilotDebugLogAdapter } from './activity/copilotDebugLogAdapter';
+import { activityInputForPipelineDocumentPath } from './activity/fileActivity';
+import { createSyntheticActivity } from './activity/synthetic';
 
 const activityStore = new ActivityStore();
 
 export function activate(context: vscode.ExtensionContext): void {
   const activityOutput = vscode.window.createOutputChannel('Agent Flow Activity');
   context.subscriptions.push(activityOutput, startCopilotDebugLogAdapter(activityStore, (message) => activityOutput.appendLine(`[${new Date().toISOString()}] ${message}`)));
+  context.subscriptions.push(registerPipelineDocumentActivity(activityStore));
   context.subscriptions.push(...registerActivityTools());
   context.subscriptions.push(
     vscode.commands.registerCommand('agentflow.openPipeline', () => openPipelinePanel(context, activityStore)),
     vscode.commands.registerCommand('agentflow.scanWorkspace', scanWorkspaceCommand),
     vscode.commands.registerCommand('agentflow.generateFiles', generateFilesCommand),
     vscode.commands.registerCommand('agentflow.validatePipeline', validatePipelineCommand),
-    vscode.commands.registerCommand('agentflow.createDefaultPipeline', createDefaultPipelineCommand)
+    vscode.commands.registerCommand('agentflow.createDefaultPipeline', createDefaultPipelineCommand),
+    vscode.commands.registerCommand('agentflow.playDemoActivity', playDemoActivityCommand)
   );
+}
+
+function registerPipelineDocumentActivity(store: ActivityStore): vscode.Disposable {
+  const append = (document: vscode.TextDocument, action: 'read' | 'write') => {
+    if (document.uri.scheme !== 'file') return;
+    const input = activityInputForPipelineDocumentPath(document.uri.fsPath, getWorkspaceRoot(), action);
+    if (input) store.append(input);
+  };
+  const open = vscode.workspace.onDidOpenTextDocument((document) => append(document, 'read'));
+  const save = vscode.workspace.onDidSaveTextDocument((document) => append(document, 'write'));
+  return new vscode.Disposable(() => {
+    open.dispose();
+    save.dispose();
+  });
 }
 
 export function deactivate(): void {}
@@ -67,6 +85,13 @@ async function validatePipelineCommand(): Promise<void> {
   const risk = calculateRiskScore(pipeline, { copilotInstructionsLines: await countCopilotInstructionLines(workspace) });
   const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: renderValidationReport(pipeline.name, findings, risk) });
   await vscode.window.showTextDocument(doc, { preview: true });
+}
+
+async function playDemoActivityCommand(): Promise<void> {
+  const { pipeline } = await loadWorkspacePipeline();
+  const events = createSyntheticActivity(pipeline, `demo-${Date.now()}`);
+  for (const event of events) activityStore.append(event);
+  vscode.window.showInformationMessage(`Agent Flow emitted ${events.length} demo activity events.`);
 }
 
 async function generateFilesCommand(): Promise<void> {

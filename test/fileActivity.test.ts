@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activityInputsForChangedFiles } from '../src/activity/fileActivity';
+import { activityInputForPipelineDocumentPath, activityInputsForChangedFiles } from '../src/activity/fileActivity';
 import { AgentPipeline } from '../src/pipeline/types';
 import { activeEdgeIds } from '../src/webview/activity';
 
@@ -66,5 +66,34 @@ describe('filesystem activity projection', () => {
         summary: 'Updated .github/instructions/docs.instructions.md'
       }
     ]);
+  });
+
+  it('turns opened pipeline files into file read activity', () => {
+    const inputs = activityInputsForChangedFiles(pipeline, ['.github/agents/reader.agent.md'], undefined, 'read');
+
+    expect(inputs).toMatchObject([
+      {
+        nodeId: 'reader',
+        phase: 'file',
+        nodeFile: '.github/agents/reader.agent.md',
+        summary: 'Read .github/agents/reader.agent.md'
+      }
+    ]);
+  });
+
+  it('creates path-only activity for VS Code document events', () => {
+    expect(activityInputForPipelineDocumentPath('/workspace/.github/prompts/start.prompt.md', '/workspace', 'read')).toMatchObject({
+      sessionId: 'vscode-documents',
+      phase: 'file',
+      nodeFile: '.github/prompts/start.prompt.md',
+      summary: 'Read .github/prompts/start.prompt.md'
+    });
+    expect(activityInputForPipelineDocumentPath('/workspace/.github/artifacts/plan.md', '/workspace', 'read')).toMatchObject({
+      sessionId: 'vscode-documents',
+      phase: 'artifact',
+      artifactPath: '.github/artifacts/plan.md',
+      summary: 'Read artifact .github/artifacts/plan.md'
+    });
+    expect(activityInputForPipelineDocumentPath('/workspace/README.md', '/workspace', 'read')).toBeUndefined();
   });
 });

@@ -14,6 +14,7 @@ import { refreshPipelineAfterWorkspaceChange } from './pipelineRefresh';
 import { ActivityStore } from '../activity/store';
 import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
 import { activityInputsForChangedFiles } from '../activity/fileActivity';
+import { resolveActivityEventsForPipeline } from './activity';
 
 export async function openPipelinePanel(context: vscode.ExtensionContext, activityStore = new ActivityStore()): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -30,7 +31,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   });
   panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline, activityStore));
   const activitySubscription = activityStore.subscribe((activityEvents) => {
-    panel.webview.postMessage({ command: 'activityUpdated', activityEvents });
+    panel.webview.postMessage({ command: 'activityUpdated', activityEvents: resolveActivityEventsForPipeline(pipeline, activityEvents) });
   });
   const configurationListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
     if (!event.affectsConfiguration('agentflow.flow.layout') && !event.affectsConfiguration('agentflow.activity.copilotDebugLogs') && !event.affectsConfiguration('github.copilot.chat.agentDebugLog.fileLogging.enabled')) return;
@@ -189,7 +190,7 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
     generatedFiles: generateFiles(displayPipeline).map((file) => ({ path: file.path, kind: file.kind })),
     flowLayout: coerceFlowLayout(vscode.workspace.getConfiguration('agentflow.flow').get('layout')),
     toolOptions,
-    activityEvents: activityStore.getEvents(),
+    activityEvents: resolveActivityEventsForPipeline(displayPipeline, activityStore.getEvents()),
     activitySources: {
       copilotDebugLogs: await getCopilotDebugLogStatus()
     }
