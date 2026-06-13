@@ -27,6 +27,19 @@ function toolsForAgent(options: Partial<AgentNode>): string[] {
   return tools;
 }
 
+function labelFromId(id: string): string {
+  return id.split('-').map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(' ');
+}
+
+function defaultHandoffs(calls: string[] | undefined): AgentNode['handoffs'] {
+  if (!calls?.length) return undefined;
+  return calls.map((target) => ({
+    label: `Hand off to ${labelFromId(target)}`,
+    agent: target,
+    prompt: `Continue the pipeline as ${target}. Read the relevant input artifacts before making changes.`
+  }));
+}
+
 function agent(id: string, _label: string, description: string, x: number, y: number, options: Partial<AgentNode> = {}): AgentNode {
   return {
     id,
@@ -36,6 +49,7 @@ function agent(id: string, _label: string, description: string, x: number, y: nu
     description,
     tools: toolsForAgent(options),
     calls: options.calls ?? [],
+    handoffs: options.handoffs ?? defaultHandoffs(options.calls),
     inputs: options.inputs ?? [],
     outputs: options.outputs ?? [`.github/artifacts/results/${id}-result.md`],
     allowedSkills: options.allowedSkills ?? [],

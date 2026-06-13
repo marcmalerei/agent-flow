@@ -92,6 +92,22 @@ describe('default pipeline', () => {
       'execute/run_in_terminal'
     ]));
   });
+
+  it('defines handoffs for every default agent subagent call', () => {
+    const agents = createDefaultPipeline().nodes.filter((node) => node.type === 'agent');
+
+    for (const agent of agents) {
+      const calls = agent.calls ?? [];
+      if (calls.length === 0) continue;
+
+      expect(agent.handoffs?.map((handoff) => handoff.agent).sort()).toEqual([...calls].sort());
+      const markdown = generateAgentMarkdown(agent);
+      expect(markdown).toContain('handoffs:');
+      for (const call of calls) {
+        expect(markdown).toContain(`agent: "${call}"`);
+      }
+    }
+  });
 });
 
 describe('markdown generators', () => {
