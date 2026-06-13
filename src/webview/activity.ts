@@ -22,7 +22,7 @@ export function summarizeNodeActivity(events: AgentFlowActivityEvent[]): Map<str
   return summaries;
 }
 
-export function recentActivityEvents(events: AgentFlowActivityEvent[], now = Date.now(), ttlMs = 15_000): AgentFlowActivityEvent[] {
+export function recentActivityEvents(events: AgentFlowActivityEvent[], now = Date.now(), ttlMs = 120_000): AgentFlowActivityEvent[] {
   return events.filter((event) => {
     const timestamp = Date.parse(event.timestamp);
     return !Number.isNaN(timestamp) && now - timestamp <= ttlMs;

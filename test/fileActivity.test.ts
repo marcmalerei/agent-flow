@@ -81,6 +81,19 @@ describe('filesystem activity projection', () => {
     ]);
   });
 
+  it('keeps activity for newly created pipeline files before the graph knows them', () => {
+    const inputs = activityInputsForChangedFiles(pipeline, ['.github/artifacts/new-result.md']);
+
+    expect(inputs).toMatchObject([
+      {
+        sessionId: 'filesystem',
+        phase: 'artifact',
+        artifactPath: '.github/artifacts/new-result.md',
+        summary: 'Updated artifact .github/artifacts/new-result.md'
+      }
+    ]);
+  });
+
   it('creates path-only activity for VS Code document events', () => {
     expect(activityInputForPipelineDocumentPath('/workspace/.github/prompts/start.prompt.md', '/workspace', 'read')).toMatchObject({
       sessionId: 'vscode-documents',

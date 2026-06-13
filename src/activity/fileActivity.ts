@@ -37,7 +37,11 @@ export function activityInputsForChangedFiles(pipeline: AgentPipeline, files: st
     }
 
     const node = nodesByFile.get(rel);
-    if (!node) continue;
+    if (!node) {
+      const fallback = activityInputForPipelineDocumentPath(rel, undefined, action);
+      if (fallback) inputs.push({ ...fallback, sessionId: 'filesystem' });
+      continue;
+    }
     inputs.push({
       sessionId: 'filesystem',
       phase: 'file',

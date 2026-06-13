@@ -67,12 +67,13 @@ describe('activity visualization helpers', () => {
     expect(summarizeNodeActivity(resolved).get('plan')).toMatchObject({ summary: 'Read artifact file' });
   });
 
-  it('expires visual activity without removing timeline history', () => {
+  it('keeps recent visual activity long enough to survive webview refits', () => {
     const events: AgentFlowActivityEvent[] = [
-      { id: 'old', timestamp: '2026-06-12T09:59:30.000Z', sessionId: 's', nodeId: 'router', phase: 'started', summary: 'Old' },
+      { id: 'old', timestamp: '2026-06-12T09:57:30.000Z', sessionId: 's', nodeId: 'router', phase: 'started', summary: 'Old' },
+      { id: 'refit', timestamp: '2026-06-12T09:59:30.000Z', sessionId: 's', nodeId: 'router', phase: 'started', summary: 'Refit window' },
       { id: 'new', timestamp: '2026-06-12T09:59:58.000Z', sessionId: 's', nodeId: 'router', phase: 'tool', summary: 'New' }
     ];
 
-    expect(recentActivityEvents(events, Date.parse(now), 15_000).map((event) => event.id)).toEqual(['new']);
+    expect(recentActivityEvents(events, Date.parse(now)).map((event) => event.id)).toEqual(['refit', 'new']);
   });
 });
