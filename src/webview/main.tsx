@@ -31,6 +31,7 @@ import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renameN
 import { optionalTextValue, referenceInstructionTextValue } from './formState';
 import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } from './components';
 import { applyNodePatch } from './nodeMarkdownSync';
+import { mergeRemoteStateUpdate } from './stateUpdates';
 
 interface State {
   pipeline: AgentPipeline;
@@ -85,15 +86,31 @@ function App() {
   const [activeTab, setActiveTab] = useState<BottomTab>('validation');
   const [activityClock, setActivityClock] = useState(Date.now());
   const dirtyRef = useRef(false);
+  const draftRef = useRef(draft);
   const undoStack = useRef<AgentPipeline[]>([]);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
 
   useEffect(() => {
     const listener = (event: MessageEvent) => {
       if (event.data?.command === 'stateUpdated') {
-        dirtyRef.current = false;
-        setState(event.data.state);
-        setDraft(event.data.state.pipeline);
-        setSelectedId((current) => event.data.state.pipeline.nodes.some((node: PipelineNode) => node.id === event.data.selectedId) ? event.data.selectedId : event.data.state.pipeline.nodes.some((node: PipelineNode) => node.id === current) ? current : event.data.state.pipeline.nodes[0]?.id ?? '');
+        const incoming = event.data.state as State;
+        setState((current) => {
+          const merged = mergeRemoteStateUpdate({
+            currentState: current,
+            currentDraft: draftRef.current,
+            incomingState: incoming,
+            dirty: dirtyRef.current
+          });
+          if (merged.applyDraft) {
+            dirtyRef.current = false;
+            setDraft(merged.draft);
+            setSelectedId((selected) => incoming.pipeline.nodes.some((node: PipelineNode) => node.id === event.data.selectedId) ? event.data.selectedId : incoming.pipeline.nodes.some((node: PipelineNode) => node.id === selected) ? selected : incoming.pipeline.nodes[0]?.id ?? '');
+          }
+          return merged.state;
+        });
       }
       if (event.data?.command === 'activityUpdated') {
         setState((current) => ({ ...current, activityEvents: event.data.activityEvents ?? [] }));

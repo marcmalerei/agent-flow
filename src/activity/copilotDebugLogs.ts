@@ -19,16 +19,12 @@ export function parseCopilotDebugLogContent(content: string, options: CopilotDeb
   const events: AgentFlowActivityEvent[] = [];
   const diagnostics: string[] = [];
   let sequence = 0;
-  for (const [index, line] of content.split(/\r?\n/).entries()) {
-    if (!line.trim()) continue;
-    let row: any;
-    try {
-      row = JSON.parse(line);
-    } catch (error) {
-      diagnostics.push(`${options.sourceFile} line ${index + 1} is not valid JSON: ${(error as Error).message}`);
+  for (const item of parseDebugRows(content)) {
+    if (item.error) {
+      diagnostics.push(`${options.sourceFile} line ${item.line} is not valid JSON: ${item.error}`);
       continue;
     }
-    const event = parseCopilotDebugRow(row, options.sourceFile, () => {
+    const event = parseCopilotDebugRow(item.row, options.sourceFile, () => {
       sequence += 1;
       return `copilot-debug-${sequence}`;
     });
@@ -39,9 +35,9 @@ export function parseCopilotDebugLogContent(content: string, options: CopilotDeb
 
 export function parseCopilotDebugRow(row: any, sourceFile: string, nextId?: () => string): AgentFlowActivityEvent | undefined {
   if (!row || typeof row !== 'object') return undefined;
-  const attrs = row.attrs && typeof row.attrs === 'object' ? row.attrs : row;
+  const attrs = attributeObject(row);
   const type = String(row.type ?? row.name ?? row.event ?? attrs.type ?? '');
-  const name = stringValue(row.name ?? attrs.name ?? row.toolName ?? attrs.toolName);
+  const name = stringValue(row.toolName ?? attrs.toolName ?? row.name ?? attrs.name);
   if (type === 'llm_request') {
     const nanoAiu = numberValue(attrs.copilotUsageNanoAiu ?? attrs.nanoAiu ?? row.copilotUsageNanoAiu);
     if (!nanoAiu || nanoAiu <= 0) return undefined;
@@ -95,6 +91,82 @@ export function parseCopilotDebugRow(row: any, sourceFile: string, nextId?: () =
   return undefined;
 }
 
+function parseDebugRows(content: string): Array<{ row?: any; line?: number; error?: string }> {
+  const trimmed = content.trim();
+  if (!trimmed) return [];
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return extractDebugRows(JSON.parse(trimmed)).map((row) => ({ row }));
+    } catch {
+      // Fall through to JSONL parsing for line-level diagnostics.
+    }
+  }
+  const rows: Array<{ row?: any; line?: number; error?: string }> = [];
+  for (const [index, line] of content.split(/\r?\n/).entries()) {
+    if (!line.trim()) continue;
+    try {
+      rows.push({ row: JSON.parse(line) });
+    } catch (error) {
+      rows.push({ line: index + 1, error: (error as Error).message });
+    }
+  }
+  return rows;
+}
+
+function extractDebugRows(value: unknown, depth = 0): any[] {
+  if (depth > 8 || value == null) return [];
+  if (Array.isArray(value)) return value.flatMap((item) => extractDebugRows(item, depth + 1));
+  if (typeof value !== 'object') return [];
+  const row = value as Record<string, unknown>;
+  const rows: any[] = [];
+  if (isDebugEventRow(row)) rows.push(normalizeDebugEventRow(row));
+  for (const item of Object.values(row)) rows.push(...extractDebugRows(item, depth + 1));
+  return rows;
+}
+
+function isDebugEventRow(row: Record<string, unknown>): boolean {
+  if (typeof row.type === 'string' || typeof row.event === 'string') return true;
+  if (typeof row.name === 'string' && (/tool|request|response|agent|chat|turn|invoke|session/i.test(row.name) || Array.isArray(row.attributes))) return true;
+  const attrs = attributeObject(row);
+  return typeof attrs.type === 'string' || typeof attrs.name === 'string' || typeof attrs.toolName === 'string';
+}
+
+function normalizeDebugEventRow(row: Record<string, unknown>): Record<string, unknown> {
+  const attrs = attributeObject(row);
+  return {
+    ...row,
+    attrs,
+    type: row.type ?? attrs.type ?? row.name,
+    name: attrs.toolName ?? row.name ?? attrs.name,
+    sessionId: row.sessionId ?? attrs.sessionId ?? attrs.sid,
+    timestamp: row.timestamp ?? row.ts ?? attrs.timestamp ?? attrs.ts ?? row.startTimeUnixNano
+  };
+}
+
+function attributeObject(row: Record<string, unknown>): Record<string, unknown> {
+  if (row.attrs && typeof row.attrs === 'object' && !Array.isArray(row.attrs)) return row.attrs as Record<string, unknown>;
+  if (!Array.isArray(row.attributes)) return row;
+  const attrs: Record<string, unknown> = {};
+  for (const attribute of row.attributes) {
+    if (!attribute || typeof attribute !== 'object') continue;
+    const key = (attribute as { key?: unknown }).key;
+    if (typeof key !== 'string' || !key) continue;
+    attrs[key] = otelAttributeValue((attribute as { value?: unknown }).value);
+  }
+  return attrs;
+}
+
+function otelAttributeValue(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  if ('stringValue' in record) return record.stringValue;
+  if ('intValue' in record) return typeof record.intValue === 'string' ? Number(record.intValue) : record.intValue;
+  if ('doubleValue' in record) return record.doubleValue;
+  if ('boolValue' in record) return record.boolValue;
+  if ('arrayValue' in record) return record.arrayValue;
+  return value;
+}
+
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
@@ -104,6 +176,11 @@ function numberValue(value: unknown): number | undefined {
 }
 
 function timestampValue(value: unknown): string | undefined {
+  if (typeof value === 'string' && /^\d{16,}$/.test(value.trim())) {
+    const millis = Number(BigInt(value.trim()) / 1_000_000n);
+    const date = new Date(millis);
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+  }
   if (typeof value === 'string' && value.trim()) return value.trim();
   if (typeof value === 'number' && Number.isFinite(value)) {
     const date = new Date(value);
@@ -135,6 +212,6 @@ function findPipelineFilePath(value: unknown, depth = 0): string | undefined {
 function pipelineFilePath(value: unknown): string | undefined {
   if (typeof value !== 'string' || !value.trim()) return undefined;
   const normalized = value.trim().replace(/\\/g, '/');
-  const match = normalized.match(/(?:^|\/)(\.github\/(?:agents\/[^"'`\s]+\.agent\.md|prompts\/[^"'`\s]+\.prompt\.md|instructions\/[^"'`\s]+\.instructions\.md|skills\/[^"'`\s]+\/SKILL\.md|roles\/[^"'`\s]+\.md|artifacts\/[^"'`\s]+\.(?:md|json|txt)))/);
+  const match = normalized.match(/(?:^|[/"'`])(\.github\/(?:agents\/[^"'`\s]+\.agent\.md|prompts\/[^"'`\s]+\.prompt\.md|instructions\/[^"'`\s]+\.instructions\.md|skills\/[^"'`\s]+\/SKILL\.md|roles\/[^"'`\s]+\.md|artifacts\/[^"'`\s]+\.(?:md|json|txt)))/);
   return match?.[1];
 }

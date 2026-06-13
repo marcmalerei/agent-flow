@@ -10,11 +10,34 @@ import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMar
 import { coerceFlowLayout } from './flowLayout';
 import { AgentFlowLog, writeGeneratedFiles } from './filePersistence';
 import { FileWatchSuppression } from './fileWatchSuppression';
-import { refreshPipelineAfterWorkspaceChange } from './pipelineRefresh';
+import { PipelineRefreshCoordinator, refreshPipelineAfterWorkspaceChange } from './pipelineRefresh';
 import { ActivityStore } from '../activity/store';
 import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
 import { activityInputsForChangedFiles } from '../activity/fileActivity';
 import { resolveActivityEventsForPipeline } from './activity';
+
+export interface AgentFlowPanelSnapshot {
+  open: boolean;
+  nodeIds: string[];
+  nodeCount: number;
+  edgeCount: number;
+  selectedId?: string;
+  lastReason: string;
+  updatedAt: string;
+}
+
+let latestPanelSnapshot: AgentFlowPanelSnapshot = {
+  open: false,
+  nodeIds: [],
+  nodeCount: 0,
+  edgeCount: 0,
+  lastReason: 'not-opened',
+  updatedAt: new Date(0).toISOString()
+};
+
+export function getLatestPipelinePanelSnapshot(): AgentFlowPanelSnapshot {
+  return latestPanelSnapshot;
+}
 
 export async function openPipelinePanel(context: vscode.ExtensionContext, activityStore = new ActivityStore()): Promise<void> {
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -22,9 +45,11 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   const output = vscode.window.createOutputChannel('Agent Flow');
   const log: AgentFlowLog = (message) => output.appendLine(`[${new Date().toISOString()}] ${message}`);
   const selfWrites = new FileWatchSuppression();
+  const refreshCoordinator = new PipelineRefreshCoordinator();
   log(`opening pipeline panel for ${workspace}`);
   let pipeline = await loadOrInferPipeline(workspace);
   let selectedId: string | undefined;
+  updatePanelSnapshot(pipeline, selectedId, 'opened');
   const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'Agent Flow Pipeline', vscode.ViewColumn.One, {
     enableScripts: true,
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
@@ -40,13 +65,20 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   });
   const fileWatchers = createPipelineFileWatchers(workspace, async (changedFiles) => {
     log(`filesystem change detected; reloading pipeline (${changedFiles.length} changed path${changedFiles.length === 1 ? '' : 's'})`);
-    const refresh = await refreshPipelineAfterWorkspaceChange(workspace, pipeline);
+    const attempt = await refreshCoordinator.run(pipeline, (current) => refreshPipelineAfterWorkspaceChange(workspace, current));
+    const refresh = attempt.result;
+    if (attempt.stale) {
+      log(`ignored stale filesystem refresh generation ${attempt.generation} after ${refresh.attempts} scan attempt${refresh.attempts === 1 ? '' : 's'}`);
+      for (const activity of activityInputsForChangedFiles(pipeline, changedFiles, workspace)) activityStore.append(activity);
+      return;
+    }
     if (!refresh.changed) {
       log(`ignored ${refresh.reason} pipeline refresh after ${refresh.attempts} scan attempt${refresh.attempts === 1 ? '' : 's'}`);
       for (const activity of activityInputsForChangedFiles(pipeline, changedFiles, workspace)) activityStore.append(activity);
       return;
     }
     pipeline = refresh.pipeline;
+    updatePanelSnapshot(pipeline, selectedId, 'filesystem-refresh');
     for (const activity of activityInputsForChangedFiles(pipeline, changedFiles, workspace)) activityStore.append(activity);
     log(`reloaded ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges after ${refresh.attempts} scan attempt${refresh.attempts === 1 ? '' : 's'}`);
     panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
@@ -56,6 +88,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     configurationListener.dispose();
     activitySubscription.dispose();
     fileWatchers.dispose();
+    latestPanelSnapshot = { ...latestPanelSnapshot, open: false, lastReason: 'disposed', updatedAt: new Date().toISOString() };
     output.dispose();
   });
   panel.webview.onDidReceiveMessage(async (message) => {
@@ -79,6 +112,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
             log('persisted webview changes without echoing stateUpdated');
           }
         });
+        updatePanelSnapshot(pipeline, selectedId, 'persisted-webview');
         log(`persisted ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges`);
       }
       if (message?.command === 'savePipeline') {
@@ -97,6 +131,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
             vscode.window.showInformationMessage('Agent Flow changes are saved to Markdown files.');
           }
         });
+        updatePanelSnapshot(pipeline, selectedId, 'saved-view-state');
       }
       if (message?.command === 'writeMarkdownFiles') {
         selectedId = typeof message.selectedId === 'string' ? message.selectedId : selectedId;
@@ -120,6 +155,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
           }
         });
         if (nextPipeline) pipeline = nextPipeline;
+        updatePanelSnapshot(pipeline, selectedId, 'wrote-markdown-files');
       }
       if (message?.command === 'clearActivity') {
         log('clearing activity stream');
@@ -130,6 +166,18 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
       vscode.window.showErrorMessage(`Agent Flow failed to update files: ${(error as Error).message}`);
     }
   });
+}
+
+function updatePanelSnapshot(pipeline: AgentPipeline, selectedId: string | undefined, reason: string): void {
+  latestPanelSnapshot = {
+    open: true,
+    nodeIds: pipeline.nodes.map((node) => node.id),
+    nodeCount: pipeline.nodes.length,
+    edgeCount: pipeline.edges.length,
+    selectedId,
+    lastReason: reason,
+    updatedAt: new Date().toISOString()
+  };
 }
 
 
