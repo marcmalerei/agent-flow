@@ -10,6 +10,7 @@ import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMar
 import { coerceFlowLayout } from './flowLayout';
 import { AgentFlowLog, writeGeneratedFiles } from './filePersistence';
 import { FileWatchSuppression } from './fileWatchSuppression';
+import { refreshPipelineAfterWorkspaceChange } from './pipelineRefresh';
 import { ActivityStore } from '../activity/store';
 import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
 
@@ -37,7 +38,12 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   });
   const fileWatchers = createPipelineFileWatchers(workspace, async () => {
     log('filesystem change detected; reloading pipeline');
-    pipeline = await loadOrInferPipeline(workspace);
+    const refresh = await refreshPipelineAfterWorkspaceChange(workspace, pipeline);
+    if (!refresh.changed) {
+      log('ignored transient empty pipeline refresh');
+      return;
+    }
+    pipeline = refresh.pipeline;
     log(`reloaded ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges`);
     panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
   }, log, selfWrites);

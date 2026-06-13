@@ -22,6 +22,7 @@ const defaultTools = [readTool, searchTool];
 
 function toolsForAgent(options: Partial<AgentNode>): string[] {
   const tools = [...(options.tools ?? defaultTools)];
+  if (((options.outputs?.length ?? 0) > 0 || options.artifactUsages?.some((usage) => usage.action === 'write' || usage.action === 'append')) && !tools.includes(editTool)) tools.push(editTool);
   if (((options.calls?.length ?? 0) > 0 || (options.handoffs?.length ?? 0) > 0) && !tools.includes('agent')) return ['agent', ...tools];
   return tools;
 }
