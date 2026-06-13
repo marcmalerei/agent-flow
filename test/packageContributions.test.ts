@@ -84,4 +84,13 @@ describe('package contributions', () => {
     expect(tools.find((tool) => tool.name === 'agentflow_report_activity')?.modelDescription).toContain('Do not include raw prompts');
     expect(tools.find((tool) => tool.name === 'agentflow_report_activity')?.inputSchema?.properties).toHaveProperty('phase');
   });
+
+  it('contributes a demo activity command for Copilot-free smoke tests', () => {
+    const commands = new Map((manifest.contributes?.commands ?? []).map((command) => [command.command, command]));
+    expect(manifest.activationEvents).toContain('onCommand:agentflow.playDemoActivity');
+    expect(commands.get('agentflow.playDemoActivity')).toEqual(expect.objectContaining({
+      category: 'Agent Flow',
+      title: 'Play Demo Activity'
+    }));
+  });
 });

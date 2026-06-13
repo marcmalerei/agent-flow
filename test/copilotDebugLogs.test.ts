@@ -50,6 +50,30 @@ describe('Copilot debug log parser', () => {
     }));
   });
 
+  it('finds pipeline file paths in nested tool-call payloads', () => {
+    const content = JSON.stringify({
+      type: 'tool_call',
+      timestamp: '2026-06-12T10:04:00.000Z',
+      name: 'readFile',
+      sessionId: 'chat-4',
+      attrs: {
+        input: {
+          uri: 'file:///workspace/.github/agents/router.agent.md'
+        }
+      }
+    });
+
+    const result = parseCopilotDebugLogContent(content, { sourceFile: '/tmp/debug.jsonl' });
+
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toEqual(expect.objectContaining({
+      phase: 'tool',
+      sessionId: 'chat-4',
+      toolName: 'readFile',
+      nodeFile: '.github/agents/router.agent.md'
+    }));
+  });
+
   it('parses generic Copilot debug spans without billing data', () => {
     const content = JSON.stringify({ type: 'session_start', name: 'session_start', ts: 1781290671370, sid: 'debug-1', status: 'ok', attrs: { copilotVersion: 'test' } });
 

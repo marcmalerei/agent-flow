@@ -112,4 +112,32 @@ describe('pipeline workspace refresh', () => {
     expect(result.reason).toBe('transient-partial');
     expect(result.attempts).toBe(2);
   });
+
+  it('keeps a small current pipeline when a scan loses one of its file-backed nodes', async () => {
+    const current: AgentPipeline = {
+      version: 1,
+      name: 'Small current',
+      nodes: [
+        { id: 'agent', type: 'agent', label: 'agent', agentFile: '.github/agents/agent.agent.md', tools: [], calls: [], outputs: [] },
+        { id: 'instruction', type: 'instruction', label: 'instruction', instructionFile: '.github/instructions/instruction.instructions.md' }
+      ],
+      edges: []
+    };
+    const partial: AgentPipeline = {
+      version: 1,
+      name: 'Small partial',
+      nodes: [
+        { id: 'agent', type: 'agent', label: 'agent', agentFile: '.github/agents/agent.agent.md', tools: [], calls: [], outputs: [] }
+      ],
+      edges: []
+    };
+
+    const result = await refreshPipelineAfterWorkspaceChange('/workspace', current, async () => partial, {
+      maxAttempts: 1
+    });
+
+    expect(result.pipeline).toBe(current);
+    expect(result.changed).toBe(false);
+    expect(result.reason).toBe('transient-partial');
+  });
 });

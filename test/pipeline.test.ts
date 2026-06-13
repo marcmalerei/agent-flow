@@ -572,6 +572,26 @@ describe('webview graph projection', () => {
     expect((positions.get('step-9')?.y ?? 0)).toBeGreaterThan(positions.get('step-7')?.y ?? 0);
   });
 
+  it('keeps the default compact layout bounded and collision-free', () => {
+    const pipeline = createDefaultPipeline();
+    const positions = layoutFlowNodes(pipeline, 'compact');
+    const occupied = new Set([...positions.values()].map((position) => `${position.x}:${position.y}`));
+    const xs = [...positions.values()].map((position) => position.x);
+    const ys = [...positions.values()].map((position) => position.y);
+
+    expect(positions.size).toBe(pipeline.nodes.length);
+    expect(occupied.size).toBe(pipeline.nodes.length);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(245 * 7);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(150);
+    for (const edge of deriveVisibleFlowEdges(pipeline).filter((edge) => edge.data.derivedFrom.includes('artifact'))) {
+      const source = positions.get(edge.source);
+      const target = positions.get(edge.target);
+      expect(source).toBeDefined();
+      expect(target).toBeDefined();
+      expect(Math.abs((source?.x ?? 0) - (target?.x ?? 0))).toBeLessThanOrEqual(245 * 3);
+    }
+  });
+
   it('estimates token badges for generated node content', () => {
     const pipeline = createDefaultPipeline();
     const frontend = pipeline.nodes.find((node) => node.id === 'frontend');

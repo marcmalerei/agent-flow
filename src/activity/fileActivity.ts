@@ -3,7 +3,9 @@ import { AgentPipeline, PipelineNode } from '../pipeline/types';
 import { AgentFlowActivityInput } from './types';
 import { nodeBackingFile } from './store';
 
-export function activityInputsForChangedFiles(pipeline: AgentPipeline, files: string[], workspace?: string): AgentFlowActivityInput[] {
+export type PipelineFileActivityAction = 'read' | 'write';
+
+export function activityInputsForChangedFiles(pipeline: AgentPipeline, files: string[], workspace?: string, action: PipelineFileActivityAction = 'write'): AgentFlowActivityInput[] {
   const nodesByFile = new Map<string, PipelineNode>();
   const artifactNodesByPath = new Map<string, PipelineNode>();
   for (const node of pipeline.nodes) {
@@ -28,7 +30,7 @@ export function activityInputsForChangedFiles(pipeline: AgentPipeline, files: st
         phase: 'artifact',
         nodeId: producer?.id ?? artifactNode.id,
         artifactPath: rel,
-        summary: `Updated artifact ${rel}`,
+        summary: `${action === 'read' ? 'Read' : 'Updated'} artifact ${rel}`,
         severity: 'info'
       });
       continue;
@@ -41,11 +43,33 @@ export function activityInputsForChangedFiles(pipeline: AgentPipeline, files: st
       phase: 'file',
       nodeId: node.id,
       nodeFile: rel,
-      summary: `Updated ${rel}`,
+      summary: `${action === 'read' ? 'Read' : 'Updated'} ${rel}`,
       severity: 'info'
     });
   }
   return inputs;
+}
+
+export function activityInputForPipelineDocumentPath(file: string, workspace: string | undefined, action: PipelineFileActivityAction): AgentFlowActivityInput | undefined {
+  const rel = normalizeChangedPath(file, workspace);
+  if (!isPipelineFile(rel)) return undefined;
+  const verb = action === 'read' ? 'Read' : 'Updated';
+  if (rel.startsWith('.github/artifacts/')) {
+    return {
+      sessionId: 'vscode-documents',
+      phase: 'artifact',
+      artifactPath: rel,
+      summary: `${verb} artifact ${rel}`,
+      severity: 'info'
+    };
+  }
+  return {
+    sessionId: 'vscode-documents',
+    phase: 'file',
+    nodeFile: rel,
+    summary: `${verb} ${rel}`,
+    severity: 'info'
+  };
 }
 
 function findArtifactProducer(pipeline: AgentPipeline, artifactPath: string): PipelineNode | undefined {
@@ -70,4 +94,13 @@ function normalizeChangedPath(file: string, workspace?: string): string {
 
 function normalizeRelativePath(value: string): string {
   return value.replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
+function isPipelineFile(rel: string): boolean {
+  return /^\.github\/agents\/.+\.agent\.md$/.test(rel)
+    || /^\.github\/prompts\/.+\.prompt\.md$/.test(rel)
+    || /^\.github\/instructions\/.+\.instructions\.md$/.test(rel)
+    || /^\.github\/skills\/.+\/SKILL\.md$/.test(rel)
+    || /^\.github\/roles\/.+\.md$/.test(rel)
+    || /^\.github\/artifacts\/.+\.(md|json|txt)$/.test(rel);
 }
