@@ -11,6 +11,7 @@ const expectedCommands = [
   'agentflow.createDefaultPipeline',
   'agentflow.playDemoActivity',
   'agentflow.copyDebugSnapshot',
+  'agentflow.toggleDebugOverlay',
   'agentflow.debugSnapshot'
 ];
 
@@ -131,6 +132,13 @@ tools:
   assert.ok((stableRefreshSnapshot.webviewCanvasHeight ?? 0) >= 320, `Agent Flow webview canvas should not collapse after filesystem refresh settles. Snapshot: ${JSON.stringify(stableRefreshSnapshot)}`);
   assert.ok((stableRefreshSnapshot.webviewVisibleNodeCount ?? 0) >= minimumUsefulVisibleNodeCount(stableRefreshSnapshot.nodeCount), 'Agent Flow webview should fit more than a tiny node cluster after filesystem refresh settles.');
 
+  const documentRefreshSnapshot = await exerciseDocumentSaveRefresh(workspace, stableRefreshSnapshot.nodeCount);
+  assert.equal(documentRefreshSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after VS Code document save refresh settles.');
+  assert.equal(documentRefreshSnapshot.webviewNodeCount, documentRefreshSnapshot.nodeCount, 'Agent Flow webview should still hold every parsed node after VS Code document save refresh settles.');
+  assert.equal(documentRefreshSnapshot.webviewRenderedNodeCount, documentRefreshSnapshot.nodeCount, 'Agent Flow webview should still render every parsed node after VS Code document save refresh settles.');
+  assert.ok((documentRefreshSnapshot.webviewCanvasHeight ?? 0) >= 320, `Agent Flow webview canvas should not collapse after VS Code document save refresh settles. Snapshot: ${JSON.stringify(documentRefreshSnapshot)}`);
+  assert.ok((documentRefreshSnapshot.webviewVisibleNodeCount ?? 0) >= minimumUsefulVisibleNodeCount(documentRefreshSnapshot.nodeCount), 'Agent Flow webview should fit more than a tiny node cluster after VS Code document save refresh settles.');
+
   const originalShowWarningMessage = vscode.window.showWarningMessage;
   (vscode.window as unknown as { showWarningMessage: typeof vscode.window.showWarningMessage }).showWarningMessage = async (_message: string, ...items: unknown[]) => {
     const flatItems = items.flat().filter((item): item is string => typeof item === 'string');
@@ -160,6 +168,24 @@ tools:
   assert.match(generatedSkill, /name: "smoke-skill"/);
   assert.match(generatedSkill, /# Smoke Skill/);
   assert.match(generatedArtifact, /# \.github\/artifacts\/smoke\.md/);
+}
+
+async function exerciseDocumentSaveRefresh(workspace: string, previousNodeCount: number): Promise<DebugSnapshot> {
+  const uri = vscode.Uri.file(path.join(workspace, '.github/agents/smoke-live.agent.md'));
+  const document = await vscode.workspace.openTextDocument(uri);
+  const edit = new vscode.WorkspaceEdit();
+  edit.insert(uri, new vscode.Position(document.lineCount, 0), '\n- Read `.github/artifacts/smoke.md`: Verify the smoke artifact after a VS Code document save.\n');
+  assert.equal(await vscode.workspace.applyEdit(edit), true, 'Smoke test should apply VS Code document edit.');
+  assert.equal(await document.save(), true, 'Smoke test should save VS Code document edit.');
+  const changedSnapshot = await waitForSnapshot((snapshot) => snapshot.nodeCount >= previousNodeCount);
+  const nodeIds = [...changedSnapshot.nodeIds];
+  await delay(4_000);
+  return waitForRenderedWebviewState((snapshot) =>
+    nodeIds.every((nodeId) => snapshot.nodeIds.includes(nodeId))
+    && nodeIds.every((nodeId) => snapshot.webviewNodeIds?.includes(nodeId))
+    && nodeIds.every((nodeId) => snapshot.webviewRenderedNodeIds?.includes(nodeId))
+    && snapshot.webviewNodeCount === snapshot.nodeCount
+    && snapshot.webviewRenderedNodeCount === snapshot.nodeCount, 2_000);
 }
 
 interface DebugSnapshot {

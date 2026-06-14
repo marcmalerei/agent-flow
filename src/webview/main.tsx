@@ -44,6 +44,7 @@ interface State {
   toolOptions: ToolOptionGroup[];
   activityEvents: AgentFlowActivityEvent[];
   activitySources?: ActivitySourceRuntimeState[];
+  debugOverlay?: boolean;
 }
 
 type BottomTab = 'activity' | 'validation' | 'files' | 'tools' | 'risk';
@@ -208,6 +209,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
   const [viewportRevision, setViewportRevision] = useState(0);
   const [flowMountRevision, setFlowMountRevision] = useState(0);
+  const [renderStatus, setRenderStatus] = useState<FlowRenderStatus | undefined>(undefined);
   const flowNodeSignature = useMemo(() => nodes.map((node) => node.id).join('|'), [nodes]);
   const flowRenderKey = `${state.stateVersion}-${state.flowLayout}-${flowMountRevision}-${flowNodeSignature}`;
   useEffect(() => {
@@ -252,7 +254,11 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     connectingNodeId.current = null;
   }, [addNode, screenToFlowPosition]);
   useEffect(() => {
-    const report = (reason: string) => postFlowRenderStatus(canvasRef.current, state.stateVersion, nodes.map((node) => node.id), edges.length, reason);
+    const report = (reason: string) => {
+      const status = postFlowRenderStatus(canvasRef.current, state.stateVersion, nodes.map((node) => node.id), edges.length, reason);
+      setRenderStatus(status);
+      return status;
+    };
     const recoverIfBlank = (reason: string) => {
       const status = report(reason);
       if (!shouldRecoverFlowRender(status)) {
@@ -319,6 +325,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeTypes.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNode(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</div>}</div></header>
     <main className="canvas" ref={canvasRef}><ReactFlow key={flowRenderKey} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} onInit={() => setViewportRevision((revision) => revision + 1)} fitView><Controls /><Background /></ReactFlow></main>
+    {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} flowMountRevision={flowMountRevision} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
@@ -349,6 +356,8 @@ interface FlowRenderStatus {
   visualViewportHeight: number;
   rootHeight: number;
   appHeight: number;
+  reactFlowTransform: string;
+  reactFlowViewportRect: string;
   reason: string;
 }
 
@@ -362,6 +371,8 @@ function collectFlowRenderStatus(container: HTMLElement | null, stateVersion: nu
   const containerRect = container?.getBoundingClientRect();
   const rootRect = document.getElementById('root')?.getBoundingClientRect();
   const appRect = container?.closest<HTMLElement>('.app')?.getBoundingClientRect();
+  const reactFlowViewport = container?.querySelector<HTMLElement>('.react-flow__viewport');
+  const reactFlowViewportRect = reactFlowViewport?.getBoundingClientRect();
   const renderedNodeIds = renderedFlowNodeIds(container);
   return {
     stateVersion,
@@ -377,6 +388,8 @@ function collectFlowRenderStatus(container: HTMLElement | null, stateVersion: nu
     visualViewportHeight: Math.round(window.visualViewport?.height ?? 0),
     rootHeight: Math.round(rootRect?.height ?? 0),
     appHeight: Math.round(appRect?.height ?? 0),
+    reactFlowTransform: reactFlowViewport?.style.transform || 'none',
+    reactFlowViewportRect: reactFlowViewportRect ? `${Math.round(reactFlowViewportRect.width)}x${Math.round(reactFlowViewportRect.height)}@${Math.round(reactFlowViewportRect.left)},${Math.round(reactFlowViewportRect.top)}` : 'none',
     reason
   };
 }
@@ -399,6 +412,30 @@ function shouldRecoverFlowRender(status: FlowRenderStatus): boolean {
 function minimumUsefulVisibleNodeCount(nodeCount: number): number {
   if (nodeCount <= 1) return nodeCount;
   return Math.min(nodeCount, Math.max(4, Math.ceil(nodeCount * 0.15)));
+}
+
+function DebugOverlay({ status, stateVersion, draft, flowMountRevision }: { status?: FlowRenderStatus; stateVersion: number; draft: AgentPipeline; flowMountRevision: number }) {
+  const expectedVisible = minimumUsefulVisibleNodeCount(draft.nodes.length);
+  const rows = [
+    ['state', String(stateVersion)],
+    ['draft nodes', String(draft.nodes.length)],
+    ['draft edges', String(draft.edges.length)],
+    ['webview nodes', String(status?.nodeCount ?? 'n/a')],
+    ['dom nodes', String(status?.renderedNodeCount ?? 'n/a')],
+    ['visible nodes', `${status?.visibleNodeCount ?? 'n/a'} / ${expectedVisible}`],
+    ['canvas', `${status?.canvasWidth ?? 'n/a'} x ${status?.canvasHeight ?? 'n/a'}`],
+    ['window', String(status?.windowInnerHeight ?? 'n/a')],
+    ['visual viewport', String(status?.visualViewportHeight ?? 'n/a')],
+    ['root/app', `${status?.rootHeight ?? 'n/a'} / ${status?.appHeight ?? 'n/a'}`],
+    ['rf viewport', status?.reactFlowViewportRect ?? 'n/a'],
+    ['transform', status?.reactFlowTransform ?? 'n/a'],
+    ['reason', status?.reason ?? 'n/a'],
+    ['remount', String(flowMountRevision)]
+  ];
+  return <aside className="debug-overlay" aria-label="Agent Flow debug overlay">
+    <strong>Agent Flow Debug</strong>
+    <dl>{rows.map(([label, value]) => <React.Fragment key={label}><dt>{label}</dt><dd>{value}</dd></React.Fragment>)}</dl>
+  </aside>;
 }
 
 function visibleFlowNodeCount(container: HTMLElement | null): number {

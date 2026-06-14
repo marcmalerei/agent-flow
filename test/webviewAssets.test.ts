@@ -43,6 +43,8 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('renderedFlowNodeIds');
     expect(webviewSource).toContain('webviewBootId');
     expect(webviewSource).toContain("command: 'webviewReady'");
+    expect(webviewSource).toContain('DebugOverlay');
+    expect(webviewSource).toContain('reactFlowTransform');
     expect(webviewSource).toContain('visibleFlowNodeCount');
     expect(webviewSource).toContain('flowMountRevision');
     expect(webviewSource).toContain('flowRenderKey');
@@ -55,6 +57,7 @@ describe('webview assets', () => {
     expect(css).toContain('--agentflow-canvas-min-height: 360px');
     expect(css).toContain('grid-template-rows: 56px minmax(var(--agentflow-canvas-min-height), 1fr) 42px');
     expect(css).toContain('min-height: var(--agentflow-canvas-min-height)');
+    expect(css).toContain('.debug-overlay');
     expect(css).toContain('.canvas .react-flow');
     expect(panelSource).toContain('onDidChangeViewState');
     expect(panelSource).toContain('retainContextWhenHidden: true');
@@ -63,6 +66,7 @@ describe('webview assets', () => {
     expect(panelSource).toContain('webviewRenderedNodeIds');
     expect(panelSource).toContain('webviewReadyBootId');
     expect(panelSource).toContain('webviewRootHeight');
+    expect(panelSource).toContain('webviewReactFlowTransform');
     expect(panelSource).toContain("message?.command === 'webviewRenderStatus'");
     expect(panelSource).toContain("message?.command === 'webviewReady'");
     expect(panelSource).toContain("command: 'stateUpdated'");

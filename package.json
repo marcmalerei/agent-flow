@@ -89,6 +89,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable Agent Flow language model activity tools that agents can call to report progress."
+        },
+        "agentflow.debug.overlay": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show a live Agent Flow webview diagnostic overlay with pipeline, DOM, canvas, viewport, and React Flow transform metrics."
         }
       }
     },
@@ -126,6 +131,11 @@
       {
         "command": "agentflow.copyDebugSnapshot",
         "title": "Copy Debug Snapshot",
+        "category": "Agent Flow"
+      },
+      {
+        "command": "agentflow.toggleDebugOverlay",
+        "title": "Toggle Debug Overlay",
         "category": "Agent Flow"
       }
     ],

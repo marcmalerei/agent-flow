@@ -36,6 +36,8 @@ export interface AgentFlowPanelSnapshot {
   webviewVisualViewportHeight?: number;
   webviewRootHeight?: number;
   webviewAppHeight?: number;
+  webviewReactFlowTransform?: string;
+  webviewReactFlowViewportRect?: string;
   webviewRenderReason?: string;
   webviewReadyCount?: number;
   webviewReadyBootId?: string;
@@ -139,7 +141,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     panel.webview.postMessage({ command: 'activityUpdated', activityEvents: resolveActivityEventsForPipeline(pipeline, activityEvents) });
   });
   const configurationListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
-    if (!event.affectsConfiguration('agentflow.flow.layout') && !event.affectsConfiguration('agentflow.activity') && !event.affectsConfiguration('github.copilot.chat.agentDebugLog.fileLogging.enabled')) return;
+    if (!event.affectsConfiguration('agentflow.flow.layout') && !event.affectsConfiguration('agentflow.activity') && !event.affectsConfiguration('agentflow.debug') && !event.affectsConfiguration('github.copilot.chat.agentDebugLog.fileLogging.enabled')) return;
     log('Agent Flow configuration changed');
     await postStateUpdated('configuration-change', true);
   });
@@ -318,6 +320,8 @@ function updateWebviewRenderSnapshot(message: Record<string, unknown>, currentSt
     webviewVisualViewportHeight: typeof message.visualViewportHeight === 'number' ? message.visualViewportHeight : latestPanelSnapshot.webviewVisualViewportHeight,
     webviewRootHeight: typeof message.rootHeight === 'number' ? message.rootHeight : latestPanelSnapshot.webviewRootHeight,
     webviewAppHeight: typeof message.appHeight === 'number' ? message.appHeight : latestPanelSnapshot.webviewAppHeight,
+    webviewReactFlowTransform: typeof message.reactFlowTransform === 'string' ? message.reactFlowTransform : latestPanelSnapshot.webviewReactFlowTransform,
+    webviewReactFlowViewportRect: typeof message.reactFlowViewportRect === 'string' ? message.reactFlowViewportRect : latestPanelSnapshot.webviewReactFlowViewportRect,
     webviewRenderReason: typeof message.reason === 'string' ? message.reason : latestPanelSnapshot.webviewRenderReason,
     updatedAt: new Date().toISOString()
   };
@@ -399,7 +403,8 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
     flowLayout: coerceFlowLayout(vscode.workspace.getConfiguration('agentflow.flow').get('layout')),
     toolOptions,
     activityEvents: resolveActivityEventsForPipeline(displayPipeline, activityStore.getEvents()),
-    activitySources
+    activitySources,
+    debugOverlay: vscode.workspace.getConfiguration('agentflow.debug').get<boolean>('overlay', false)
   };
 }
 
