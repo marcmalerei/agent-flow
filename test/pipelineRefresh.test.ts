@@ -1,8 +1,42 @@
 import { describe, expect, it } from 'vitest';
-import { PipelineRefreshCoordinator, refreshPipelineAfterWorkspaceChange } from '../src/webview/pipelineRefresh';
+import { PipelineRefreshCoordinator, loadInitialPipelineWhenStable, refreshPipelineAfterWorkspaceChange } from '../src/webview/pipelineRefresh';
 import { AgentPipeline } from '../src/pipeline/types';
 
 describe('pipeline workspace refresh', () => {
+  it('retries empty initial scans before opening the webview state', async () => {
+    const empty: AgentPipeline = { version: 1, name: 'Empty', nodes: [], edges: [] };
+    const ready: AgentPipeline = {
+      version: 1,
+      name: 'Ready',
+      nodes: [{ id: 'router', type: 'agent', label: 'router', agentFile: '.github/agents/router.agent.md', tools: [], calls: [], outputs: [] }],
+      edges: []
+    };
+    const scans = [empty, empty, ready];
+
+    const result = await loadInitialPipelineWhenStable('/workspace', async () => scans.shift() ?? ready, {
+      retryDelayMs: 0,
+      sleep: async () => undefined
+    });
+
+    expect(result.pipeline).toBe(ready);
+    expect(result.attempts).toBe(3);
+    expect(result.reason).toBe('accepted');
+  });
+
+  it('returns an empty initial pipeline only after repeated empty scans', async () => {
+    const empty: AgentPipeline = { version: 1, name: 'Empty', nodes: [], edges: [] };
+
+    const result = await loadInitialPipelineWhenStable('/workspace', async () => empty, {
+      maxAttempts: 2,
+      retryDelayMs: 0,
+      sleep: async () => undefined
+    });
+
+    expect(result.pipeline).toBe(empty);
+    expect(result.changed).toBe(false);
+    expect(result.reason).toBe('transient-empty');
+  });
+
   it('drops stale refresh results when a newer refresh finishes first', async () => {
     const current: AgentPipeline = {
       version: 1,

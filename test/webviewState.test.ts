@@ -98,4 +98,46 @@ describe('webview state updates', () => {
     expect(result.state.pipeline).toBe(currentPipeline);
     expect(result.state.activityEvents).toHaveLength(1);
   });
+
+  it('keeps the last graph when a clean webview receives a suspicious partial remote state', () => {
+    const current: AgentPipeline = {
+      version: 1,
+      name: 'Current',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'router', agentFile: '.github/agents/router.agent.md', tools: [], calls: [], outputs: [] },
+        { id: 'worker', type: 'agent', label: 'worker', agentFile: '.github/agents/worker.agent.md', tools: [], calls: [], outputs: [] },
+        { id: 'plan', type: 'artifact', label: 'plan', path: '.github/artifacts/plan.md' }
+      ],
+      edges: []
+    };
+    const partial: AgentPipeline = {
+      version: 1,
+      name: 'Partial',
+      nodes: [{ id: 'router', type: 'agent', label: 'router', agentFile: '.github/agents/router.agent.md', tools: [], calls: [], outputs: [] }],
+      edges: []
+    };
+    const result = mergeRemoteStateUpdate({
+      currentState: {
+        pipeline: current,
+        findings: [{ severity: 'warning', ruleId: 'current', message: 'Keep current' }],
+        risk: { score: 3, reasons: ['current'] },
+        generatedFiles: [{ path: '.github/agents/router.agent.md', kind: 'agent' }],
+        activityEvents: []
+      },
+      currentDraft: current,
+      incomingState: {
+        pipeline: partial,
+        findings: [],
+        risk: { score: 0, reasons: [] },
+        generatedFiles: [],
+        activityEvents: [{ id: 'activity-1', sessionId: 's', timestamp: '2026-06-13T18:00:00.000Z', phase: 'file', summary: 'Updated file' }]
+      },
+      dirty: false
+    });
+
+    expect(result.applyDraft).toBe(false);
+    expect(result.draft).toBe(current);
+    expect(result.state.pipeline).toBe(current);
+    expect(result.state.activityEvents).toHaveLength(1);
+  });
 });
