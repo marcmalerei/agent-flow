@@ -381,7 +381,14 @@ function renderedFlowNodeIds(container: HTMLElement | null): string[] {
 function shouldRecoverFlowRender(status: FlowRenderStatus): boolean {
   if (status.nodeCount === 0) return false;
   if (status.canvasWidth < 20 || status.canvasHeight < 20) return false;
-  return status.renderedNodeCount < status.nodeCount || status.visibleNodeCount === 0;
+  return status.renderedNodeCount < status.nodeCount
+    || status.visibleNodeCount === 0
+    || status.visibleNodeCount < minimumUsefulVisibleNodeCount(status.nodeCount);
+}
+
+function minimumUsefulVisibleNodeCount(nodeCount: number): number {
+  if (nodeCount <= 1) return nodeCount;
+  return Math.min(nodeCount, Math.max(4, Math.ceil(nodeCount * 0.15)));
 }
 
 function visibleFlowNodeCount(container: HTMLElement | null): number {
