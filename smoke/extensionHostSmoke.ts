@@ -36,6 +36,17 @@ export async function run(): Promise<void> {
   assert.ok(renderedSnapshot.webviewRenderedNodeCount && renderedSnapshot.webviewRenderedNodeCount > 0, 'Agent Flow webview should render React Flow nodes for the default pipeline.');
   assert.ok(renderedSnapshot.webviewVisibleNodeCount && renderedSnapshot.webviewVisibleNodeCount > 0, 'Agent Flow webview should keep at least one rendered node visible.');
   assert.equal(renderedSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after initial render.');
+  const defaultNodeIds = [...renderedSnapshot.nodeIds];
+  await delay(4_000);
+  const stableDefaultSnapshot = await waitForRenderedWebviewState((snapshot) =>
+    defaultNodeIds.every((nodeId) => snapshot.nodeIds.includes(nodeId))
+    && snapshot.nodeCount >= defaultNodeIds.length
+    && snapshot.webviewNodeCount === snapshot.nodeCount
+    && snapshot.webviewRenderedNodeCount === snapshot.nodeCount, 2_000);
+  assert.equal(stableDefaultSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after the default pipeline settles.');
+  assert.equal(stableDefaultSnapshot.webviewNodeCount, stableDefaultSnapshot.nodeCount, 'Agent Flow webview should still hold every parsed default pipeline node after settling.');
+  assert.equal(stableDefaultSnapshot.webviewRenderedNodeCount, stableDefaultSnapshot.nodeCount, 'Agent Flow webview should still render every parsed default pipeline node after settling.');
+  assert.ok(defaultNodeIds.every((nodeId) => stableDefaultSnapshot.nodeIds.includes(nodeId)), 'Agent Flow webview should not lose default pipeline nodes after settling.');
 
   await assert.rejects(fs.readFile(path.join(workspace, '.github', 'agent-flow.json'), 'utf8'));
   assert.match(await fs.readFile(path.join(workspace, '.github/agents/router.agent.md'), 'utf8'), /name: "router"/);
@@ -137,6 +148,7 @@ interface DebugSnapshot {
   nodeCount: number;
   stateVersion?: number;
   webviewStateVersion?: number;
+  webviewNodeCount?: number;
   webviewRenderedNodeCount?: number;
   webviewVisibleNodeCount?: number;
   webviewRuntimeError?: string;
