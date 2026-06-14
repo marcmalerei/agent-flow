@@ -48,6 +48,7 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('flowRenderKey');
     expect(webviewSource).toContain('visibilityWatchdog');
     expect(webviewSource).toContain('shouldRecoverFlowRender');
+    expect(webviewSource).toContain('minimumUsefulVisibleNodeCount');
     expect(webviewSource).toContain("event.data?.command === 'refitFlow'");
     expect(webviewSource).toContain('ResizeObserver');
     expect(css).toContain('#root { position: fixed; inset: 0; }');
