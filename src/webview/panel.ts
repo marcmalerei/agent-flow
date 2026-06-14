@@ -14,6 +14,7 @@ import { loadInitialPipelineWhenStable, PipelineRefreshCoordinator, refreshPipel
 import { ActivityStore } from '../activity/store';
 import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
 import { activityInputsForChangedFiles } from '../activity/fileActivity';
+import { buildActivitySourceStatuses } from '../activity/sources';
 import { resolveActivityEventsForPipeline } from './activity';
 
 export interface AgentFlowPanelSnapshot {
@@ -34,6 +35,16 @@ let latestPanelSnapshot: AgentFlowPanelSnapshot = {
   lastReason: 'not-opened',
   updatedAt: new Date(0).toISOString()
 };
+
+const pipelineWatchPatterns = [
+  '.agent-pipeline/pipeline.json',
+  '.github/agents/**/*.agent.md',
+  '.github/prompts/**/*.prompt.md',
+  '.github/instructions/**/*.instructions.md',
+  '.github/skills/**/SKILL.md',
+  '.github/roles/**/*.md',
+  '.github/artifacts/**/*.{md,json,txt}'
+];
 
 export function getLatestPipelinePanelSnapshot(): AgentFlowPanelSnapshot {
   return latestPanelSnapshot;
@@ -62,7 +73,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     panel.webview.postMessage({ command: 'activityUpdated', activityEvents: resolveActivityEventsForPipeline(pipeline, activityEvents) });
   });
   const configurationListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
-    if (!event.affectsConfiguration('agentflow.flow.layout') && !event.affectsConfiguration('agentflow.activity.copilotDebugLogs') && !event.affectsConfiguration('github.copilot.chat.agentDebugLog.fileLogging.enabled')) return;
+    if (!event.affectsConfiguration('agentflow.flow.layout') && !event.affectsConfiguration('agentflow.activity') && !event.affectsConfiguration('github.copilot.chat.agentDebugLog.fileLogging.enabled')) return;
     log('Agent Flow configuration changed');
     panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
     panel.webview.postMessage({ command: 'refitFlow' });
@@ -203,17 +214,12 @@ function updatePanelSnapshot(pipeline: AgentPipeline, selectedId: string | undef
 
 
 function createPipelineFileWatchers(workspace: string, onRefresh: (changedFiles: string[]) => Promise<void>, log?: AgentFlowLog, selfWrites?: FileWatchSuppression): vscode.Disposable {
-  const patterns = [
-    '.agent-pipeline/pipeline.json',
-    '.github/agents/**/*.agent.md',
-    '.github/prompts/**/*.prompt.md',
-    '.github/instructions/**/*.instructions.md',
-    '.github/skills/**/SKILL.md',
-    '.github/roles/**/*.md',
-    '.github/artifacts/**/*.{md,json,txt}'
-  ];
-  const watchers = patterns.map((pattern) => vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(workspace, pattern)));
-  log?.(`watching ${patterns.join(', ')}`);
+  if (!activitySourceEnabled('filesystem')) {
+    log?.('filesystem activity source disabled; not creating pipeline file watchers');
+    return new vscode.Disposable(() => {});
+  }
+  const watchers = pipelineWatchPatterns.map((pattern) => vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(workspace, pattern)));
+  log?.(`watching ${pipelineWatchPatterns.join(', ')}`);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
   const pendingFiles = new Set<string>();
@@ -252,6 +258,18 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
   const displayPipeline = normalizePipelineToolsForOptions(pipeline, toolOptions);
   const findings = validatePipeline(displayPipeline);
   const risk = calculateRiskScore(displayPipeline, { copilotInstructionsLines: await countCopilotInstructionLines(workspace) });
+  const activitySources = buildActivitySourceStatuses({
+    filesystem: {
+      enabled: activitySourceEnabled('filesystem'),
+      watchingPatterns: activitySourceEnabled('filesystem') ? pipelineWatchPatterns : []
+    },
+    documents: { enabled: activitySourceEnabled('vscodeDocuments') },
+    tools: {
+      enabled: activitySourceEnabled('agentFlowTools'),
+      registered: Boolean(vscode.lm?.registerTool)
+    },
+    copilotDebugLogs: await getCopilotDebugLogStatus()
+  });
   return {
     pipeline: displayPipeline,
     findings,
@@ -260,10 +278,12 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
     flowLayout: coerceFlowLayout(vscode.workspace.getConfiguration('agentflow.flow').get('layout')),
     toolOptions,
     activityEvents: resolveActivityEventsForPipeline(displayPipeline, activityStore.getEvents()),
-    activitySources: {
-      copilotDebugLogs: await getCopilotDebugLogStatus()
-    }
+    activitySources
   };
+}
+
+function activitySourceEnabled(key: 'filesystem' | 'vscodeDocuments' | 'agentFlowTools'): boolean {
+  return vscode.workspace.getConfiguration('agentflow.activity.sources').get<boolean>(key) ?? true;
 }
 
 function html(webview: vscode.Webview, context: vscode.ExtensionContext, state: unknown): string {

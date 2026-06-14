@@ -208,9 +208,12 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .activity-filter select { min-height: 27px; margin: 0; padding: 3px 6px; border: 1px solid var(--vscode-input-border, var(--agentflow-border)); border-radius: var(--agentflow-control-radius); background: var(--vscode-input-background); color: var(--vscode-input-foreground); font: inherit; }
 .activity-card { width: 100%; justify-content: stretch; text-align: left; }
 .activity-card:disabled { opacity: 1; cursor: default; }
+.activity-source-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px; max-width: 1100px; }
 .activity-source-status { max-width: 760px; padding: 8px 10px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
 .activity-source-status p { margin: 4px 0 0; color: var(--vscode-foreground); line-height: 1.35; }
-.activity-source-status.waiting-for-copilot-logging .codicon, .activity-source-status.no-logs-found .codicon { color: var(--vscode-editorWarning-foreground, #fde68a); }
+.activity-source-status.degraded .codicon, .activity-source-status.initializing .codicon { color: var(--vscode-editorWarning-foreground, #fde68a); }
+.activity-source-status.disabled .codicon { color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)); }
+.activity-source-status.error .codicon { color: var(--vscode-errorForeground, #fca5a5); }
 .activity-source-status.watching .codicon { color: var(--vscode-charts-green); }
 .diagnostic-card { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: flex-start; padding: 7px 9px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
 .diagnostic-card > .codicon { margin-top: 1px; }

@@ -10,6 +10,7 @@ const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.
   name?: string;
   scripts?: Record<string, string>;
   contributes?: {
+    configuration?: { properties?: Record<string, unknown> };
     commands?: Array<{ category?: string; command: string; title: string }>;
     languageModelTools?: Array<{ name: string; modelDescription?: string; inputSchema?: { properties?: Record<string, unknown> } }>;
     menus?: Record<string, Array<{ command?: string; group?: string; submenu?: string; when?: string }>>;
@@ -92,5 +93,15 @@ describe('package contributions', () => {
       category: 'Agent Flow',
       title: 'Play Demo Activity'
     }));
+  });
+
+  it('contributes independent activity source settings', () => {
+    const properties = manifest.contributes?.configuration?.properties ?? {};
+    expect(Object.keys(properties)).toEqual(expect.arrayContaining([
+      'agentflow.activity.sources.filesystem',
+      'agentflow.activity.sources.vscodeDocuments',
+      'agentflow.activity.sources.agentFlowTools',
+      'agentflow.activity.copilotDebugLogs.enabled'
+    ]));
   });
 });
