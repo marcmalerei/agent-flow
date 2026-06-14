@@ -115,6 +115,17 @@ tools:
   const renderedRefreshSnapshot = await waitForRenderedWebviewState((snapshot) => snapshot.nodeIds.includes('smoke-live'));
   assert.equal(renderedRefreshSnapshot.webviewStateVersion, renderedRefreshSnapshot.stateVersion, 'Webview should render the latest filesystem-refresh state, not a stale previous render.');
   assert.equal(renderedRefreshSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after filesystem refresh.');
+  const refreshedNodeIds = [...renderedRefreshSnapshot.nodeIds];
+  await delay(4_000);
+  const stableRefreshSnapshot = await waitForRenderedWebviewState((snapshot) =>
+    refreshedNodeIds.every((nodeId) => snapshot.nodeIds.includes(nodeId))
+    && refreshedNodeIds.every((nodeId) => snapshot.webviewNodeIds?.includes(nodeId))
+    && refreshedNodeIds.every((nodeId) => snapshot.webviewRenderedNodeIds?.includes(nodeId))
+    && snapshot.webviewNodeCount === snapshot.nodeCount
+    && snapshot.webviewRenderedNodeCount === snapshot.nodeCount, 2_000);
+  assert.equal(stableRefreshSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after filesystem refresh settles.');
+  assert.equal(stableRefreshSnapshot.webviewNodeCount, stableRefreshSnapshot.nodeCount, 'Agent Flow webview should still hold every parsed node after filesystem refresh settles.');
+  assert.equal(stableRefreshSnapshot.webviewRenderedNodeCount, stableRefreshSnapshot.nodeCount, 'Agent Flow webview should still render every parsed node after filesystem refresh settles.');
 
   const originalShowWarningMessage = vscode.window.showWarningMessage;
   (vscode.window as unknown as { showWarningMessage: typeof vscode.window.showWarningMessage }).showWarningMessage = async (_message: string, ...items: unknown[]) => {
