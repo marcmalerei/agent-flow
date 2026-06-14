@@ -35,6 +35,7 @@ import { applyNodePatch } from './nodeMarkdownSync';
 import { mergeRemoteStateUpdate } from './stateUpdates';
 
 interface State {
+  stateVersion: number;
   pipeline: AgentPipeline;
   findings: ValidationFinding[];
   risk: RiskScore;
@@ -47,9 +48,10 @@ interface State {
 
 type BottomTab = 'activity' | 'validation' | 'files' | 'tools' | 'risk';
 
-declare global { interface Window { __AGENTFLOW_STATE__: State; acquireVsCodeApi?: () => { postMessage(message: unknown): void } } }
+declare global { interface Window { __AGENTFLOW_STATE__: State; __AGENTFLOW_APP_BOOTED__?: boolean; __AGENTFLOW_VSCODE_API__?: { postMessage(message: unknown): void }; acquireVsCodeApi?: () => { postMessage(message: unknown): void } } }
 
-const vscode = window.acquireVsCodeApi?.();
+const vscode = window.__AGENTFLOW_VSCODE_API__ ?? window.acquireVsCodeApi?.();
+if (vscode && !window.__AGENTFLOW_VSCODE_API__) window.__AGENTFLOW_VSCODE_API__ = vscode;
 const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-testing-iconPassed, #2ea043)', role: 'var(--vscode-charts-cyan, #00b7c3)', artifact: 'var(--vscode-charts-green)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)', handoff: 'var(--vscode-editorWarning-foreground, #cca700)', 'mcp-server': 'var(--vscode-charts-cyan, #00b7c3)' };
 const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'role', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server'];
 const nodeTypeIcons: Record<PipelineNodeType, string> = { agent: 'hubot', prompt: 'comment-discussion', instruction: 'list-tree', skill: 'tools', role: 'person', artifact: 'file', gate: 'pass', hook: 'debug-disconnect', handoff: 'arrow-swap', 'mcp-server': 'server-process' };
@@ -239,7 +241,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     connectingNodeId.current = null;
   }, [addNode, screenToFlowPosition]);
   useEffect(() => {
-    const report = (reason: string) => postFlowRenderStatus(canvasRef.current, nodes.length, edges.length, reason);
+    const report = (reason: string) => postFlowRenderStatus(canvasRef.current, state.stateVersion, nodes.length, edges.length, reason);
     if (!nodes.length) {
       report('empty-pipeline');
       return;
@@ -286,7 +288,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
       window.removeEventListener('message', onMessage);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [bottomOpen, edges.length, fitView, flowMountRevision, inspectorOpen, nodes.length, state.flowLayout, viewportRevision, viewportSignal]);
+  }, [bottomOpen, edges.length, fitView, flowMountRevision, inspectorOpen, nodes.length, state.flowLayout, state.stateVersion, viewportRevision, viewportSignal]);
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeTypes.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNode(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</div>}</div></header>
@@ -308,6 +310,7 @@ function scheduleFlowFit(fitView: (options?: { padding?: number; duration?: numb
 }
 
 interface FlowRenderStatus {
+  stateVersion: number;
   nodeCount: number;
   edgeCount: number;
   renderedNodeCount: number;
@@ -317,15 +320,16 @@ interface FlowRenderStatus {
   reason: string;
 }
 
-function postFlowRenderStatus(container: HTMLElement | null, nodeCount: number, edgeCount: number, reason: string): FlowRenderStatus {
-  const status = collectFlowRenderStatus(container, nodeCount, edgeCount, reason);
+function postFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeCount: number, edgeCount: number, reason: string): FlowRenderStatus {
+  const status = collectFlowRenderStatus(container, stateVersion, nodeCount, edgeCount, reason);
   vscode?.postMessage({ command: 'webviewRenderStatus', ...status });
   return status;
 }
 
-function collectFlowRenderStatus(container: HTMLElement | null, nodeCount: number, edgeCount: number, reason: string): FlowRenderStatus {
+function collectFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeCount: number, edgeCount: number, reason: string): FlowRenderStatus {
   const containerRect = container?.getBoundingClientRect();
   return {
+    stateVersion,
     nodeCount,
     edgeCount,
     renderedNodeCount: container ? container.querySelectorAll('.react-flow__node').length : 0,
@@ -909,4 +913,5 @@ function EmptyDiagnostics({ detail, icon, title }: { detail: string; icon: strin
   return <div className="diagnostic-empty"><Codicon name={icon} /><strong>{title}</strong><span>{detail}</span></div>;
 }
 
+window.__AGENTFLOW_APP_BOOTED__ = true;
 createRoot(document.getElementById('root')!).render(<App />);

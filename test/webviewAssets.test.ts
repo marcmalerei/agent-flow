@@ -53,6 +53,17 @@ describe('webview assets', () => {
     expect(panelSource).toContain("command: 'refitFlow'");
   });
 
+  test('surfaces webview bundle load and runtime failures instead of a blank panel', () => {
+    const panelSource = readFileSync('src/webview/panel.ts', 'utf8');
+
+    expect(panelSource).toContain('webviewRuntimeError');
+    expect(panelSource).toContain('Agent Flow webview failed to load');
+    expect(panelSource).toContain("document.createElement('script')");
+    expect(panelSource).toContain('script.onerror');
+    expect(panelSource).toContain('ResizeObserver loop');
+    expect(panelSource).toContain('__AGENTFLOW_APP_BOOTED__');
+  });
+
   test('animates node-level file and artifact activity', () => {
     const tokenNodeSource = readFileSync('src/webview/TokenNode.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
