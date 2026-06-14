@@ -248,6 +248,14 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     if (!nodes.length) return;
     const refit = () => scheduleFlowFit(fitView, canvasRef.current);
     refit();
+    const startedAt = Date.now();
+    const visibilityWatchdog = window.setInterval(() => {
+      if (Date.now() - startedAt > 5_000) {
+        window.clearInterval(visibilityWatchdog);
+        return;
+      }
+      if (!hasVisibleFlowNode(canvasRef.current)) refit();
+    }, 500);
     const observer = typeof ResizeObserver !== 'undefined' && canvasRef.current ? new ResizeObserver(refit) : undefined;
     if (observer && canvasRef.current) observer.observe(canvasRef.current);
     const onMessage = (event: MessageEvent) => {
@@ -261,6 +269,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     window.addEventListener('message', onMessage);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
+      window.clearInterval(visibilityWatchdog);
       observer?.disconnect();
       window.removeEventListener('resize', refit);
       window.removeEventListener('focus', refit);
@@ -283,10 +292,23 @@ function scheduleFlowFit(fitView: (options?: { padding?: number; duration?: numb
     if (!rect || rect.width < 20 || rect.height < 20) return;
     fitView({ padding: 0.16, duration: 0 });
   };
-  window.requestAnimationFrame(() => {
-    run();
-    window.setTimeout(run, 80);
-    window.setTimeout(run, 240);
+  for (const delay of [0, 80, 240, 600, 1200, 2200]) {
+    window.setTimeout(() => window.requestAnimationFrame(run), delay);
+  }
+}
+
+function hasVisibleFlowNode(container: HTMLElement | null): boolean {
+  if (!container) return true;
+  const containerRect = container.getBoundingClientRect();
+  if (!containerRect || containerRect.width < 20 || containerRect.height < 20) return true;
+  const nodes = Array.from(container.querySelectorAll<HTMLElement>('.react-flow__node'));
+  if (!nodes.length) return false;
+  return nodes.some((node) => {
+    const rect = node.getBoundingClientRect();
+    return rect.right > containerRect.left
+      && rect.left < containerRect.right
+      && rect.bottom > containerRect.top
+      && rect.top < containerRect.bottom;
   });
 }
 

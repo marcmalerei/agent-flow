@@ -43,6 +43,12 @@ describe('webview state updates', () => {
   });
 
   it('applies remote state updates when the webview draft is clean', () => {
+    const nextPipeline: AgentPipeline = {
+      version: 1,
+      name: 'Incoming scan',
+      nodes: [{ id: 'incoming', type: 'agent', label: 'incoming', tools: [], calls: [], outputs: [] }],
+      edges: []
+    };
     const result = mergeRemoteStateUpdate({
       currentState: {
         pipeline: currentPipeline,
@@ -53,7 +59,7 @@ describe('webview state updates', () => {
       },
       currentDraft: currentPipeline,
       incomingState: {
-        pipeline: incomingPipeline,
+        pipeline: nextPipeline,
         findings: [],
         risk: { score: 0, reasons: [] },
         generatedFiles: [],
@@ -63,7 +69,33 @@ describe('webview state updates', () => {
     });
 
     expect(result.applyDraft).toBe(true);
-    expect(result.draft).toBe(incomingPipeline);
-    expect(result.state.pipeline).toBe(incomingPipeline);
+    expect(result.draft).toBe(nextPipeline);
+    expect(result.state.pipeline).toBe(nextPipeline);
+  });
+
+  it('keeps the last non-empty graph when a clean webview receives a transient empty remote state', () => {
+    const result = mergeRemoteStateUpdate({
+      currentState: {
+        pipeline: currentPipeline,
+        findings: [{ severity: 'warning', ruleId: 'current', message: 'Keep current' }],
+        risk: { score: 3, reasons: ['current'] },
+        generatedFiles: [{ path: '.github/agents/agent.agent.md', kind: 'agent' }],
+        activityEvents: []
+      },
+      currentDraft: currentPipeline,
+      incomingState: {
+        pipeline: incomingPipeline,
+        findings: [],
+        risk: { score: 0, reasons: [] },
+        generatedFiles: [],
+        activityEvents: [{ id: 'activity-1', sessionId: 's', timestamp: '2026-06-13T18:00:00.000Z', phase: 'file', summary: 'Updated file' }]
+      },
+      dirty: false
+    });
+
+    expect(result.applyDraft).toBe(false);
+    expect(result.draft).toBe(currentPipeline);
+    expect(result.state.pipeline).toBe(currentPipeline);
+    expect(result.state.activityEvents).toHaveLength(1);
   });
 });

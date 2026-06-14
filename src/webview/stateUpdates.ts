@@ -20,6 +20,20 @@ export function mergeRemoteStateUpdate<TState extends WebviewStateLike>(input: {
   incomingState: TState;
   dirty: boolean;
 }): RemoteStateMergeResult<TState> {
+  if (isTransientEmptyPipeline(input.currentState.pipeline, input.incomingState.pipeline)) {
+    return {
+      state: {
+        ...input.incomingState,
+        pipeline: input.currentState.pipeline,
+        findings: input.currentState.findings,
+        risk: input.currentState.risk,
+        generatedFiles: input.currentState.generatedFiles
+      } as TState,
+      draft: input.currentDraft,
+      applyDraft: false
+    };
+  }
+
   if (!input.dirty) {
     return { state: input.incomingState, draft: input.incomingState.pipeline, applyDraft: true };
   }
@@ -35,4 +49,8 @@ export function mergeRemoteStateUpdate<TState extends WebviewStateLike>(input: {
     draft: input.currentDraft,
     applyDraft: false
   };
+}
+
+function isTransientEmptyPipeline(current: AgentPipeline, incoming: AgentPipeline): boolean {
+  return current.nodes.length > 0 && incoming.nodes.length === 0;
 }

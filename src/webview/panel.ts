@@ -52,6 +52,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   updatePanelSnapshot(pipeline, selectedId, 'opened');
   const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'Agent Flow Pipeline', vscode.ViewColumn.One, {
     enableScripts: true,
+    retainContextWhenHidden: true,
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
   });
   panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline, activityStore));
@@ -66,8 +67,15 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   });
   const viewStateListener = panel.onDidChangeViewState((event) => {
     if (!event.webviewPanel.visible) return;
-    log('pipeline panel became visible; requesting React Flow refit');
-    panel.webview.postMessage({ command: 'refitFlow' });
+    log('pipeline panel became visible; posting latest state and requesting React Flow refit');
+    setTimeout(() => {
+      buildState(workspace, pipeline, activityStore)
+        .then((state) => {
+          panel.webview.postMessage({ command: 'stateUpdated', state, selectedId });
+          panel.webview.postMessage({ command: 'refitFlow' });
+        })
+        .catch((error) => log(`failed to refresh visible pipeline panel: ${(error as Error).stack ?? (error as Error).message}`));
+    }, 100);
   });
   const fileWatchers = createPipelineFileWatchers(workspace, async (changedFiles) => {
     log(`filesystem change detected; reloading pipeline (${changedFiles.length} changed path${changedFiles.length === 1 ? '' : 's'})`);
@@ -76,11 +84,15 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     if (attempt.stale) {
       log(`ignored stale filesystem refresh generation ${attempt.generation} after ${refresh.attempts} scan attempt${refresh.attempts === 1 ? '' : 's'}`);
       for (const activity of activityInputsForChangedFiles(pipeline, changedFiles, workspace)) activityStore.append(activity);
+      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
+      panel.webview.postMessage({ command: 'refitFlow' });
       return;
     }
     if (!refresh.changed) {
       log(`ignored ${refresh.reason} pipeline refresh after ${refresh.attempts} scan attempt${refresh.attempts === 1 ? '' : 's'}`);
       for (const activity of activityInputsForChangedFiles(pipeline, changedFiles, workspace)) activityStore.append(activity);
+      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
+      panel.webview.postMessage({ command: 'refitFlow' });
       return;
     }
     pipeline = refresh.pipeline;
