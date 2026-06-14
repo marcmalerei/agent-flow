@@ -345,6 +345,10 @@ interface FlowRenderStatus {
   visibleNodeCount: number;
   canvasWidth: number;
   canvasHeight: number;
+  windowInnerHeight: number;
+  visualViewportHeight: number;
+  rootHeight: number;
+  appHeight: number;
   reason: string;
 }
 
@@ -356,6 +360,8 @@ function postFlowRenderStatus(container: HTMLElement | null, stateVersion: numbe
 
 function collectFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeIds: string[], edgeCount: number, reason: string): FlowRenderStatus {
   const containerRect = container?.getBoundingClientRect();
+  const rootRect = document.getElementById('root')?.getBoundingClientRect();
+  const appRect = container?.closest<HTMLElement>('.app')?.getBoundingClientRect();
   const renderedNodeIds = renderedFlowNodeIds(container);
   return {
     stateVersion,
@@ -367,6 +373,10 @@ function collectFlowRenderStatus(container: HTMLElement | null, stateVersion: nu
     visibleNodeCount: visibleFlowNodeCount(container),
     canvasWidth: Math.round(containerRect?.width ?? 0),
     canvasHeight: Math.round(containerRect?.height ?? 0),
+    windowInnerHeight: Math.round(window.innerHeight || 0),
+    visualViewportHeight: Math.round(window.visualViewport?.height ?? 0),
+    rootHeight: Math.round(rootRect?.height ?? 0),
+    appHeight: Math.round(appRect?.height ?? 0),
     reason
   };
 }

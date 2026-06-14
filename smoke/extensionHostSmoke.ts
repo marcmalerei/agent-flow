@@ -49,6 +49,7 @@ export async function run(): Promise<void> {
   assert.equal(stableDefaultSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after the default pipeline settles.');
   assert.equal(stableDefaultSnapshot.webviewNodeCount, stableDefaultSnapshot.nodeCount, 'Agent Flow webview should still hold every parsed default pipeline node after settling.');
   assert.equal(stableDefaultSnapshot.webviewRenderedNodeCount, stableDefaultSnapshot.nodeCount, 'Agent Flow webview should still render every parsed default pipeline node after settling.');
+  assert.ok((stableDefaultSnapshot.webviewCanvasHeight ?? 0) >= 320, `Agent Flow webview canvas should not collapse after the default pipeline settles. Snapshot: ${JSON.stringify(stableDefaultSnapshot)}`);
   assert.ok((stableDefaultSnapshot.webviewVisibleNodeCount ?? 0) >= minimumUsefulVisibleNodeCount(stableDefaultSnapshot.nodeCount), 'Agent Flow webview should fit more than a tiny node cluster after the default pipeline settles.');
   assert.ok(defaultNodeIds.every((nodeId) => stableDefaultSnapshot.nodeIds.includes(nodeId)), 'Agent Flow webview should not lose default pipeline nodes after settling.');
   assert.ok(defaultNodeIds.every((nodeId) => stableDefaultSnapshot.webviewNodeIds?.includes(nodeId)), 'Agent Flow webview state should still include every default pipeline node after settling.');
@@ -127,6 +128,7 @@ tools:
   assert.equal(stableRefreshSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after filesystem refresh settles.');
   assert.equal(stableRefreshSnapshot.webviewNodeCount, stableRefreshSnapshot.nodeCount, 'Agent Flow webview should still hold every parsed node after filesystem refresh settles.');
   assert.equal(stableRefreshSnapshot.webviewRenderedNodeCount, stableRefreshSnapshot.nodeCount, 'Agent Flow webview should still render every parsed node after filesystem refresh settles.');
+  assert.ok((stableRefreshSnapshot.webviewCanvasHeight ?? 0) >= 320, `Agent Flow webview canvas should not collapse after filesystem refresh settles. Snapshot: ${JSON.stringify(stableRefreshSnapshot)}`);
   assert.ok((stableRefreshSnapshot.webviewVisibleNodeCount ?? 0) >= minimumUsefulVisibleNodeCount(stableRefreshSnapshot.nodeCount), 'Agent Flow webview should fit more than a tiny node cluster after filesystem refresh settles.');
 
   const originalShowWarningMessage = vscode.window.showWarningMessage;
@@ -171,6 +173,7 @@ interface DebugSnapshot {
   webviewNodeCount?: number;
   webviewRenderedNodeCount?: number;
   webviewVisibleNodeCount?: number;
+  webviewCanvasHeight?: number;
   webviewRuntimeError?: string;
 }
 

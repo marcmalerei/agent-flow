@@ -32,6 +32,10 @@ export interface AgentFlowPanelSnapshot {
   webviewVisibleNodeCount?: number;
   webviewCanvasWidth?: number;
   webviewCanvasHeight?: number;
+  webviewWindowInnerHeight?: number;
+  webviewVisualViewportHeight?: number;
+  webviewRootHeight?: number;
+  webviewAppHeight?: number;
   webviewRenderReason?: string;
   webviewReadyCount?: number;
   webviewReadyBootId?: string;
@@ -310,6 +314,10 @@ function updateWebviewRenderSnapshot(message: Record<string, unknown>, currentSt
     webviewVisibleNodeCount: typeof message.visibleNodeCount === 'number' ? message.visibleNodeCount : latestPanelSnapshot.webviewVisibleNodeCount,
     webviewCanvasWidth: typeof message.canvasWidth === 'number' ? message.canvasWidth : latestPanelSnapshot.webviewCanvasWidth,
     webviewCanvasHeight: typeof message.canvasHeight === 'number' ? message.canvasHeight : latestPanelSnapshot.webviewCanvasHeight,
+    webviewWindowInnerHeight: typeof message.windowInnerHeight === 'number' ? message.windowInnerHeight : latestPanelSnapshot.webviewWindowInnerHeight,
+    webviewVisualViewportHeight: typeof message.visualViewportHeight === 'number' ? message.visualViewportHeight : latestPanelSnapshot.webviewVisualViewportHeight,
+    webviewRootHeight: typeof message.rootHeight === 'number' ? message.rootHeight : latestPanelSnapshot.webviewRootHeight,
+    webviewAppHeight: typeof message.appHeight === 'number' ? message.appHeight : latestPanelSnapshot.webviewAppHeight,
     webviewRenderReason: typeof message.reason === 'string' ? message.reason : latestPanelSnapshot.webviewRenderReason,
     updatedAt: new Date().toISOString()
   };

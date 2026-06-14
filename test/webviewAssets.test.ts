@@ -52,7 +52,9 @@ describe('webview assets', () => {
     expect(webviewSource).toContain("event.data?.command === 'refitFlow'");
     expect(webviewSource).toContain('ResizeObserver');
     expect(css).toContain('#root { position: fixed; inset: 0; }');
-    expect(css).toContain('grid-template-rows: 56px minmax(0, 1fr) 42px');
+    expect(css).toContain('--agentflow-canvas-min-height: 360px');
+    expect(css).toContain('grid-template-rows: 56px minmax(var(--agentflow-canvas-min-height), 1fr) 42px');
+    expect(css).toContain('min-height: var(--agentflow-canvas-min-height)');
     expect(css).toContain('.canvas .react-flow');
     expect(panelSource).toContain('onDidChangeViewState');
     expect(panelSource).toContain('retainContextWhenHidden: true');
@@ -60,6 +62,7 @@ describe('webview assets', () => {
     expect(panelSource).toContain('scheduleStartupTask');
     expect(panelSource).toContain('webviewRenderedNodeIds');
     expect(panelSource).toContain('webviewReadyBootId');
+    expect(panelSource).toContain('webviewRootHeight');
     expect(panelSource).toContain("message?.command === 'webviewRenderStatus'");
     expect(panelSource).toContain("message?.command === 'webviewReady'");
     expect(panelSource).toContain("command: 'stateUpdated'");
