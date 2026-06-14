@@ -50,6 +50,8 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('shouldRecoverFlowRender');
     expect(webviewSource).toContain("event.data?.command === 'refitFlow'");
     expect(webviewSource).toContain('ResizeObserver');
+    expect(css).toContain('#root { position: fixed; inset: 0; }');
+    expect(css).toContain('grid-template-rows: 56px minmax(0, 1fr) 42px');
     expect(css).toContain('.canvas .react-flow');
     expect(panelSource).toContain('onDidChangeViewState');
     expect(panelSource).toContain('retainContextWhenHidden: true');
