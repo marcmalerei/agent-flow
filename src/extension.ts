@@ -29,6 +29,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('agentflow.createDefaultPipeline', createDefaultPipelineCommand),
     vscode.commands.registerCommand('agentflow.playDemoActivity', playDemoActivityCommand),
     vscode.commands.registerCommand('agentflow.copyDebugSnapshot', copyDebugSnapshotCommand),
+    vscode.commands.registerCommand('agentflow.toggleDebugOverlay', toggleDebugOverlayCommand),
     vscode.commands.registerCommand('agentflow.debugSnapshot', () => getLatestPipelinePanelSnapshot())
   );
 }
@@ -36,6 +37,13 @@ export function activate(context: vscode.ExtensionContext): void {
 async function copyDebugSnapshotCommand(): Promise<void> {
   await vscode.env.clipboard.writeText(JSON.stringify(getLatestPipelinePanelSnapshot(), null, 2));
   vscode.window.showInformationMessage('Agent Flow debug snapshot copied to clipboard.');
+}
+
+async function toggleDebugOverlayCommand(): Promise<void> {
+  const config = vscode.workspace.getConfiguration('agentflow.debug');
+  const next = !config.get<boolean>('overlay', false);
+  await config.update('overlay', next, vscode.ConfigurationTarget.Workspace);
+  vscode.window.showInformationMessage(`Agent Flow debug overlay ${next ? 'enabled' : 'disabled'}.`);
 }
 
 function registerPipelineDocumentActivity(store: ActivityStore): vscode.Disposable {
