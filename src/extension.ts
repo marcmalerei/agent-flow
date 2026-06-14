@@ -28,8 +28,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('agentflow.validatePipeline', validatePipelineCommand),
     vscode.commands.registerCommand('agentflow.createDefaultPipeline', createDefaultPipelineCommand),
     vscode.commands.registerCommand('agentflow.playDemoActivity', playDemoActivityCommand),
+    vscode.commands.registerCommand('agentflow.copyDebugSnapshot', copyDebugSnapshotCommand),
     vscode.commands.registerCommand('agentflow.debugSnapshot', () => getLatestPipelinePanelSnapshot())
   );
+}
+
+async function copyDebugSnapshotCommand(): Promise<void> {
+  await vscode.env.clipboard.writeText(JSON.stringify(getLatestPipelinePanelSnapshot(), null, 2));
+  vscode.window.showInformationMessage('Agent Flow debug snapshot copied to clipboard.');
 }
 
 function registerPipelineDocumentActivity(store: ActivityStore): vscode.Disposable {

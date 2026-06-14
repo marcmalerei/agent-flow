@@ -24,6 +24,8 @@ export interface AgentFlowPanelSnapshot {
   edgeCount: number;
   stateVersion: number;
   webviewStateVersion?: number;
+  webviewNodeIds?: string[];
+  webviewRenderedNodeIds?: string[];
   webviewNodeCount?: number;
   webviewEdgeCount?: number;
   webviewRenderedNodeCount?: number;
@@ -75,6 +77,20 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   let pipeline = initial.pipeline;
   let selectedId: string | undefined;
   let stateVersion = 0;
+  let disposed = false;
+  const startupTimers = new Set<ReturnType<typeof setTimeout>>();
+  const scheduleStartupTask = (delayMs: number, task: () => unknown): void => {
+    const timer = setTimeout(() => {
+      startupTimers.delete(timer);
+      if (disposed) return;
+      try {
+        Promise.resolve(task()).catch((error) => log(`startup task failed: ${(error as Error).stack ?? (error as Error).message}`));
+      } catch (error) {
+        log(`startup task failed: ${(error as Error).stack ?? (error as Error).message}`);
+      }
+    }, delayMs);
+    startupTimers.add(timer);
+  };
   const markStateForPost = (reason: string): number => {
     stateVersion += 1;
     updatePanelSnapshot(pipeline, selectedId, reason, stateVersion);
@@ -92,6 +108,22 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
   });
   panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline, activityStore, initialStateVersion));
+  for (const delay of [80, 240, 600, 1_200, 2_500, 4_000]) {
+    scheduleStartupTask(delay, () => panel.webview.postMessage({ command: 'refitFlow' }));
+  }
+  for (const delay of [500, 1_500, 3_000, 5_000]) {
+    scheduleStartupTask(delay, async () => {
+      if (pipeline.nodes.length > 0) return;
+      const retry = await loadInitialPipelineWhenStable(workspace, loadOrInferPipeline, { maxAttempts: 2, retryDelayMs: 300 });
+      if (retry.pipeline.nodes.length === 0) {
+        log(`initial pipeline recovery still has no nodes after ${retry.attempts} scan attempt${retry.attempts === 1 ? '' : 's'} (${retry.reason})`);
+        return;
+      }
+      pipeline = retry.pipeline;
+      log(`initial pipeline recovery loaded ${pipeline.nodes.length} nodes after ${retry.attempts} scan attempt${retry.attempts === 1 ? '' : 's'}`);
+      await postStateUpdated('initial-pipeline-recovery', true);
+    });
+  }
   const activitySubscription = activityStore.subscribe((activityEvents) => {
     panel.webview.postMessage({ command: 'activityUpdated', activityEvents: resolveActivityEventsForPipeline(pipeline, activityEvents) });
   });
@@ -131,6 +163,9 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   }, log, selfWrites);
   panel.onDidDispose(() => {
     log('pipeline panel disposed');
+    disposed = true;
+    for (const timer of startupTimers) clearTimeout(timer);
+    startupTimers.clear();
     configurationListener.dispose();
     viewStateListener.dispose();
     activitySubscription.dispose();
@@ -245,6 +280,8 @@ function updateWebviewRenderSnapshot(message: Record<string, unknown>, currentSt
   latestPanelSnapshot = {
     ...latestPanelSnapshot,
     webviewStateVersion: typeof message.stateVersion === 'number' ? message.stateVersion : latestPanelSnapshot.webviewStateVersion,
+    webviewNodeIds: Array.isArray(message.nodeIds) && message.nodeIds.every((nodeId) => typeof nodeId === 'string') ? message.nodeIds : latestPanelSnapshot.webviewNodeIds,
+    webviewRenderedNodeIds: Array.isArray(message.renderedNodeIds) && message.renderedNodeIds.every((nodeId) => typeof nodeId === 'string') ? message.renderedNodeIds : latestPanelSnapshot.webviewRenderedNodeIds,
     webviewNodeCount: typeof message.nodeCount === 'number' ? message.nodeCount : latestPanelSnapshot.webviewNodeCount,
     webviewEdgeCount: typeof message.edgeCount === 'number' ? message.edgeCount : latestPanelSnapshot.webviewEdgeCount,
     webviewRenderedNodeCount: typeof message.renderedNodeCount === 'number' ? message.renderedNodeCount : latestPanelSnapshot.webviewRenderedNodeCount,

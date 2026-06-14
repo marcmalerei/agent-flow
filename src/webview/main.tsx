@@ -196,9 +196,12 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
   const emptyRenderMisses = useRef(0);
+  const recoveryRemounts = useRef(0);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
   const [viewportRevision, setViewportRevision] = useState(0);
   const [flowMountRevision, setFlowMountRevision] = useState(0);
+  const flowNodeSignature = useMemo(() => nodes.map((node) => node.id).join('|'), [nodes]);
+  const flowRenderKey = `${state.stateVersion}-${state.flowLayout}-${flowMountRevision}-${flowNodeSignature}`;
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -241,7 +244,24 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     connectingNodeId.current = null;
   }, [addNode, screenToFlowPosition]);
   useEffect(() => {
-    const report = (reason: string) => postFlowRenderStatus(canvasRef.current, state.stateVersion, nodes.length, edges.length, reason);
+    const report = (reason: string) => postFlowRenderStatus(canvasRef.current, state.stateVersion, nodes.map((node) => node.id), edges.length, reason);
+    const recoverIfBlank = (reason: string) => {
+      const status = report(reason);
+      if (!shouldRecoverFlowRender(status)) {
+        emptyRenderMisses.current = 0;
+        recoveryRemounts.current = 0;
+        return status;
+      }
+
+      emptyRenderMisses.current += 1;
+      refit();
+      if (emptyRenderMisses.current >= 2 && recoveryRemounts.current < 6) {
+        emptyRenderMisses.current = 0;
+        recoveryRemounts.current += 1;
+        setFlowMountRevision((revision) => revision + 1);
+      }
+      return status;
+    };
     if (!nodes.length) {
       report('empty-pipeline');
       return;
@@ -251,32 +271,29 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     const startedAt = Date.now();
     const renderStatusTimers = [0, 120, 500, 1200, 2400].map((delay) => window.setTimeout(() => report(`render-check-${delay}`), delay));
     const visibilityWatchdog = window.setInterval(() => {
-      if (Date.now() - startedAt > 5_000) {
+      if (Date.now() - startedAt > 15_000) {
         window.clearInterval(visibilityWatchdog);
         return;
       }
-      const status = report('visibility-watchdog');
-      if (status.visibleNodeCount > 0) {
-        emptyRenderMisses.current = 0;
-        return;
-      }
-      emptyRenderMisses.current += 1;
-      refit();
-      if (emptyRenderMisses.current >= 3 && Date.now() - startedAt > 1_000) {
-        emptyRenderMisses.current = 0;
-        setFlowMountRevision((revision) => revision + 1);
-      }
+      recoverIfBlank('visibility-watchdog');
     }, 500);
     const observer = typeof ResizeObserver !== 'undefined' && canvasRef.current ? new ResizeObserver(refit) : undefined;
     if (observer && canvasRef.current) observer.observe(canvasRef.current);
     const onMessage = (event: MessageEvent) => {
-      if (event.data?.command === 'refitFlow') refit();
+      if (event.data?.command === 'refitFlow') {
+        refit();
+        window.setTimeout(() => recoverIfBlank('refit-flow-message'), 120);
+      }
     };
     const onVisibility = () => {
-      if (!document.hidden) refit();
+      if (!document.hidden) {
+        refit();
+        window.setTimeout(() => recoverIfBlank('visibilitychange'), 120);
+      }
     };
     window.addEventListener('resize', refit);
     window.addEventListener('focus', refit);
+    window.addEventListener('pageshow', refit);
     window.addEventListener('message', onMessage);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
@@ -285,14 +302,15 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
       observer?.disconnect();
       window.removeEventListener('resize', refit);
       window.removeEventListener('focus', refit);
+      window.removeEventListener('pageshow', refit);
       window.removeEventListener('message', onMessage);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [bottomOpen, edges.length, fitView, flowMountRevision, inspectorOpen, nodes.length, state.flowLayout, state.stateVersion, viewportRevision, viewportSignal]);
+  }, [bottomOpen, edges.length, fitView, flowMountRevision, flowNodeSignature, inspectorOpen, nodes.length, state.flowLayout, state.stateVersion, viewportRevision, viewportSignal]);
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeTypes.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNode(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</div>}</div></header>
-    <main className="canvas" ref={canvasRef}><ReactFlow key={`${state.flowLayout}-${flowMountRevision}`} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} onInit={() => setViewportRevision((revision) => revision + 1)} fitView><Controls /><Background /></ReactFlow></main>
+    <main className="canvas" ref={canvasRef}><ReactFlow key={flowRenderKey} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} onInit={() => setViewportRevision((revision) => revision + 1)} fitView><Controls /><Background /></ReactFlow></main>
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
@@ -311,6 +329,8 @@ function scheduleFlowFit(fitView: (options?: { padding?: number; duration?: numb
 
 interface FlowRenderStatus {
   stateVersion: number;
+  nodeIds: string[];
+  renderedNodeIds: string[];
   nodeCount: number;
   edgeCount: number;
   renderedNodeCount: number;
@@ -320,24 +340,40 @@ interface FlowRenderStatus {
   reason: string;
 }
 
-function postFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeCount: number, edgeCount: number, reason: string): FlowRenderStatus {
-  const status = collectFlowRenderStatus(container, stateVersion, nodeCount, edgeCount, reason);
+function postFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeIds: string[], edgeCount: number, reason: string): FlowRenderStatus {
+  const status = collectFlowRenderStatus(container, stateVersion, nodeIds, edgeCount, reason);
   vscode?.postMessage({ command: 'webviewRenderStatus', ...status });
   return status;
 }
 
-function collectFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeCount: number, edgeCount: number, reason: string): FlowRenderStatus {
+function collectFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeIds: string[], edgeCount: number, reason: string): FlowRenderStatus {
   const containerRect = container?.getBoundingClientRect();
+  const renderedNodeIds = renderedFlowNodeIds(container);
   return {
     stateVersion,
-    nodeCount,
+    nodeIds,
+    renderedNodeIds,
+    nodeCount: nodeIds.length,
     edgeCount,
-    renderedNodeCount: container ? container.querySelectorAll('.react-flow__node').length : 0,
+    renderedNodeCount: renderedNodeIds.length,
     visibleNodeCount: visibleFlowNodeCount(container),
     canvasWidth: Math.round(containerRect?.width ?? 0),
     canvasHeight: Math.round(containerRect?.height ?? 0),
     reason
   };
+}
+
+function renderedFlowNodeIds(container: HTMLElement | null): string[] {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll<HTMLElement>('.react-flow__node'))
+    .map((node) => node.dataset.id)
+    .filter((nodeId): nodeId is string => Boolean(nodeId));
+}
+
+function shouldRecoverFlowRender(status: FlowRenderStatus): boolean {
+  if (status.nodeCount === 0) return false;
+  if (status.canvasWidth < 20 || status.canvasHeight < 20) return false;
+  return status.renderedNodeCount < status.nodeCount || status.visibleNodeCount === 0;
 }
 
 function visibleFlowNodeCount(container: HTMLElement | null): number {
