@@ -39,13 +39,16 @@ describe('webview assets', () => {
     const panelSource = readFileSync('src/webview/panel.ts', 'utf8');
 
     expect(webviewSource).toContain('scheduleFlowFit');
-    expect(webviewSource).toContain('hasVisibleFlowNode');
+    expect(webviewSource).toContain('postFlowRenderStatus');
+    expect(webviewSource).toContain('visibleFlowNodeCount');
+    expect(webviewSource).toContain('flowMountRevision');
     expect(webviewSource).toContain('visibilityWatchdog');
     expect(webviewSource).toContain("event.data?.command === 'refitFlow'");
     expect(webviewSource).toContain('ResizeObserver');
     expect(css).toContain('.canvas .react-flow');
     expect(panelSource).toContain('onDidChangeViewState');
     expect(panelSource).toContain('retainContextWhenHidden: true');
+    expect(panelSource).toContain("message?.command === 'webviewRenderStatus'");
     expect(panelSource).toContain("command: 'stateUpdated'");
     expect(panelSource).toContain("command: 'refitFlow'");
   });

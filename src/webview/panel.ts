@@ -22,6 +22,13 @@ export interface AgentFlowPanelSnapshot {
   nodeIds: string[];
   nodeCount: number;
   edgeCount: number;
+  webviewNodeCount?: number;
+  webviewEdgeCount?: number;
+  webviewRenderedNodeCount?: number;
+  webviewVisibleNodeCount?: number;
+  webviewCanvasWidth?: number;
+  webviewCanvasHeight?: number;
+  webviewRenderReason?: string;
   selectedId?: string;
   lastReason: string;
   updatedAt: string;
@@ -125,6 +132,11 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   });
   panel.webview.onDidReceiveMessage(async (message) => {
     try {
+      if (message?.command === 'webviewRenderStatus') {
+        updateWebviewRenderSnapshot(message);
+        log(`webview render status: ${message.renderedNodeCount ?? 0}/${message.nodeCount ?? 0} rendered, ${message.visibleNodeCount ?? 0} visible (${message.reason ?? 'unknown'})`);
+        return;
+      }
       if (message?.command === 'persistPipeline') {
         selectedId = typeof message.selectedId === 'string' ? message.selectedId : selectedId;
         const previousPipeline = pipeline;
@@ -208,6 +220,20 @@ function updatePanelSnapshot(pipeline: AgentPipeline, selectedId: string | undef
     edgeCount: pipeline.edges.length,
     selectedId,
     lastReason: reason,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function updateWebviewRenderSnapshot(message: Record<string, unknown>): void {
+  latestPanelSnapshot = {
+    ...latestPanelSnapshot,
+    webviewNodeCount: typeof message.nodeCount === 'number' ? message.nodeCount : latestPanelSnapshot.webviewNodeCount,
+    webviewEdgeCount: typeof message.edgeCount === 'number' ? message.edgeCount : latestPanelSnapshot.webviewEdgeCount,
+    webviewRenderedNodeCount: typeof message.renderedNodeCount === 'number' ? message.renderedNodeCount : latestPanelSnapshot.webviewRenderedNodeCount,
+    webviewVisibleNodeCount: typeof message.visibleNodeCount === 'number' ? message.visibleNodeCount : latestPanelSnapshot.webviewVisibleNodeCount,
+    webviewCanvasWidth: typeof message.canvasWidth === 'number' ? message.canvasWidth : latestPanelSnapshot.webviewCanvasWidth,
+    webviewCanvasHeight: typeof message.canvasHeight === 'number' ? message.canvasHeight : latestPanelSnapshot.webviewCanvasHeight,
+    webviewRenderReason: typeof message.reason === 'string' ? message.reason : latestPanelSnapshot.webviewRenderReason,
     updatedAt: new Date().toISOString()
   };
 }

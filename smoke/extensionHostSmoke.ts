@@ -32,6 +32,9 @@ export async function run(): Promise<void> {
 
   const openedSnapshot = await waitForSnapshot((snapshot) => snapshot.open && snapshot.nodeCount > 0);
   assert.ok(openedSnapshot.nodeIds.includes('router'), 'Open Agent Flow panel should load the default router node.');
+  const renderedSnapshot = await waitForSnapshot((snapshot) => (snapshot.webviewRenderedNodeCount ?? 0) > 0 && (snapshot.webviewVisibleNodeCount ?? 0) > 0, 10_000);
+  assert.ok(renderedSnapshot.webviewRenderedNodeCount && renderedSnapshot.webviewRenderedNodeCount > 0, 'Agent Flow webview should render React Flow nodes for the default pipeline.');
+  assert.ok(renderedSnapshot.webviewVisibleNodeCount && renderedSnapshot.webviewVisibleNodeCount > 0, 'Agent Flow webview should keep at least one rendered node visible.');
 
   await assert.rejects(fs.readFile(path.join(workspace, '.github', 'agent-flow.json'), 'utf8'));
   assert.match(await fs.readFile(path.join(workspace, '.github/agents/router.agent.md'), 'utf8'), /name: "router"/);
@@ -128,6 +131,8 @@ interface DebugSnapshot {
   open: boolean;
   nodeIds: string[];
   nodeCount: number;
+  webviewRenderedNodeCount?: number;
+  webviewVisibleNodeCount?: number;
 }
 
 async function waitForSnapshot(predicate: (snapshot: DebugSnapshot) => boolean, timeoutMs = 8000): Promise<DebugSnapshot> {

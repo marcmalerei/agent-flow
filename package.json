@@ -293,7 +293,7 @@
     "package:marketplace": "npm run build && npm run package:vsix",
     "prepare": "husky",
     "compile:smoke": "tsc -p tsconfig.smoke.json",
-    "test:smoke": "npm run compile && npm run compile:smoke && node scripts/run-smoke-tests.mjs",
+    "test:smoke": "npm run compile && npm run build:webview && npm run compile:smoke && node scripts/run-smoke-tests.mjs",
     "test": "vitest run --config vitest.config.mts",
     "check": "npm run compile && npm run test"
   },

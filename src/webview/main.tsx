@@ -193,8 +193,10 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
   const connectingNodeId = useRef<string | null>(null);
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
+  const emptyRenderMisses = useRef(0);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
   const [viewportRevision, setViewportRevision] = useState(0);
+  const [flowMountRevision, setFlowMountRevision] = useState(0);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -237,16 +239,31 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     connectingNodeId.current = null;
   }, [addNode, screenToFlowPosition]);
   useEffect(() => {
-    if (!nodes.length) return;
+    const report = (reason: string) => postFlowRenderStatus(canvasRef.current, nodes.length, edges.length, reason);
+    if (!nodes.length) {
+      report('empty-pipeline');
+      return;
+    }
     const refit = () => scheduleFlowFit(fitView, canvasRef.current);
     refit();
     const startedAt = Date.now();
+    const renderStatusTimers = [0, 120, 500, 1200, 2400].map((delay) => window.setTimeout(() => report(`render-check-${delay}`), delay));
     const visibilityWatchdog = window.setInterval(() => {
       if (Date.now() - startedAt > 5_000) {
         window.clearInterval(visibilityWatchdog);
         return;
       }
-      if (!hasVisibleFlowNode(canvasRef.current)) refit();
+      const status = report('visibility-watchdog');
+      if (status.visibleNodeCount > 0) {
+        emptyRenderMisses.current = 0;
+        return;
+      }
+      emptyRenderMisses.current += 1;
+      refit();
+      if (emptyRenderMisses.current >= 3 && Date.now() - startedAt > 1_000) {
+        emptyRenderMisses.current = 0;
+        setFlowMountRevision((revision) => revision + 1);
+      }
     }, 500);
     const observer = typeof ResizeObserver !== 'undefined' && canvasRef.current ? new ResizeObserver(refit) : undefined;
     if (observer && canvasRef.current) observer.observe(canvasRef.current);
@@ -261,6 +278,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     window.addEventListener('message', onMessage);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
+      renderStatusTimers.forEach((timer) => window.clearTimeout(timer));
       window.clearInterval(visibilityWatchdog);
       observer?.disconnect();
       window.removeEventListener('resize', refit);
@@ -268,11 +286,11 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
       window.removeEventListener('message', onMessage);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [bottomOpen, edges.length, fitView, inspectorOpen, nodes.length, state.flowLayout, viewportRevision, viewportSignal]);
+  }, [bottomOpen, edges.length, fitView, flowMountRevision, inspectorOpen, nodes.length, state.flowLayout, viewportRevision, viewportSignal]);
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeTypes.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNode(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</div>}</div></header>
-    <main className="canvas" ref={canvasRef}><ReactFlow key={state.flowLayout} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} onInit={() => setViewportRevision((revision) => revision + 1)} fitView><Controls /><Background /></ReactFlow></main>
+    <main className="canvas" ref={canvasRef}><ReactFlow key={`${state.flowLayout}-${flowMountRevision}`} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} onInit={() => setViewportRevision((revision) => revision + 1)} fitView><Controls /><Background /></ReactFlow></main>
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
@@ -289,19 +307,47 @@ function scheduleFlowFit(fitView: (options?: { padding?: number; duration?: numb
   }
 }
 
-function hasVisibleFlowNode(container: HTMLElement | null): boolean {
-  if (!container) return true;
+interface FlowRenderStatus {
+  nodeCount: number;
+  edgeCount: number;
+  renderedNodeCount: number;
+  visibleNodeCount: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  reason: string;
+}
+
+function postFlowRenderStatus(container: HTMLElement | null, nodeCount: number, edgeCount: number, reason: string): FlowRenderStatus {
+  const status = collectFlowRenderStatus(container, nodeCount, edgeCount, reason);
+  vscode?.postMessage({ command: 'webviewRenderStatus', ...status });
+  return status;
+}
+
+function collectFlowRenderStatus(container: HTMLElement | null, nodeCount: number, edgeCount: number, reason: string): FlowRenderStatus {
+  const containerRect = container?.getBoundingClientRect();
+  return {
+    nodeCount,
+    edgeCount,
+    renderedNodeCount: container ? container.querySelectorAll('.react-flow__node').length : 0,
+    visibleNodeCount: visibleFlowNodeCount(container),
+    canvasWidth: Math.round(containerRect?.width ?? 0),
+    canvasHeight: Math.round(containerRect?.height ?? 0),
+    reason
+  };
+}
+
+function visibleFlowNodeCount(container: HTMLElement | null): number {
+  if (!container) return 0;
   const containerRect = container.getBoundingClientRect();
-  if (!containerRect || containerRect.width < 20 || containerRect.height < 20) return true;
+  if (!containerRect || containerRect.width < 20 || containerRect.height < 20) return 0;
   const nodes = Array.from(container.querySelectorAll<HTMLElement>('.react-flow__node'));
-  if (!nodes.length) return false;
-  return nodes.some((node) => {
+  return nodes.filter((node) => {
     const rect = node.getBoundingClientRect();
     return rect.right > containerRect.left
       && rect.left < containerRect.right
       && rect.bottom > containerRect.top
       && rect.top < containerRect.bottom;
-  });
+  }).length;
 }
 
 function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: { x: number; y: number }): PipelineNode {
