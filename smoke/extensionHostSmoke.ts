@@ -32,9 +32,10 @@ export async function run(): Promise<void> {
 
   const openedSnapshot = await waitForSnapshot((snapshot) => snapshot.open && snapshot.nodeCount > 0);
   assert.ok(openedSnapshot.nodeIds.includes('router'), 'Open Agent Flow panel should load the default router node.');
-  const renderedSnapshot = await waitForSnapshot((snapshot) => (snapshot.webviewRenderedNodeCount ?? 0) > 0 && (snapshot.webviewVisibleNodeCount ?? 0) > 0, 10_000);
+  const renderedSnapshot = await waitForRenderedWebviewState();
   assert.ok(renderedSnapshot.webviewRenderedNodeCount && renderedSnapshot.webviewRenderedNodeCount > 0, 'Agent Flow webview should render React Flow nodes for the default pipeline.');
   assert.ok(renderedSnapshot.webviewVisibleNodeCount && renderedSnapshot.webviewVisibleNodeCount > 0, 'Agent Flow webview should keep at least one rendered node visible.');
+  assert.equal(renderedSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after initial render.');
 
   await assert.rejects(fs.readFile(path.join(workspace, '.github', 'agent-flow.json'), 'utf8'));
   assert.match(await fs.readFile(path.join(workspace, '.github/agents/router.agent.md'), 'utf8'), /name: "router"/);
@@ -95,6 +96,9 @@ tools:
 
   const refreshedSnapshot = await waitForSnapshot((snapshot) => snapshot.nodeIds.includes('smoke-live'));
   assert.ok(refreshedSnapshot.nodeCount >= openedSnapshot.nodeCount, 'File refresh should keep existing panel nodes while adding new file-backed nodes.');
+  const renderedRefreshSnapshot = await waitForRenderedWebviewState((snapshot) => snapshot.nodeIds.includes('smoke-live'));
+  assert.equal(renderedRefreshSnapshot.webviewStateVersion, renderedRefreshSnapshot.stateVersion, 'Webview should render the latest filesystem-refresh state, not a stale previous render.');
+  assert.equal(renderedRefreshSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after filesystem refresh.');
 
   const originalShowWarningMessage = vscode.window.showWarningMessage;
   (vscode.window as unknown as { showWarningMessage: typeof vscode.window.showWarningMessage }).showWarningMessage = async (_message: string, ...items: unknown[]) => {
@@ -131,8 +135,21 @@ interface DebugSnapshot {
   open: boolean;
   nodeIds: string[];
   nodeCount: number;
+  stateVersion?: number;
+  webviewStateVersion?: number;
   webviewRenderedNodeCount?: number;
   webviewVisibleNodeCount?: number;
+  webviewRuntimeError?: string;
+}
+
+async function waitForRenderedWebviewState(extraPredicate: (snapshot: DebugSnapshot) => boolean = () => true, timeoutMs = 10_000): Promise<DebugSnapshot> {
+  return waitForSnapshot((snapshot) =>
+    typeof snapshot.stateVersion === 'number'
+    && typeof snapshot.webviewStateVersion === 'number'
+    && snapshot.webviewStateVersion === snapshot.stateVersion
+    && (snapshot.webviewRenderedNodeCount ?? 0) > 0
+    && (snapshot.webviewVisibleNodeCount ?? 0) > 0
+    && extraPredicate(snapshot), timeoutMs);
 }
 
 async function waitForSnapshot(predicate: (snapshot: DebugSnapshot) => boolean, timeoutMs = 8000): Promise<DebugSnapshot> {

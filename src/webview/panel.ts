@@ -22,6 +22,8 @@ export interface AgentFlowPanelSnapshot {
   nodeIds: string[];
   nodeCount: number;
   edgeCount: number;
+  stateVersion: number;
+  webviewStateVersion?: number;
   webviewNodeCount?: number;
   webviewEdgeCount?: number;
   webviewRenderedNodeCount?: number;
@@ -29,6 +31,8 @@ export interface AgentFlowPanelSnapshot {
   webviewCanvasWidth?: number;
   webviewCanvasHeight?: number;
   webviewRenderReason?: string;
+  webviewRuntimeError?: string;
+  webviewRuntimeErrorDetail?: string;
   selectedId?: string;
   lastReason: string;
   updatedAt: string;
@@ -39,6 +43,7 @@ let latestPanelSnapshot: AgentFlowPanelSnapshot = {
   nodeIds: [],
   nodeCount: 0,
   edgeCount: 0,
+  stateVersion: 0,
   lastReason: 'not-opened',
   updatedAt: new Date(0).toISOString()
 };
@@ -69,31 +74,37 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   if (initial.reason !== 'accepted') log(`opening with ${initial.pipeline.nodes.length} nodes after ${initial.attempts} initial scan attempts (${initial.reason})`);
   let pipeline = initial.pipeline;
   let selectedId: string | undefined;
-  updatePanelSnapshot(pipeline, selectedId, 'opened');
+  let stateVersion = 0;
+  const markStateForPost = (reason: string): number => {
+    stateVersion += 1;
+    updatePanelSnapshot(pipeline, selectedId, reason, stateVersion);
+    return stateVersion;
+  };
+  const postStateUpdated = async (reason: string, refit = false): Promise<void> => {
+    const version = markStateForPost(reason);
+    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore, version), selectedId });
+    if (refit) panel.webview.postMessage({ command: 'refitFlow' });
+  };
+  const initialStateVersion = markStateForPost('opened');
   const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'Agent Flow Pipeline', vscode.ViewColumn.One, {
     enableScripts: true,
     retainContextWhenHidden: true,
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
   });
-  panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline, activityStore));
+  panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline, activityStore, initialStateVersion));
   const activitySubscription = activityStore.subscribe((activityEvents) => {
     panel.webview.postMessage({ command: 'activityUpdated', activityEvents: resolveActivityEventsForPipeline(pipeline, activityEvents) });
   });
   const configurationListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
     if (!event.affectsConfiguration('agentflow.flow.layout') && !event.affectsConfiguration('agentflow.activity') && !event.affectsConfiguration('github.copilot.chat.agentDebugLog.fileLogging.enabled')) return;
     log('Agent Flow configuration changed');
-    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
-    panel.webview.postMessage({ command: 'refitFlow' });
+    await postStateUpdated('configuration-change', true);
   });
   const viewStateListener = panel.onDidChangeViewState((event) => {
     if (!event.webviewPanel.visible) return;
     log('pipeline panel became visible; posting latest state and requesting React Flow refit');
     setTimeout(() => {
-      buildState(workspace, pipeline, activityStore)
-        .then((state) => {
-          panel.webview.postMessage({ command: 'stateUpdated', state, selectedId });
-          panel.webview.postMessage({ command: 'refitFlow' });
-        })
+      postStateUpdated('visible-refit', true)
         .catch((error) => log(`failed to refresh visible pipeline panel: ${(error as Error).stack ?? (error as Error).message}`));
     }, 100);
   });
@@ -104,22 +115,19 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     if (attempt.stale) {
       log(`ignored stale filesystem refresh generation ${attempt.generation} after ${refresh.attempts} scan attempt${refresh.attempts === 1 ? '' : 's'}`);
       for (const activity of activityInputsForChangedFiles(pipeline, changedFiles, workspace)) activityStore.append(activity);
-      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
-      panel.webview.postMessage({ command: 'refitFlow' });
+      await postStateUpdated('filesystem-refresh-stale', true);
       return;
     }
     if (!refresh.changed) {
       log(`ignored ${refresh.reason} pipeline refresh after ${refresh.attempts} scan attempt${refresh.attempts === 1 ? '' : 's'}`);
       for (const activity of activityInputsForChangedFiles(pipeline, changedFiles, workspace)) activityStore.append(activity);
-      panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
-      panel.webview.postMessage({ command: 'refitFlow' });
+      await postStateUpdated(`filesystem-refresh-${refresh.reason}`, true);
       return;
     }
     pipeline = refresh.pipeline;
-    updatePanelSnapshot(pipeline, selectedId, 'filesystem-refresh');
     for (const activity of activityInputsForChangedFiles(pipeline, changedFiles, workspace)) activityStore.append(activity);
     log(`reloaded ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges after ${refresh.attempts} scan attempt${refresh.attempts === 1 ? '' : 's'}`);
-    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore), selectedId });
+    await postStateUpdated('filesystem-refresh', true);
   }, log, selfWrites);
   panel.onDidDispose(() => {
     log('pipeline panel disposed');
@@ -133,8 +141,13 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   panel.webview.onDidReceiveMessage(async (message) => {
     try {
       if (message?.command === 'webviewRenderStatus') {
-        updateWebviewRenderSnapshot(message);
+        updateWebviewRenderSnapshot(message, stateVersion);
         log(`webview render status: ${message.renderedNodeCount ?? 0}/${message.nodeCount ?? 0} rendered, ${message.visibleNodeCount ?? 0} visible (${message.reason ?? 'unknown'})`);
+        return;
+      }
+      if (message?.command === 'webviewRuntimeError') {
+        updateWebviewRuntimeErrorSnapshot(message);
+        log(`webview runtime error: ${String(message.message ?? 'unknown')}${message.detail ? ` (${String(message.detail)})` : ''}`);
         return;
       }
       if (message?.command === 'persistPipeline') {
@@ -156,7 +169,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
             log('persisted webview changes without echoing stateUpdated');
           }
         });
-        updatePanelSnapshot(pipeline, selectedId, 'persisted-webview');
+        updatePanelSnapshot(pipeline, selectedId, 'persisted-webview', stateVersion);
         log(`persisted ${pipeline.nodes.length} nodes and ${pipeline.edges.length} edges`);
       }
       if (message?.command === 'savePipeline') {
@@ -169,13 +182,14 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
             log('skipped flow JSON write; Markdown files are the source of truth');
           },
           postState: async (nextPipeline, selectedId) => {
-            panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline, activityStore), selectedId });
+            pipeline = nextPipeline;
+            const version = markStateForPost('saved-view-state');
+            panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline, activityStore, version), selectedId });
           },
           showSavedMessage: async () => {
             vscode.window.showInformationMessage('Agent Flow changes are saved to Markdown files.');
           }
         });
-        updatePanelSnapshot(pipeline, selectedId, 'saved-view-state');
       }
       if (message?.command === 'writeMarkdownFiles') {
         selectedId = typeof message.selectedId === 'string' ? message.selectedId : selectedId;
@@ -188,7 +202,9 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
             selfWrites.markSelfWrites([...result.written, ...result.removed]);
           },
           postState: async (nextPipeline, selectedId) => {
-            panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline, activityStore), selectedId });
+            pipeline = nextPipeline;
+            const version = markStateForPost('wrote-markdown-files');
+            panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, nextPipeline, activityStore, version), selectedId });
           },
           confirmWrite: async (fileCount) => {
             const answer = await vscode.window.showWarningMessage(`Write ${fileCount} generated Agent Flow Markdown/artifact files? Existing files may be overwritten.`, { modal: true }, 'Write Files');
@@ -199,7 +215,6 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
           }
         });
         if (nextPipeline) pipeline = nextPipeline;
-        updatePanelSnapshot(pipeline, selectedId, 'wrote-markdown-files');
       }
       if (message?.command === 'clearActivity') {
         log('clearing activity stream');
@@ -212,21 +227,24 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   });
 }
 
-function updatePanelSnapshot(pipeline: AgentPipeline, selectedId: string | undefined, reason: string): void {
+function updatePanelSnapshot(pipeline: AgentPipeline, selectedId: string | undefined, reason: string, stateVersion: number): void {
   latestPanelSnapshot = {
     open: true,
     nodeIds: pipeline.nodes.map((node) => node.id),
     nodeCount: pipeline.nodes.length,
     edgeCount: pipeline.edges.length,
+    stateVersion,
     selectedId,
     lastReason: reason,
     updatedAt: new Date().toISOString()
   };
 }
 
-function updateWebviewRenderSnapshot(message: Record<string, unknown>): void {
+function updateWebviewRenderSnapshot(message: Record<string, unknown>, currentStateVersion: number): void {
+  if (message.stateVersion !== currentStateVersion) return;
   latestPanelSnapshot = {
     ...latestPanelSnapshot,
+    webviewStateVersion: typeof message.stateVersion === 'number' ? message.stateVersion : latestPanelSnapshot.webviewStateVersion,
     webviewNodeCount: typeof message.nodeCount === 'number' ? message.nodeCount : latestPanelSnapshot.webviewNodeCount,
     webviewEdgeCount: typeof message.edgeCount === 'number' ? message.edgeCount : latestPanelSnapshot.webviewEdgeCount,
     webviewRenderedNodeCount: typeof message.renderedNodeCount === 'number' ? message.renderedNodeCount : latestPanelSnapshot.webviewRenderedNodeCount,
@@ -234,6 +252,15 @@ function updateWebviewRenderSnapshot(message: Record<string, unknown>): void {
     webviewCanvasWidth: typeof message.canvasWidth === 'number' ? message.canvasWidth : latestPanelSnapshot.webviewCanvasWidth,
     webviewCanvasHeight: typeof message.canvasHeight === 'number' ? message.canvasHeight : latestPanelSnapshot.webviewCanvasHeight,
     webviewRenderReason: typeof message.reason === 'string' ? message.reason : latestPanelSnapshot.webviewRenderReason,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function updateWebviewRuntimeErrorSnapshot(message: Record<string, unknown>): void {
+  latestPanelSnapshot = {
+    ...latestPanelSnapshot,
+    webviewRuntimeError: typeof message.message === 'string' ? message.message : 'Unknown Agent Flow webview runtime error.',
+    webviewRuntimeErrorDetail: typeof message.detail === 'string' ? message.detail : undefined,
     updatedAt: new Date().toISOString()
   };
 }
@@ -279,7 +306,7 @@ function createPipelineFileWatchers(workspace: string, onRefresh: (changedFiles:
   });
 }
 
-async function buildState(workspace: string, pipeline: AgentPipeline, activityStore: ActivityStore): Promise<unknown> {
+async function buildState(workspace: string, pipeline: AgentPipeline, activityStore: ActivityStore, stateVersion: number): Promise<unknown> {
   const toolOptions = buildToolOptionGroups(vscode.lm.tools);
   const displayPipeline = normalizePipelineToolsForOptions(pipeline, toolOptions);
   const findings = validatePipeline(displayPipeline);
@@ -297,6 +324,7 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
     copilotDebugLogs: await getCopilotDebugLogStatus()
   });
   return {
+    stateVersion,
     pipeline: displayPipeline,
     findings,
     risk,
@@ -316,6 +344,9 @@ function html(webview: vscode.Webview, context: vscode.ExtensionContext, state: 
   const script = webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'webview-dist/assets/main.js')));
   const css = webview.asWebviewUri(vscode.Uri.file(path.join(context.extensionPath, 'webview-dist/assets/main.css')));
   const nonce = String(Date.now());
+  const stateJson = JSON.stringify(state).replace(/</g, '\\u003c');
+  const scriptUriJson = JSON.stringify(String(script)).replace(/</g, '\\u003c');
+  const nonceJson = JSON.stringify(nonce);
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -326,9 +357,40 @@ function html(webview: vscode.Webview, context: vscode.ExtensionContext, state: 
 <title>Agent Flow</title>
 </head>
 <body>
-<div id="root"></div>
-<script nonce="${nonce}">window.__AGENTFLOW_STATE__ = ${JSON.stringify(state).replace(/</g, '\\u003c')};</script>
-<script nonce="${nonce}" src="${script}"></script>
+<div id="root"><div class="agentflow-boot-fallback" style="box-sizing:border-box;width:100%;height:100vh;display:grid;place-items:center;padding:24px;color:var(--vscode-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family,system-ui);"><div><strong>Loading Agent Flow...</strong><p style="color:var(--vscode-descriptionForeground);">Preparing the pipeline webview.</p></div></div></div>
+<script nonce="${nonce}">
+window.__AGENTFLOW_STATE__ = ${stateJson};
+(function () {
+  const root = document.getElementById('root');
+  const vscodeApi = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : undefined;
+  window.__AGENTFLOW_VSCODE_API__ = vscodeApi;
+  function showFailure(message, detail) {
+    if (!window.__AGENTFLOW_APP_BOOTED__ && root) {
+      root.innerHTML = '<div style="box-sizing:border-box;width:100%;height:100vh;display:grid;place-items:center;padding:24px;color:var(--vscode-foreground);background:var(--vscode-editor-background);font-family:var(--vscode-font-family,system-ui);"><div style="max-width:560px;border:1px solid var(--vscode-editorWidget-border);background:var(--vscode-editorWidget-background);padding:16px;"><strong>' + escapeHtml(message) + '</strong><p style="color:var(--vscode-descriptionForeground);line-height:1.45;">' + escapeHtml(detail || 'Open the Agent Flow output channel for details.') + '</p></div></div>';
+    }
+    vscodeApi?.postMessage({ command: 'webviewRuntimeError', message, detail });
+  }
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, function (char) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char];
+    });
+  }
+  window.addEventListener('error', function (event) {
+    if (/ResizeObserver loop/.test(event.message || '')) return;
+    showFailure('Agent Flow webview failed to load', event.message || 'A webview script error occurred.');
+  });
+  window.addEventListener('unhandledrejection', function (event) {
+    showFailure('Agent Flow webview failed to load', event.reason?.message || String(event.reason || 'Unhandled webview promise rejection.'));
+  });
+  const script = document.createElement('script');
+  script.nonce = ${nonceJson};
+  script.src = ${scriptUriJson};
+  script.onerror = function () {
+    showFailure('Agent Flow webview failed to load', 'The compiled webview bundle could not be loaded. Run npm run build, then restart VS Code with --extensionDevelopmentPath.');
+  };
+  document.body.appendChild(script);
+})();
+</script>
 </body>
 </html>`;
 }
