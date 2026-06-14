@@ -1,4 +1,5 @@
 import { AgentPipeline } from '../pipeline/types';
+import { isSuspiciousPipelineLoss } from './pipelineRefresh';
 
 export interface WebviewStateLike {
   pipeline: AgentPipeline;
@@ -20,7 +21,7 @@ export function mergeRemoteStateUpdate<TState extends WebviewStateLike>(input: {
   incomingState: TState;
   dirty: boolean;
 }): RemoteStateMergeResult<TState> {
-  if (isTransientEmptyPipeline(input.currentState.pipeline, input.incomingState.pipeline)) {
+  if (isTransientPipelineLoss(input.currentState.pipeline, input.incomingState.pipeline)) {
     return {
       state: {
         ...input.incomingState,
@@ -51,6 +52,6 @@ export function mergeRemoteStateUpdate<TState extends WebviewStateLike>(input: {
   };
 }
 
-function isTransientEmptyPipeline(current: AgentPipeline, incoming: AgentPipeline): boolean {
-  return current.nodes.length > 0 && incoming.nodes.length === 0;
+function isTransientPipelineLoss(current: AgentPipeline, incoming: AgentPipeline): boolean {
+  return isSuspiciousPipelineLoss(current, incoming);
 }

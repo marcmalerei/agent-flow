@@ -10,7 +10,7 @@ import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMar
 import { coerceFlowLayout } from './flowLayout';
 import { AgentFlowLog, writeGeneratedFiles } from './filePersistence';
 import { FileWatchSuppression } from './fileWatchSuppression';
-import { PipelineRefreshCoordinator, refreshPipelineAfterWorkspaceChange } from './pipelineRefresh';
+import { loadInitialPipelineWhenStable, PipelineRefreshCoordinator, refreshPipelineAfterWorkspaceChange } from './pipelineRefresh';
 import { ActivityStore } from '../activity/store';
 import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
 import { activityInputsForChangedFiles } from '../activity/fileActivity';
@@ -47,7 +47,9 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   const selfWrites = new FileWatchSuppression();
   const refreshCoordinator = new PipelineRefreshCoordinator();
   log(`opening pipeline panel for ${workspace}`);
-  let pipeline = await loadOrInferPipeline(workspace);
+  const initial = await loadInitialPipelineWhenStable(workspace);
+  if (initial.reason !== 'accepted') log(`opening with ${initial.pipeline.nodes.length} nodes after ${initial.attempts} initial scan attempts (${initial.reason})`);
+  let pipeline = initial.pipeline;
   let selectedId: string | undefined;
   updatePanelSnapshot(pipeline, selectedId, 'opened');
   const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'Agent Flow Pipeline', vscode.ViewColumn.One, {

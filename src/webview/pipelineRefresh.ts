@@ -37,6 +37,26 @@ export class PipelineRefreshCoordinator {
   }
 }
 
+export async function loadInitialPipelineWhenStable(
+  workspace: string,
+  infer: (workspace: string) => Promise<AgentPipeline> = loadOrInferPipeline,
+  options: PipelineRefreshOptions = {}
+): Promise<PipelineRefreshResult> {
+  const maxAttempts = Math.max(1, options.maxAttempts ?? 5);
+  const retryDelayMs = options.retryDelayMs ?? 250;
+  const sleep = options.sleep ?? delay;
+  let next = await infer(workspace);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    if (next.nodes.length > 0) return { pipeline: next, changed: true, reason: 'accepted', attempts: attempt };
+    if (attempt === maxAttempts) return { pipeline: next, changed: false, reason: 'transient-empty', attempts: attempt };
+    await sleep(retryDelayMs);
+    next = await infer(workspace);
+  }
+
+  return { pipeline: next, changed: false, reason: 'transient-empty', attempts: maxAttempts };
+}
+
 export async function refreshPipelineAfterWorkspaceChange(
   workspace: string,
   current: AgentPipeline,
@@ -58,6 +78,10 @@ export async function refreshPipelineAfterWorkspaceChange(
   }
 
   return { pipeline: current, changed: false, reason: 'transient-partial', attempts: maxAttempts };
+}
+
+export function isSuspiciousPipelineLoss(current: AgentPipeline, next: AgentPipeline, minRetainedNodeRatio = 0.7): boolean {
+  return Boolean(suspiciousNodeLossReason(current, next, minRetainedNodeRatio));
 }
 
 function suspiciousNodeLossReason(current: AgentPipeline, next: AgentPipeline, minRetainedNodeRatio: number): PipelineRefreshResult['reason'] | undefined {
