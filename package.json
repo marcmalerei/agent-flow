@@ -122,6 +122,11 @@
         "command": "agentflow.playDemoActivity",
         "title": "Play Demo Activity",
         "category": "Agent Flow"
+      },
+      {
+        "command": "agentflow.copyDebugSnapshot",
+        "title": "Copy Debug Snapshot",
+        "category": "Agent Flow"
       }
     ],
     "languageModelTools": [

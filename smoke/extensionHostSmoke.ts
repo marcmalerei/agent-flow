@@ -10,6 +10,7 @@ const expectedCommands = [
   'agentflow.validatePipeline',
   'agentflow.createDefaultPipeline',
   'agentflow.playDemoActivity',
+  'agentflow.copyDebugSnapshot',
   'agentflow.debugSnapshot'
 ];
 
@@ -41,12 +42,16 @@ export async function run(): Promise<void> {
   const stableDefaultSnapshot = await waitForRenderedWebviewState((snapshot) =>
     defaultNodeIds.every((nodeId) => snapshot.nodeIds.includes(nodeId))
     && snapshot.nodeCount >= defaultNodeIds.length
+    && defaultNodeIds.every((nodeId) => snapshot.webviewNodeIds?.includes(nodeId))
+    && defaultNodeIds.every((nodeId) => snapshot.webviewRenderedNodeIds?.includes(nodeId))
     && snapshot.webviewNodeCount === snapshot.nodeCount
     && snapshot.webviewRenderedNodeCount === snapshot.nodeCount, 2_000);
   assert.equal(stableDefaultSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after the default pipeline settles.');
   assert.equal(stableDefaultSnapshot.webviewNodeCount, stableDefaultSnapshot.nodeCount, 'Agent Flow webview should still hold every parsed default pipeline node after settling.');
   assert.equal(stableDefaultSnapshot.webviewRenderedNodeCount, stableDefaultSnapshot.nodeCount, 'Agent Flow webview should still render every parsed default pipeline node after settling.');
   assert.ok(defaultNodeIds.every((nodeId) => stableDefaultSnapshot.nodeIds.includes(nodeId)), 'Agent Flow webview should not lose default pipeline nodes after settling.');
+  assert.ok(defaultNodeIds.every((nodeId) => stableDefaultSnapshot.webviewNodeIds?.includes(nodeId)), 'Agent Flow webview state should still include every default pipeline node after settling.');
+  assert.ok(defaultNodeIds.every((nodeId) => stableDefaultSnapshot.webviewRenderedNodeIds?.includes(nodeId)), 'Agent Flow webview DOM should still include every default pipeline node after settling.');
 
   await assert.rejects(fs.readFile(path.join(workspace, '.github', 'agent-flow.json'), 'utf8'));
   assert.match(await fs.readFile(path.join(workspace, '.github/agents/router.agent.md'), 'utf8'), /name: "router"/);
@@ -148,6 +153,8 @@ interface DebugSnapshot {
   nodeCount: number;
   stateVersion?: number;
   webviewStateVersion?: number;
+  webviewNodeIds?: string[];
+  webviewRenderedNodeIds?: string[];
   webviewNodeCount?: number;
   webviewRenderedNodeCount?: number;
   webviewVisibleNodeCount?: number;
