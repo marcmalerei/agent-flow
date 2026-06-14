@@ -34,6 +34,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 function registerPipelineDocumentActivity(store: ActivityStore): vscode.Disposable {
   const append = (document: vscode.TextDocument, action: 'read' | 'write') => {
+    if (!(vscode.workspace.getConfiguration('agentflow.activity.sources').get<boolean>('vscodeDocuments') ?? true)) return;
     if (document.uri.scheme !== 'file') return;
     const input = activityInputForPipelineDocumentPath(document.uri.fsPath, getWorkspaceRoot(), action);
     if (input) store.append(input);
@@ -141,6 +142,7 @@ function renderValidationReport(name: string, findings: ReturnType<typeof valida
 }
 
 function registerActivityTools(): vscode.Disposable[] {
+  if (!(vscode.workspace.getConfiguration('agentflow.activity.sources').get<boolean>('agentFlowTools') ?? true)) return [];
   if (!vscode.lm?.registerTool) return [];
   return [
     vscode.lm.registerTool('agentflow_select_node', {

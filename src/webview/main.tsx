@@ -17,6 +17,7 @@ import '@vscode/codicons/dist/codicon.css';
 import './styles.css';
 import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationFinding, RiskScore } from '../pipeline/types';
 import { AgentFlowActivityEvent } from '../activity/types';
+import type { ActivitySourceRuntimeState } from '../activity/sources';
 import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
@@ -41,16 +42,7 @@ interface State {
   flowLayout: FlowLayout;
   toolOptions: ToolOptionGroup[];
   activityEvents: AgentFlowActivityEvent[];
-  activitySources?: {
-    copilotDebugLogs?: {
-      enabled: boolean;
-      copilotFileLoggingEnabled: boolean;
-      configuredPath?: string;
-      discoveredRoots: string[];
-      state: 'disabled' | 'waiting-for-copilot-logging' | 'no-logs-found' | 'watching';
-      detail: string;
-    };
-  };
+  activitySources?: ActivitySourceRuntimeState[];
 }
 
 type BottomTab = 'activity' | 'validation' | 'files' | 'tools' | 'risk';
@@ -730,7 +722,7 @@ function Bottom({ onSelectNode, state, activeTab, setActiveTab }: { onSelectNode
   const title = ({ activity: 'Activity timeline', validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
   return <div className="diagnostics">
     <nav>{tabs.map((tab) => <VSCodeButton key={tab} variant="ghost" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}><span>{tab}</span>{tabCounts[tab] !== undefined && <span className="diagnostic-tab-count">{tabCounts[tab]}</span>}</VSCodeButton>)}</nav>
-    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} source={state.activitySources?.copilotDebugLogs} onSelectNode={onSelectNode} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
+    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} sources={state.activitySources ?? []} onSelectNode={onSelectNode} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
   </div>;
 }
 
@@ -742,9 +734,10 @@ function diagnosticSummary(state: State, tab: BottomTab): string {
   return `${state.risk.score}/100`;
 }
 
-function ActivityDiagnostics({ events, onSelectNode, pipeline, source }: { events: AgentFlowActivityEvent[]; onSelectNode: (nodeId: string) => void; pipeline: AgentPipeline; source?: NonNullable<State['activitySources']>['copilotDebugLogs'] }) {
+function ActivityDiagnostics({ events, onSelectNode, pipeline, sources }: { events: AgentFlowActivityEvent[]; onSelectNode: (nodeId: string) => void; pipeline: AgentPipeline; sources: ActivitySourceRuntimeState[] }) {
   const [filters, setFilters] = useState({ sessionId: '', nodeId: '', phase: '', toolName: '', artifactPath: '', severity: '' });
-  if (!events.length) return <div className="activity-panel"><EmptyDiagnostics icon="pulse" title="No activity yet" detail="Agent Flow can show events from Agent Flow language model tools and from GitHub Copilot debug logs. It cannot observe unrelated chat extensions such as Codex through a public VS Code API." />{source && <ActivitySourceStatus source={source} />}</div>;
+  const sourceStatus = <ActivitySourceStatuses sources={sources} />;
+  if (!events.length) return <div className="activity-panel"><EmptyDiagnostics icon="pulse" title="No activity yet" detail="Agent Flow can show events from Agent Flow language model tools, VS Code document events, filesystem writes, and GitHub Copilot debug logs. File watchers alone cannot observe reads." />{sourceStatus}</div>;
   const labels = new Map(pipeline.nodes.map((node) => [node.id, node.label]));
   const filtered = events.filter((event) =>
     (!filters.sessionId || event.sessionId === filters.sessionId)
@@ -755,6 +748,7 @@ function ActivityDiagnostics({ events, onSelectNode, pipeline, source }: { event
     && (!filters.severity || (event.severity ?? (event.phase === 'failed' ? 'error' : 'info')) === filters.severity)
   );
   return <div className="activity-panel">
+    {sourceStatus}
     <div className="activity-actions"><ActivityFilter label="Session" value={filters.sessionId} options={unique(events.map((event) => event.sessionId))} onChange={(sessionId) => setFilters((current) => ({ ...current, sessionId }))} /><ActivityFilter label="Node" value={filters.nodeId} options={pipeline.nodes.filter((node) => events.some((event) => event.nodeId === node.id)).map((node) => ({ value: node.id, label: node.label }))} onChange={(nodeId) => setFilters((current) => ({ ...current, nodeId }))} /><ActivityFilter label="Phase" value={filters.phase} options={unique(events.map((event) => event.phase))} onChange={(phase) => setFilters((current) => ({ ...current, phase }))} /><ActivityFilter label="Tool" value={filters.toolName} options={unique(events.map((event) => event.toolName).filter(Boolean) as string[])} onChange={(toolName) => setFilters((current) => ({ ...current, toolName }))} /><ActivityFilter label="Artifact" value={filters.artifactPath} options={unique(events.map((event) => event.artifactPath).filter(Boolean) as string[])} onChange={(artifactPath) => setFilters((current) => ({ ...current, artifactPath }))} /><ActivityFilter label="Severity" value={filters.severity} options={['info', 'warning', 'error']} onChange={(severity) => setFilters((current) => ({ ...current, severity }))} /><VSCodeButton className="compact" icon="clear-all" onClick={() => vscode?.postMessage({ command: 'clearActivity' })}>Clear activity</VSCodeButton></div>
     <div className="diagnostic-list activity-list">{[...filtered].reverse().map((event) => <button type="button" key={event.id} className={`diagnostic-card activity-card ${event.severity === 'error' || event.phase === 'failed' ? 'error' : event.severity === 'warning' ? 'warning' : 'neutral'}`} onClick={() => event.nodeId && onSelectNode(event.nodeId)} disabled={!event.nodeId}>
     <Codicon name={event.phase === 'completed' ? 'pass' : event.phase === 'failed' ? 'error' : event.phase === 'tool' ? 'tools' : event.phase === 'artifact' ? 'file' : 'pulse'} />
@@ -767,13 +761,19 @@ function ActivityDiagnostics({ events, onSelectNode, pipeline, source }: { event
   </div>;
 }
 
-function ActivitySourceStatus({ source }: { source: NonNullable<NonNullable<State['activitySources']>['copilotDebugLogs']> }) {
-  const icon = source.state === 'watching' ? 'eye' : source.state === 'disabled' ? 'circle-slash' : 'warning';
+function ActivitySourceStatuses({ sources }: { sources: ActivitySourceRuntimeState[] }) {
+  if (!sources.length) return null;
+  return <div className="activity-source-grid">{sources.map((source) => <ActivitySourceStatus source={source} key={source.id} />)}</div>;
+}
+
+function ActivitySourceStatus({ source }: { source: ActivitySourceRuntimeState }) {
+  const icon = source.state === 'watching' ? 'eye' : source.state === 'disabled' ? 'circle-slash' : source.state === 'error' ? 'error' : source.state === 'initializing' ? 'sync' : 'warning';
+  const roots = Array.isArray(source.metadata?.discoveredRoots) ? source.metadata.discoveredRoots as string[] : [];
   return <div className={`activity-source-status ${source.state}`}>
-    <div className="diagnostic-card-title"><Codicon name={icon} /><span>Copilot debug logs</span><code>{source.state}</code></div>
+    <div className="diagnostic-card-title"><Codicon name={icon} /><span>{source.label}</span><code>{source.state}</code></div>
     <p>{source.detail}</p>
-    {!source.copilotFileLoggingEnabled && <p className="diagnostic-muted">Enable <code>github.copilot.chat.agentDebugLog.fileLogging.enabled</code> in VS Code settings to import sanitized Copilot activity.</p>}
-    {source.discoveredRoots.length > 0 && <div className="diagnostic-chip-row">{source.discoveredRoots.slice(0, 3).map((root) => <span className="diagnostic-chip" key={root}>{root}</span>)}</div>}
+    {source.id === 'copilotDebugLogs' && source.metadata?.copilotFileLoggingEnabled === false && <p className="diagnostic-muted">Enable <code>github.copilot.chat.agentDebugLog.fileLogging.enabled</code> in VS Code settings to import sanitized Copilot activity.</p>}
+    {roots.length > 0 && <div className="diagnostic-chip-row">{roots.slice(0, 3).map((root) => <span className="diagnostic-chip" key={root}>{root}</span>)}</div>}
   </div>;
 }
 

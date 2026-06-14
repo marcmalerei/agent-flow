@@ -74,6 +74,21 @@
           "type": "string",
           "default": "",
           "description": "Optional folder containing Copilot debug log JSON or JSONL files. Leave empty to auto-detect VS Code Copilot debug-log folders."
+        },
+        "agentflow.activity.sources.filesystem": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable filesystem write activity from .github Agent Flow pipeline file watchers."
+        },
+        "agentflow.activity.sources.vscodeDocuments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable read/write activity from VS Code document open and save events for .github Agent Flow files."
+        },
+        "agentflow.activity.sources.agentFlowTools": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Agent Flow language model activity tools that agents can call to report progress."
         }
       }
     },
