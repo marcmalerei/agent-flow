@@ -39,10 +39,26 @@ describe('webview assets', () => {
     const panelSource = readFileSync('src/webview/panel.ts', 'utf8');
 
     expect(webviewSource).toContain('scheduleFlowFit');
+    expect(webviewSource).toContain('hasVisibleFlowNode');
+    expect(webviewSource).toContain('visibilityWatchdog');
     expect(webviewSource).toContain("event.data?.command === 'refitFlow'");
     expect(webviewSource).toContain('ResizeObserver');
     expect(css).toContain('.canvas .react-flow');
     expect(panelSource).toContain('onDidChangeViewState');
+    expect(panelSource).toContain('retainContextWhenHidden: true');
+    expect(panelSource).toContain("command: 'stateUpdated'");
     expect(panelSource).toContain("command: 'refitFlow'");
+  });
+
+  test('animates node-level file and artifact activity', () => {
+    const tokenNodeSource = readFileSync('src/webview/TokenNode.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(tokenNodeSource).toContain('has-activity');
+    expect(tokenNodeSource).toContain('activity-node-');
+    expect(css).toContain('.flow-node.has-activity');
+    expect(css).toContain('.activity-file');
+    expect(css).toContain('.activity-artifact');
+    expect(css).toContain('nodeActivityPulse');
   });
 });
