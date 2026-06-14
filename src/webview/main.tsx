@@ -52,6 +52,7 @@ declare global { interface Window { __AGENTFLOW_STATE__: State; __AGENTFLOW_APP_
 
 const vscode = window.__AGENTFLOW_VSCODE_API__ ?? window.acquireVsCodeApi?.();
 if (vscode && !window.__AGENTFLOW_VSCODE_API__) window.__AGENTFLOW_VSCODE_API__ = vscode;
+const webviewBootId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-testing-iconPassed, #2ea043)', role: 'var(--vscode-charts-cyan, #00b7c3)', artifact: 'var(--vscode-charts-green)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)', handoff: 'var(--vscode-editorWarning-foreground, #cca700)', 'mcp-server': 'var(--vscode-charts-cyan, #00b7c3)' };
 const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'role', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server'];
 const nodeTypeIcons: Record<PipelineNodeType, string> = { agent: 'hubot', prompt: 'comment-discussion', instruction: 'list-tree', skill: 'tools', role: 'person', artifact: 'file', gate: 'pass', hook: 'debug-disconnect', handoff: 'arrow-swap', 'mcp-server': 'server-process' };
@@ -87,6 +88,13 @@ function App() {
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+
+  useEffect(() => {
+    const timers = [0, 100, 500, 1_500].map((delay) => window.setTimeout(() => {
+      vscode?.postMessage({ command: 'webviewReady', bootId: webviewBootId, stateVersion: state.stateVersion });
+    }, delay));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, []);
 
   useEffect(() => {
     const listener = (event: MessageEvent) => {

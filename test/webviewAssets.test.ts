@@ -41,6 +41,8 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('scheduleFlowFit');
     expect(webviewSource).toContain('postFlowRenderStatus');
     expect(webviewSource).toContain('renderedFlowNodeIds');
+    expect(webviewSource).toContain('webviewBootId');
+    expect(webviewSource).toContain("command: 'webviewReady'");
     expect(webviewSource).toContain('visibleFlowNodeCount');
     expect(webviewSource).toContain('flowMountRevision');
     expect(webviewSource).toContain('flowRenderKey');
@@ -54,7 +56,9 @@ describe('webview assets', () => {
     expect(panelSource).toContain('initial-pipeline-recovery');
     expect(panelSource).toContain('scheduleStartupTask');
     expect(panelSource).toContain('webviewRenderedNodeIds');
+    expect(panelSource).toContain('webviewReadyBootId');
     expect(panelSource).toContain("message?.command === 'webviewRenderStatus'");
+    expect(panelSource).toContain("message?.command === 'webviewReady'");
     expect(panelSource).toContain("command: 'stateUpdated'");
     expect(panelSource).toContain("command: 'refitFlow'");
   });

@@ -33,6 +33,8 @@ export interface AgentFlowPanelSnapshot {
   webviewCanvasWidth?: number;
   webviewCanvasHeight?: number;
   webviewRenderReason?: string;
+  webviewReadyCount?: number;
+  webviewReadyBootId?: string;
   webviewRuntimeError?: string;
   webviewRuntimeErrorDetail?: string;
   selectedId?: string;
@@ -78,6 +80,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   let selectedId: string | undefined;
   let stateVersion = 0;
   let disposed = false;
+  let lastWebviewReadyBootId: string | undefined;
   const startupTimers = new Set<ReturnType<typeof setTimeout>>();
   const scheduleStartupTask = (delayMs: number, task: () => unknown): void => {
     const timer = setTimeout(() => {
@@ -101,6 +104,12 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore, version), selectedId });
     if (refit) panel.webview.postMessage({ command: 'refitFlow' });
   };
+  const postRefitBurst = (reason: string): void => {
+    log(`requesting React Flow refit burst (${reason})`);
+    for (const delay of [0, 80, 240, 600, 1_200, 2_400]) {
+      scheduleStartupTask(delay, () => panel.webview.postMessage({ command: 'refitFlow', reason }));
+    }
+  };
   const initialStateVersion = markStateForPost('opened');
   const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'Agent Flow Pipeline', vscode.ViewColumn.One, {
     enableScripts: true,
@@ -108,9 +117,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
   });
   panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline, activityStore, initialStateVersion));
-  for (const delay of [80, 240, 600, 1_200, 2_500, 4_000]) {
-    scheduleStartupTask(delay, () => panel.webview.postMessage({ command: 'refitFlow' }));
-  }
+  postRefitBurst('startup');
   for (const delay of [500, 1_500, 3_000, 5_000]) {
     scheduleStartupTask(delay, async () => {
       if (pipeline.nodes.length > 0) return;
@@ -178,6 +185,21 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
       if (message?.command === 'webviewRenderStatus') {
         updateWebviewRenderSnapshot(message, stateVersion);
         log(`webview render status: ${message.renderedNodeCount ?? 0}/${message.nodeCount ?? 0} rendered, ${message.visibleNodeCount ?? 0} visible (${message.reason ?? 'unknown'})`);
+        return;
+      }
+      if (message?.command === 'webviewReady') {
+        const bootId = typeof message.bootId === 'string' ? message.bootId : undefined;
+        if (bootId && bootId === lastWebviewReadyBootId) return;
+        lastWebviewReadyBootId = bootId;
+        latestPanelSnapshot = {
+          ...latestPanelSnapshot,
+          webviewReadyCount: (latestPanelSnapshot.webviewReadyCount ?? 0) + 1,
+          webviewReadyBootId: bootId,
+          updatedAt: new Date().toISOString()
+        };
+        log(`webview ready${bootId ? ` (${bootId})` : ''}; posting current state with ${pipeline.nodes.length} nodes`);
+        await postStateUpdated('webview-ready', true);
+        postRefitBurst('webview-ready');
         return;
       }
       if (message?.command === 'webviewRuntimeError') {
