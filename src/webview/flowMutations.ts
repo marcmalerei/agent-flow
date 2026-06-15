@@ -1,6 +1,7 @@
 import { AgentPipeline, ArtifactAction, ArtifactUsage, PipelineEdge, PipelineNode, ReferenceInstruction, ReferenceRole } from '../pipeline/types';
 import { deriveVisibleFlowEdges } from './graph';
 import { normalizeNodeLabel } from '../pipeline/labels';
+import { resolveAgentReference, stripYamlQuotes } from '../pipeline/referenceResolver';
 
 export function connectPipelineNodes(pipeline: AgentPipeline, sourceId: string, targetId: string): AgentPipeline {
   const source = pipeline.nodes.find((node) => node.id === sourceId);
@@ -37,6 +38,16 @@ export function renameNodeLabel(node: PipelineNode, label: string): PipelineNode
     return { ...node, label: normalizedLabel, path: managedPath(node.path, '.github/artifacts/', extension) ? `.github/artifacts/${slugFileStem(normalizedLabel, node.id)}${extension}` : node.path };
   }
   return { ...node, label: normalizedLabel } as PipelineNode;
+}
+
+export function renamePipelineNodeLabel(pipeline: AgentPipeline, nodeId: string, label: string): AgentPipeline {
+  const previousNode = pipeline.nodes.find((node) => node.id === nodeId);
+  if (!previousNode) return pipeline;
+  const renamedNode = renameNodeLabel(previousNode, label);
+  const nodesWithRenamedTarget = pipeline.nodes.map((node) => node.id === nodeId ? renamedNode : node);
+  const nodes = nodesWithRenamedTarget.map((node) => node.id === nodeId ? node : updateReferencesForRenamedNode(node, previousNode, renamedNode, pipeline.nodes));
+  const edges = pipeline.edges.map((edge) => updateEdgeForRenamedNode(edge, previousNode, renamedNode));
+  return { ...pipeline, nodes, edges };
 }
 
 function edgeForConnection(source: PipelineNode, target: PipelineNode): PipelineEdge {
@@ -88,6 +99,91 @@ function updateNodeReferences(node: PipelineNode, source: PipelineNode, target: 
     return { ...target, requiredArtifacts: addUnique(target.requiredArtifacts, source.path), artifactUsages: upsertArtifactUsage(target.artifactUsages, source.path, 'read') } as PipelineNode;
   }
   return node;
+}
+
+function updateReferencesForRenamedNode(node: PipelineNode, previousNode: PipelineNode, renamedNode: PipelineNode, previousNodes: PipelineNode[]): PipelineNode {
+  if (previousNode.type === 'agent' && renamedNode.type === 'agent') return updateAgentReferencesForRename(node, previousNode, renamedNode, previousNodes);
+  if (previousNode.type === 'instruction' && renamedNode.type === 'instruction') return updateInstructionReferencesForRename(node, previousNode, renamedNode);
+  if (previousNode.type === 'role' && renamedNode.type === 'role') return updateRoleReferencesForRename(node, previousNode, renamedNode);
+  if (previousNode.type === 'artifact' && renamedNode.type === 'artifact') return updateArtifactReferencesForRename(node, previousNode, renamedNode);
+  return node;
+}
+
+function updateAgentReferencesForRename(node: PipelineNode, previousAgent: Extract<PipelineNode, { type: 'agent' }>, renamedAgent: Extract<PipelineNode, { type: 'agent' }>, previousNodes: PipelineNode[]): PipelineNode {
+  if (node.type === 'agent') {
+    return {
+      ...node,
+      calls: node.calls ? [...new Set(node.calls.map((call) => resolveAgentReference(call, previousNodes) === previousAgent.id ? renamedAgent.id : call))] : undefined,
+      handoffs: node.handoffs?.map((handoff) => ({ ...handoff, agent: renamedAgentReference(handoff.agent, previousAgent, renamedAgent, previousNodes) }))
+    };
+  }
+  if (node.type === 'prompt' && node.startAgent) {
+    return { ...node, startAgent: renamedAgentReference(node.startAgent, previousAgent, renamedAgent, previousNodes) };
+  }
+  if (node.type === 'handoff' && node.targetAgent) {
+    return { ...node, targetAgent: renamedAgentReference(node.targetAgent, previousAgent, renamedAgent, previousNodes) };
+  }
+  return node;
+}
+
+function renamedAgentReference(reference: string, previousAgent: Extract<PipelineNode, { type: 'agent' }>, renamedAgent: Extract<PipelineNode, { type: 'agent' }>, previousNodes: PipelineNode[]): string {
+  if (resolveAgentReference(reference, previousNodes) !== previousAgent.id) return reference;
+  const stripped = stripYamlQuotes(reference);
+  if (previousAgent.agentFile && stripped === previousAgent.agentFile) return renamedAgent.agentFile ?? renamedAgent.id;
+  if (stripped === previousAgent.label) return renamedAgent.label;
+  return stripped === previousAgent.id ? renamedAgent.id : renamedAgent.agentFile ?? renamedAgent.id;
+}
+
+function updateInstructionReferencesForRename(node: PipelineNode, previousInstruction: Extract<PipelineNode, { type: 'instruction' }>, renamedInstruction: Extract<PipelineNode, { type: 'instruction' }>): PipelineNode {
+  if (!supportsInstructionRefs(node)) return node;
+  const previousTargets = referenceAliases(previousInstruction.id, previousInstruction.label, previousInstruction.instructionFile);
+  const nextTarget = instructionReferenceTarget(renamedInstruction);
+  return { ...node, instructionRefs: node.instructionRefs?.map((ref) => previousTargets.has(stripYamlQuotes(ref.target)) ? { ...ref, target: nextTarget } : ref) } as PipelineNode;
+}
+
+function updateRoleReferencesForRename(node: PipelineNode, previousRole: Extract<PipelineNode, { type: 'role' }>, renamedRole: Extract<PipelineNode, { type: 'role' }>): PipelineNode {
+  if (!supportsRoleRefs(node)) return node;
+  const previousTargets = referenceAliases(previousRole.id, previousRole.label, previousRole.roleFile);
+  const nextTarget = roleReferenceTarget(renamedRole);
+  return { ...node, roleRefs: node.roleRefs?.map((ref) => previousTargets.has(stripYamlQuotes(ref.target)) ? { ...ref, target: nextTarget } : ref) } as PipelineNode;
+}
+
+function updateArtifactReferencesForRename(node: PipelineNode, previousArtifact: Extract<PipelineNode, { type: 'artifact' }>, renamedArtifact: Extract<PipelineNode, { type: 'artifact' }>): PipelineNode {
+  const previousPath = previousArtifact.path;
+  const nextPath = renamedArtifact.path;
+  if (node.type === 'agent') {
+    return {
+      ...node,
+      inputs: renamePathList(node.inputs, previousPath, nextPath),
+      outputs: renamePathList(node.outputs, previousPath, nextPath),
+      artifactUsages: renameArtifactUsages(node.artifactUsages, previousPath, nextPath)
+    };
+  }
+  if (node.type === 'prompt' || node.type === 'instruction' || node.type === 'skill') {
+    return {
+      ...node,
+      requiredArtifacts: renamePathList(node.requiredArtifacts, previousPath, nextPath),
+      artifactUsages: renameArtifactUsages(node.artifactUsages, previousPath, nextPath)
+    } as PipelineNode;
+  }
+  return node;
+}
+
+function updateEdgeForRenamedNode(edge: PipelineEdge, previousNode: PipelineNode, renamedNode: PipelineNode): PipelineEdge {
+  if (previousNode.type === 'artifact' && renamedNode.type === 'artifact' && edge.artifact === previousNode.path) return { ...edge, artifact: renamedNode.path };
+  return edge;
+}
+
+function renamePathList(values: string[] | undefined, previousPath: string, nextPath: string): string[] | undefined {
+  return values?.map((value) => value === previousPath ? nextPath : value);
+}
+
+function renameArtifactUsages(usages: ArtifactUsage[] | undefined, previousPath: string, nextPath: string): ArtifactUsage[] | undefined {
+  return usages?.map((usage) => usage.path === previousPath ? { ...usage, path: nextPath } : usage);
+}
+
+function referenceAliases(id: string, label: string, file: string | undefined): Set<string> {
+  return new Set([id, label, file].filter((value): value is string => Boolean(value)).map(stripYamlQuotes));
 }
 
 function addUnique(values: string[] | undefined, value: string): string[] {

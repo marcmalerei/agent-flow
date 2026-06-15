@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateAgentMarkdown, generatePromptMarkdown } from '../src/pipeline/generators';
 import { AgentPipeline } from '../src/pipeline/types';
-import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renameNodeLabel } from '../src/webview/flowMutations';
+import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renameNodeLabel, renamePipelineNodeLabel } from '../src/webview/flowMutations';
 import { deriveVisibleFlowEdges } from '../src/webview/graph';
 
 function basePipeline(): AgentPipeline {
@@ -75,6 +75,69 @@ describe('flow mutations', () => {
   it('keeps manually customized file paths when renaming nodes', () => {
     expect(renameNodeLabel({ id: 'router', type: 'agent', label: 'router', agentFile: 'custom/router.md', tools: [], calls: [], outputs: [] }, 'Security Reviewer')).toMatchObject({ label: 'security reviewer', agentFile: 'custom/router.md' });
     expect(renameNodeLabel({ id: 'artifact', type: 'artifact', label: 'artifact', path: 'reports/result.md' }, 'Review Result')).toMatchObject({ label: 'review result', path: 'reports/result.md' });
+  });
+
+  it('syncs agent renames into all referencing agent fields and generated markdown', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Rename references',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'router', agentFile: '.github/agents/router.agent.md', calls: ['Worker Agent', '.github/agents/worker-agent.agent.md'], outputs: [], handoffs: [{ label: 'Review', agent: '.github/agents/worker-agent.agent.md', send: false }] },
+        { id: 'prompt', type: 'prompt', label: 'prompt', promptFile: '.github/prompts/prompt.prompt.md', startAgent: '.github/agents/worker-agent.agent.md' },
+        { id: 'handoff', type: 'handoff', label: 'Review', targetAgent: '.github/agents/worker-agent.agent.md' },
+        { id: 'worker-agent', type: 'agent', label: 'Worker Agent', agentFile: '.github/agents/worker-agent.agent.md', calls: [], outputs: [] }
+      ],
+      edges: []
+    };
+
+    const next = renamePipelineNodeLabel(pipeline, 'worker-agent', 'qa reviewer');
+    const router = next.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+    const prompt = next.nodes.find((node) => node.id === 'prompt' && node.type === 'prompt');
+    const handoff = next.nodes.find((node) => node.id === 'handoff' && node.type === 'handoff');
+
+    expect(next.nodes.find((node) => node.id === 'worker-agent' && node.type === 'agent')).toMatchObject({ label: 'qa reviewer', agentFile: '.github/agents/qa-reviewer.agent.md' });
+    expect(router?.calls).toEqual(['worker-agent']);
+    expect(router?.handoffs).toEqual([{ label: 'Review', agent: '.github/agents/qa-reviewer.agent.md', send: false }]);
+    expect(prompt?.startAgent).toBe('.github/agents/qa-reviewer.agent.md');
+    expect(handoff?.targetAgent).toBe('.github/agents/qa-reviewer.agent.md');
+    expect(generateAgentMarkdown(router!)).toContain('agent: ".github/agents/qa-reviewer.agent.md"');
+    expect(generatePromptMarkdown(prompt!)).toContain('agent: ".github/agents/qa-reviewer.agent.md"');
+  });
+
+  it('syncs renamed file-backed reference nodes into markdown references and artifact usages', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Rename file references',
+      nodes: [
+        {
+          id: 'router',
+          type: 'agent',
+          label: 'router',
+          calls: [],
+          outputs: ['.github/artifacts/old-result.md'],
+          inputs: ['.github/artifacts/old-result.md'],
+          artifactUsages: [{ path: '.github/artifacts/old-result.md', action: 'write', instruction: 'Write $artifact.' }],
+          instructionRefs: [{ target: '.github/instructions/old-docs.instructions.md', instruction: 'Use $instruction.' }],
+          roleRefs: [{ target: '.github/roles/old-role.md', instruction: 'Use role.' }]
+        },
+        { id: 'docs', type: 'instruction', label: 'old docs', instructionFile: '.github/instructions/old-docs.instructions.md', applyTo: '**/*' },
+        { id: 'role', type: 'role', label: 'old role', roleFile: '.github/roles/old-role.md' },
+        { id: 'artifact', type: 'artifact', label: 'old result', path: '.github/artifacts/old-result.md' }
+      ],
+      edges: [{ id: 'router-artifact-artifact', from: 'router', to: 'artifact', kind: 'artifact', artifact: '.github/artifacts/old-result.md' }]
+    };
+
+    const renamedInstruction = renamePipelineNodeLabel(pipeline, 'docs', 'shared docs');
+    const renamedRole = renamePipelineNodeLabel(renamedInstruction, 'role', 'frontend role');
+    const next = renamePipelineNodeLabel(renamedRole, 'artifact', 'review result');
+    const router = next.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+
+    expect(router?.instructionRefs).toEqual([{ target: '.github/instructions/shared-docs.instructions.md', instruction: 'Use $instruction.' }]);
+    expect(router?.roleRefs).toEqual([{ target: '.github/roles/frontend-role.md', instruction: 'Use role.' }]);
+    expect(router?.inputs).toEqual(['.github/artifacts/review-result.md']);
+    expect(router?.outputs).toEqual(['.github/artifacts/review-result.md']);
+    expect(router?.artifactUsages).toEqual([{ path: '.github/artifacts/review-result.md', action: 'write', instruction: 'Write $artifact.' }]);
+    expect(next.edges).toEqual([{ id: 'router-artifact-artifact', from: 'router', to: 'artifact', kind: 'artifact', artifact: '.github/artifacts/review-result.md' }]);
   });
 
   it('syncs instruction canvas connections into referencing node instruction refs', () => {
