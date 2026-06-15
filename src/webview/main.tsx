@@ -423,7 +423,10 @@ function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<str
   const source = nodesById.get(edge.source);
   const target = nodesById.get(edge.target);
   if (!source || !target) return null;
-  const points = edgePathBetweenNodes(source, target);
+  const label = edge.label ? compactEdgeLabel(edge.label) : undefined;
+  const labelWidth = label ? edgeLabelWidth(label) : 56;
+  const labelHeight = 22;
+  const points = edgePathBetweenNodes(source, target, { labelWidth, labelHeight });
   const color = `url(#${edgeGradientId(edge.id)})`;
   const opacity = typeof edge.style?.opacity === 'number' ? edge.style.opacity : 0.82;
   const strokeWidth = typeof edge.style?.strokeWidth === 'number' ? edge.style.strokeWidth : 1.8;
@@ -432,11 +435,21 @@ function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<str
     {edge.animated && <circle className="graph-edge-tracer" r="4" fill={color}>
       <animateMotion dur="1.15s" repeatCount="indefinite" path={points.path} />
     </circle>}
-    {edge.label && <g className="graph-edge-label" transform={`translate(${points.labelX} ${points.labelY})`}>
-      <rect x="-28" y="-10" width="56" height="20" rx="2" />
-      <text textAnchor="middle" dominantBaseline="central">{edge.label}</text>
+    {label && <g className="graph-edge-label" transform={`translate(${points.labelX} ${points.labelY})`}>
+      <title>{edge.label}</title>
+      <rect x={-labelWidth / 2} y={-labelHeight / 2} width={labelWidth} height={labelHeight} rx="2" />
+      <text textAnchor="middle" dominantBaseline="central">{label}</text>
     </g>}
   </g>;
+}
+
+function compactEdgeLabel(label: string): string {
+  const normalized = label.trim().replace(/\s+/g, ' ');
+  return normalized.length > 24 ? `${normalized.slice(0, 21).trimEnd()}...` : normalized;
+}
+
+function edgeLabelWidth(label: string): number {
+  return Math.min(160, Math.max(56, label.length * 6.8 + 18));
 }
 
 function edgeMarkerId(edgeId: string): string {

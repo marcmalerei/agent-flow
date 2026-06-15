@@ -117,4 +117,13 @@ describe('webview assets', () => {
     expect(css).toContain('.activity-artifact');
     expect(css).toContain('nodeActivityPulse');
   });
+
+  test('reserves node header space so badges do not overlap labels', () => {
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(css).toContain('padding: 38px 18px 14px');
+    expect(css).toContain('-webkit-line-clamp: 2');
+    expect(css).toContain('.flow-node.has-activity.is-dirty');
+    expect(css).toContain('.flow-node.has-activity.is-dirty .runtime-badge');
+  });
 });

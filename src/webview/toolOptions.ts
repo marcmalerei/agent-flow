@@ -58,7 +58,7 @@ export function buildToolOptionGroups(tools: readonly ToolInformation[]): ToolOp
 
     const extensionGroup = extensionGroupForTool(tool);
     const group = extensionGroups.get(extensionGroup.id) ?? { label: extensionGroup.label, options: [] };
-    group.options.push({ value: tool.value, label: extensionGroup.optionLabel, description: tool.description, icon: tool.icon });
+    group.options.push({ value: extensionGroup.value, aliases: extensionGroup.aliases, label: extensionGroup.optionLabel, description: tool.description, icon: tool.icon });
     extensionGroups.set(extensionGroup.id, group);
   }
 
@@ -141,23 +141,33 @@ function builtInParentForTool(tool: ConcreteToolOption): string | undefined {
   return undefined;
 }
 
-function extensionGroupForTool(tool: ConcreteToolOption): { id: string; label: string; optionLabel: string } {
+function extensionGroupForTool(tool: ConcreteToolOption): { id: string; label: string; optionLabel: string; value: string; aliases?: string[] } {
   if (tool.value.startsWith('mcp_')) {
     const parts = tool.value.slice(4).split('_').filter(Boolean);
     const serverIndex = parts.indexOf('server');
     const groupParts = serverIndex > 0 ? parts.slice(0, serverIndex + 1) : parts.slice(0, Math.max(1, parts.length - 1));
     const optionParts = parts.slice(groupParts.length);
     const id = `mcp:${groupParts.join('_')}`;
-    return { id, label: formatVendorLabel(groupParts.join(' ')), optionLabel: optionParts.length ? optionParts.join(' ') : tool.value };
+    return { id, label: formatVendorLabel(groupParts.join(' ')), optionLabel: optionParts.length ? optionParts.join(' ') : tool.value, value: tool.value };
   }
 
   const parts = tool.value.split('_').filter(Boolean);
   if (parts.length > 1) {
     const [vendor, ...rest] = parts;
-    return { id: `extension:${vendor.toLowerCase()}`, label: formatVendorLabel(vendor), optionLabel: rest.join('_') };
+    const optionLabel = rest.join('_');
+    if (vendor.toLowerCase() !== 'agentflow') {
+      return { id: `extension:${vendor.toLowerCase()}`, label: formatVendorLabel(vendor), optionLabel, value: tool.value };
+    }
+    return {
+      id: `extension:${vendor.toLowerCase()}`,
+      label: formatVendorLabel(vendor),
+      optionLabel,
+      value: `${vendor}/${optionLabel}`,
+      aliases: [tool.value]
+    };
   }
 
-  return { id: 'extension:tools', label: 'Extension Tools', optionLabel: tool.value };
+  return { id: 'extension:tools', label: 'Extension Tools', optionLabel: tool.value, value: tool.value };
 }
 
 function flattenToolOption(option: ToolOption): string[] {

@@ -14,6 +14,16 @@ describe('native graph geometry', () => {
     expect(edge.path.endsWith(' 320 88')).toBe(true);
   });
 
+  it('places short edge labels outside source and target node bounds', () => {
+    const closeSource: GraphGeometryNode = { id: 'source', position: { x: 0, y: 40 } };
+    const closeTarget: GraphGeometryNode = { id: 'target', position: { x: 210, y: 40 } };
+    const edge = edgePathBetweenNodes(closeSource, closeTarget, { labelWidth: 132, labelHeight: 22 });
+
+    expect(labelIntersectsNode(edge, closeSource, 132, 22)).toBe(false);
+    expect(labelIntersectsNode(edge, closeTarget, 132, 22)).toBe(false);
+    expect(edge.labelY).toBeLessThan(closeSource.position.y);
+  });
+
   it('normalizes nodes and bounds so SVG paths and DOM nodes share the same origin', () => {
     const normalized = normalizeGraphNodePositions([
       { id: 'a', position: { x: 100, y: 50 } },
@@ -50,3 +60,14 @@ describe('native graph geometry', () => {
     expect(viewport.zoom).toBeLessThanOrEqual(1);
   });
 });
+
+function labelIntersectsNode(edge: { labelX: number; labelY: number }, node: GraphGeometryNode, width: number, height: number): boolean {
+  const left = edge.labelX - width / 2;
+  const right = edge.labelX + width / 2;
+  const top = edge.labelY - height / 2;
+  const bottom = edge.labelY + height / 2;
+  return right > node.position.x
+    && left < node.position.x + 190
+    && bottom > node.position.y
+    && top < node.position.y + 96;
+}
