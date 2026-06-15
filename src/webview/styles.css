@@ -48,6 +48,7 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .graph-edge-path { fill: none; stroke-linecap: round; }
 .graph-edge.animated .graph-edge-path { stroke-dasharray: 10 5; animation: activityDash 760ms linear infinite; filter: drop-shadow(0 0 4px currentColor); }
 .graph-edge.activity-edge .graph-edge-path { opacity: 1; }
+.graph-edge-tracer { opacity: .95; filter: drop-shadow(0 0 6px currentColor); }
 .graph-edge-label { pointer-events: none; }
 .graph-edge-label rect { fill: var(--vscode-editorWidget-background); opacity: .95; }
 .graph-edge-label text { fill: var(--vscode-editorWidget-foreground); font-size: 11px; font-family: var(--vscode-font-family, system-ui); }
@@ -286,4 +287,5 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 @keyframes activityDash { to { stroke-dashoffset: -15; } }
 @media (prefers-reduced-motion: reduce) {
   .flow-node.has-activity, .activity-started, .activity-thinking, .activity-tool, .activity-file, .activity-artifact, .graph-edge.animated .graph-edge-path { animation: none; }
+  .graph-edge-tracer { display: none; }
 }

@@ -29,6 +29,10 @@ export function recentActivityEvents(events: AgentFlowActivityEvent[], now = Dat
   });
 }
 
+export function recentNodeActivitySummaries(events: AgentFlowActivityEvent[], now = Date.now(), ttlMs = 120_000): Map<string, NodeActivitySummary> {
+  return summarizeNodeActivity(recentActivityEvents(events, now, ttlMs));
+}
+
 export function resolveActivityEventsForPipeline(pipeline: AgentPipeline, events: AgentFlowActivityEvent[]): AgentFlowActivityEvent[] {
   const nodeIdByFile = nodeIdsByBackingFile(pipeline);
   const artifactByPath = artifactNodeIdsByPath(pipeline);

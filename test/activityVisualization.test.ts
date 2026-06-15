@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeEdgeIds, recentActivityEvents, resolveActivityEventsForPipeline, summarizeNodeActivity } from '../src/webview/activity';
+import { activeEdgeIds, recentActivityEvents, recentNodeActivitySummaries, resolveActivityEventsForPipeline, summarizeNodeActivity } from '../src/webview/activity';
 import { AgentFlowActivityEvent } from '../src/activity/types';
 import { AgentPipeline } from '../src/pipeline/types';
 
@@ -70,10 +70,22 @@ describe('activity visualization helpers', () => {
   it('keeps recent visual activity long enough to survive webview refits', () => {
     const events: AgentFlowActivityEvent[] = [
       { id: 'old', timestamp: '2026-06-12T09:57:30.000Z', sessionId: 's', nodeId: 'router', phase: 'started', summary: 'Old' },
-      { id: 'refit', timestamp: '2026-06-12T09:59:30.000Z', sessionId: 's', nodeId: 'router', phase: 'started', summary: 'Refit window' },
+      { id: 'refit', timestamp: '2026-06-12T09:59:50.000Z', sessionId: 's', nodeId: 'router', phase: 'started', summary: 'Refit window' },
       { id: 'new', timestamp: '2026-06-12T09:59:58.000Z', sessionId: 's', nodeId: 'router', phase: 'tool', summary: 'New' }
     ];
 
     expect(recentActivityEvents(events, Date.parse(now)).map((event) => event.id)).toEqual(['refit', 'new']);
+  });
+
+  it('expires node activity summaries after the visual activity window', () => {
+    const events: AgentFlowActivityEvent[] = [
+      { id: 'stale', timestamp: '2026-06-12T09:57:30.000Z', sessionId: 's', nodeId: 'router', phase: 'tool', summary: 'Read stale file', toolName: 'read_file' },
+      { id: 'fresh', timestamp: '2026-06-12T09:59:58.000Z', sessionId: 's', nodeId: 'worker', phase: 'tool', summary: 'Run fresh file', toolName: 'run_file' }
+    ];
+
+    const summaries = recentNodeActivitySummaries(events, Date.parse(now));
+
+    expect(summaries.has('router')).toBe(false);
+    expect(summaries.get('worker')).toMatchObject({ summary: 'Run fresh file', toolName: 'run_file' });
   });
 });

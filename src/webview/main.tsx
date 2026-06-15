@@ -21,7 +21,7 @@ import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges, type VisibleFlowEdge } from './graph';
 import { clamp, edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, graphNodeHeight, graphNodeWidth, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
-import { activeEdgeIds, recentActivityEvents, resolveActivityEventsForPipeline } from './activity';
+import { activeEdgeIds, recentActivityEvents, recentNodeActivitySummaries, resolveActivityEventsForPipeline } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
 import { flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
@@ -32,7 +32,7 @@ import { optionalTextValue, referenceInstructionTextValue } from './formState';
 import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } from './components';
 import { applyNodePatch } from './nodeMarkdownSync';
 import { mergeRemoteStateUpdate } from './stateUpdates';
-import { activitySummaryFromRuntime, deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
+import { deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
 
 interface State {
   stateVersion: number;
@@ -189,10 +189,7 @@ function App() {
   const layoutPositions = useMemo(() => layoutFlowNodes(draft, state.flowLayout), [draft, state.flowLayout]);
   const handlePositions = useMemo(() => flowHandlePositions(state.flowLayout), [state.flowLayout]);
   const visualActivity = useMemo(() => recentActivityEvents(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
-  const activityByNode = useMemo(() => new Map(draft.nodes.flatMap((node) => {
-    const summary = activitySummaryFromRuntime(state.nodeRuntime?.[node.id]);
-    return summary ? [[node.id, summary] as const] : [];
-  })), [activityClock, draft.nodes, state.nodeRuntime]);
+  const activityByNode = useMemo(() => recentNodeActivitySummaries(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
   const activeEdges = useMemo(() => new Set(activeEdgeIds(draft, visualActivity)), [draft, visualActivity]);
   const nodes: RenderedNode[] = useMemo(() => normalizeGraphNodePositions(draft.nodes.map((node) => ({
     id: node.id,
@@ -422,6 +419,9 @@ function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<str
   const strokeWidth = typeof edge.style?.strokeWidth === 'number' ? edge.style.strokeWidth : 1.8;
   return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}`} data-edge-id={edge.id} style={{ color }}>
     <path className="graph-edge-path" d={points.path} stroke={color} strokeWidth={strokeWidth} strokeDasharray={typeof edge.style?.strokeDasharray === 'string' ? edge.style.strokeDasharray : undefined} opacity={opacity} markerEnd={`url(#${edgeMarkerId(edge.id)})`} />
+    {edge.animated && <circle className="graph-edge-tracer" r="4" fill={color}>
+      <animateMotion dur="1.15s" repeatCount="indefinite" path={points.path} />
+    </circle>}
     {edge.label && <g className="graph-edge-label" transform={`translate(${points.labelX} ${points.labelY})`}>
       <rect x="-28" y="-10" width="56" height="20" rx="2" />
       <text textAnchor="middle" dominantBaseline="central">{edge.label}</text>

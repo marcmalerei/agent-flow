@@ -49,6 +49,8 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('activeNodeIds');
     expect(webviewSource).toContain('graph-edge-path');
     expect(webviewSource).toContain('edgePathBetweenNodes');
+    expect(webviewSource).toContain('graph-edge-tracer');
+    expect(webviewSource).toContain('animateMotion');
     expect(webviewSource).toContain('fitNativeGraphViewport');
     expect(webviewSource).toContain('focusViewportOnNode');
     expect(webviewSource).toContain('normalizeGraphNodePositions');
@@ -72,6 +74,7 @@ describe('webview assets', () => {
     expect(css).toContain('.native-graph');
     expect(css).toContain('.graph-edge-path');
     expect(css).toContain('.graph-edge.activity-edge');
+    expect(css).toContain('.graph-edge-tracer');
     expect(css).toContain('.agentflow-node');
     expect(css).toContain('.agentflow-node.active');
     expect(css).not.toContain('react-flow__');
