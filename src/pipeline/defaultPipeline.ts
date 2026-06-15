@@ -76,6 +76,13 @@ function artifact(path: string, x: number, y: number): PipelineNode {
 }
 
 export function createDefaultPipeline(): AgentPipeline {
+  const requestArtifact = '.github/artifacts/request.md';
+  const planArtifact = '.github/artifacts/plan.md';
+  const resultArtifact = '.github/artifacts/result.md';
+  const codingStandards = '.github/instructions/coding-standards.instructions.md';
+  const testStrategy = '.github/instructions/test-strategy.instructions.md';
+  const reviewChecklist = '.github/instructions/review-checklist.instructions.md';
+
   const nodes: PipelineNode[] = [
     {
       id: 'start-implementation',
@@ -84,62 +91,97 @@ export function createDefaultPipeline(): AgentPipeline {
       promptFile: '.github/prompts/start-implementation.prompt.md',
       description: 'Starts the default Agent Flow implementation pipeline.',
       startAgent: 'router',
-      tools: defaultTools,
-      workflow: ['Collect the request.', 'Run the router agent.', 'Follow generated artifact handoffs.'],
-      constraints: ['Do not bypass artifact handoff files.', 'Do not make destructive changes without approval.'],
-      requiredArtifacts: ['.github/artifacts/TASK_CONTEXT.md', '.github/artifacts/IMPLEMENTATION_PLAN.md'],
-      definitionOfDone: ['Final review passes.', 'Required artifacts are written.'],
+      tools: [readTool, searchTool, editTool],
+      workflow: ['Capture the request in the request artifact.', 'Run the router agent.', 'Follow handoffs and keep artifacts current.'],
+      constraints: ['Do not bypass artifact handoff files.', 'Keep each artifact concise.', 'Do not make destructive changes without approval.'],
+      artifactUsages: [{ path: requestArtifact, action: 'write', instruction: 'Write the user request and known constraints to $artifact before handing off.' }],
+      definitionOfDone: ['The result artifact contains implementation notes, validation results, and final review.'],
       position: { x: 40, y: 40 }
     },
-    agent('router', 'Router', 'Routes the user request to context gathering and planning.', 80, 180, { calls: ['context'], outputs: ['.github/artifacts/ROUTING.md'] }),
-    agent('context', 'Context', 'Gathers focused task context and writes a compact context artifact.', 260, 180, { inputs: ['.github/artifacts/ROUTING.md'], calls: ['planner'], outputs: ['.github/artifacts/TASK_CONTEXT.md'] }),
-    agent('planner', 'Planner', 'Creates an implementation plan from task context.', 440, 180, { inputs: ['.github/artifacts/TASK_CONTEXT.md'], calls: ['task-splitter'], outputs: ['.github/artifacts/IMPLEMENTATION_PLAN.md'] }),
-    agent('task-splitter', 'Task Splitter', 'Splits the plan into frontend and backend task artifacts.', 620, 180, { inputs: ['.github/artifacts/IMPLEMENTATION_PLAN.md'], calls: ['frontend', 'backend'], outputs: ['.github/artifacts/tasks/frontend.md', '.github/artifacts/tasks/backend.md'] }),
-    agent('frontend', 'Frontend Agent', 'Implements frontend tasks with minimal context and focused tests.', 820, 80, { tools: [readTool, searchTool, editTool, executeTool], inputs: ['.github/artifacts/tasks/frontend.md'], outputs: ['.github/artifacts/results/frontend-result.md'], calls: ['frontend-review'], allowedSkills: ['ui-implementation', 'vitest-testing'], commandSafety: ['Run focused tests first.', 'Do not install dependencies without approval.'], rules: ['Read only the frontend task first.', 'Do not modify backend APIs.', 'Do not add dependencies.', 'Run focused tests first.'] }),
-    agent('backend', 'Backend Agent', 'Implements backend tasks with minimal context and focused tests.', 820, 300, { tools: [readTool, searchTool, editTool, executeTool], inputs: ['.github/artifacts/tasks/backend.md'], outputs: ['.github/artifacts/results/backend-result.md'], calls: ['backend-review'], commandSafety: ['Run focused tests first.', 'Do not run destructive database commands.'] }),
-    agent('frontend-review', 'Frontend Review', 'Reviews frontend changes without editing production files.', 1040, 80, { inputs: ['.github/artifacts/results/frontend-result.md'], outputs: ['.github/artifacts/reviews/frontend-review.md'], calls: ['integration'], tools: defaultTools, editRules: ['Read-only review. Do not edit files.'] }),
-    agent('backend-review', 'Backend Review', 'Reviews backend changes without editing production files.', 1040, 300, { inputs: ['.github/artifacts/results/backend-result.md'], outputs: ['.github/artifacts/reviews/backend-review.md'], calls: ['integration'], tools: defaultTools, editRules: ['Read-only review. Do not edit files.'] }),
-    agent('integration', 'Integration', 'Integrates reviewed frontend and backend results.', 1260, 190, { tools: [readTool, searchTool, editTool, executeTool], inputs: ['.github/artifacts/reviews/frontend-review.md', '.github/artifacts/reviews/backend-review.md'], outputs: ['.github/artifacts/results/integration-result.md'], calls: ['test'], commandSafety: ['Run integration checks only after reviewing artifacts.'] }),
-    agent('test', 'Test', 'Runs focused validation and records failures for the fix agent.', 1460, 190, { tools: [readTool, searchTool, executeTool], inputs: ['.github/artifacts/results/integration-result.md'], outputs: ['.github/artifacts/results/test-result.md'], calls: ['fix', 'docs'], commandSafety: ['Prefer package scripts and focused tests.', 'Do not run destructive commands.'] }),
-    agent('fix', 'Fix If Needed', 'Applies bounded fixes from test results and returns to tests.', 1460, 390, { tools: [readTool, searchTool, editTool, executeTool], inputs: ['.github/artifacts/results/test-result.md'], outputs: ['.github/artifacts/results/fix-result.md'], calls: ['test'], commandSafety: ['Only fix failures documented in the test artifact.'] }),
-    agent('docs', 'Docs', 'Updates documentation after tests pass.', 1660, 190, { tools: [readTool, searchTool, editTool], inputs: ['.github/artifacts/results/test-result.md'], outputs: ['.github/artifacts/results/docs-result.md'], calls: ['final-review'], editRules: ['Only edit documentation unless explicitly approved.'] }),
-    agent('final-review', 'Final Review', 'Performs final read-only review and release checklist.', 1860, 190, { tools: defaultTools, inputs: ['.github/artifacts/results/docs-result.md'], outputs: ['.github/artifacts/FINAL_REVIEW.md'], editRules: ['Read-only review. Do not edit files.'] }),
-    artifact('.github/artifacts/ROUTING.md', 170, 320),
-    artifact('.github/artifacts/TASK_CONTEXT.md', 350, 320),
-    artifact('.github/artifacts/IMPLEMENTATION_PLAN.md', 530, 320),
-    artifact('.github/artifacts/tasks/frontend.md', 720, -40),
-    artifact('.github/artifacts/tasks/backend.md', 720, 420),
-    artifact('.github/artifacts/results/frontend-result.md', 940, -40),
-    artifact('.github/artifacts/results/backend-result.md', 940, 420),
-    artifact('.github/artifacts/reviews/frontend-review.md', 1140, -40),
-    artifact('.github/artifacts/reviews/backend-review.md', 1140, 420),
-    artifact('.github/artifacts/results/integration-result.md', 1360, 320),
-    artifact('.github/artifacts/results/test-result.md', 1560, 320),
-    artifact('.github/artifacts/results/fix-result.md', 1560, 520),
-    artifact('.github/artifacts/results/docs-result.md', 1760, 320),
-    artifact('.github/artifacts/FINAL_REVIEW.md', 1960, 320),
-    { id: 'tests-green', type: 'gate', label: 'Tests Green?', description: 'Routes failures to fix and passing runs to docs.', condition: 'Tests pass without relevant failures.', trueBranch: 'docs', falseBranch: 'fix', maxIterations: 3, position: { x: 1460, y: 40 } },
-    { id: 'ui-implementation', type: 'skill', label: 'UI Implementation Skill', description: 'Use for narrowly scoped UI implementation in existing project patterns.', skillFile: '.github/skills/ui-implementation/SKILL.md', argumentHint: 'component or UI area', activationCriteria: ['A task explicitly changes frontend UI.', 'Existing UI patterns need to be followed.'], doNotUseWhen: ['The task is backend-only.', 'No UI files are affected.'], procedure: ['Inspect the target component first.', 'Reuse existing styles and tests.', 'Run focused UI tests.'], resourceReferences: ['project UI components'], position: { x: 820, y: -110 } },
-    { id: 'vitest-testing', type: 'skill', label: 'Vitest Testing Skill', description: 'Use for focused Vitest test creation and debugging.', skillFile: '.github/skills/vitest-testing/SKILL.md', argumentHint: 'test file or failing behavior', activationCriteria: ['A TypeScript unit test is needed.', 'A Vitest failure must be debugged.'], doNotUseWhen: ['The repository does not use Vitest.'], procedure: ['Find nearest existing test.', 'Add the smallest assertion that covers behavior.', 'Run the focused test command.'], resourceReferences: ['package scripts', 'existing test files'], position: { x: 1040, y: -110 } }
+    agent('router', 'Router', 'Turns the user request into a short routing brief and starts focused context gathering.', 80, 180, {
+      inputs: [requestArtifact],
+      outputs: [planArtifact],
+      calls: ['context'],
+      rules: ['Extract the user goal, constraints, and likely files.', 'Keep the plan artifact short enough for the next agent to scan quickly.']
+    }),
+    agent('context', 'Context', 'Reads the routing brief, inspects only relevant files, and enriches the plan.', 300, 180, {
+      inputs: [planArtifact],
+      outputs: [planArtifact],
+      calls: ['implementer'],
+      instructionRefs: [{ target: codingStandards, instruction: 'Apply $instruction while deciding which project conventions matter.' }],
+      rules: ['Inspect only files needed to plan the change.', 'Update the plan artifact with concrete file paths and risks.']
+    }),
+    agent('implementer', 'Implementer', 'Makes the scoped code or documentation change and records what changed.', 520, 180, {
+      tools: [readTool, searchTool, editTool, executeTool],
+      inputs: [planArtifact],
+      outputs: [resultArtifact],
+      calls: ['reviewer'],
+      instructionRefs: [
+        { target: codingStandards, instruction: 'Follow $instruction for code style and scope.' },
+        { target: testStrategy, instruction: 'Use $instruction before choosing validation commands.' }
+      ],
+      commandSafety: ['Run the smallest relevant test command first.', 'Do not install dependencies without approval.', 'Do not run destructive commands.'],
+      rules: ['Implement only the planned change.', 'Write changed files and validation commands to the result artifact.']
+    }),
+    agent('reviewer', 'Reviewer', 'Reviews the implementation result and records blocking findings or approval.', 740, 180, {
+      inputs: [resultArtifact],
+      outputs: [resultArtifact],
+      calls: ['final'],
+      instructionRefs: [
+        { target: testStrategy, instruction: 'Check validation quality against $instruction.' },
+        { target: reviewChecklist, instruction: 'Use $instruction for the review order.' }
+      ],
+      editRules: ['Only update the result artifact with review findings.', 'Do not edit production files during review.'],
+      rules: ['List blocking findings first.', 'Record residual risk if no blocking issue remains.']
+    }),
+    agent('final', 'Final', 'Prepares the final summary and confirms the result artifact is complete.', 960, 180, {
+      inputs: [resultArtifact],
+      outputs: [resultArtifact],
+      instructionRefs: [{ target: reviewChecklist, instruction: 'Use $instruction before finalizing the response.' }],
+      editRules: ['Only update the result artifact and final response notes.'],
+      rules: ['Summarize changes, tests, and open risks.', 'Do not claim validation that was not run.']
+    }),
+    artifact(requestArtifact, 140, 340),
+    artifact(planArtifact, 400, 340),
+    artifact(resultArtifact, 720, 340),
+    {
+      id: 'coding-standards',
+      type: 'instruction',
+      label: 'coding standards',
+      instructionFile: codingStandards,
+      description: 'Project coding and scope rules.',
+      applyTo: 'src/**/*',
+      rules: ['Prefer existing project patterns.', 'Keep changes scoped to the requested behavior.', 'Avoid unrelated refactors.'],
+      position: { x: 300, y: 20 }
+    },
+    {
+      id: 'test-strategy',
+      type: 'instruction',
+      label: 'test strategy',
+      instructionFile: testStrategy,
+      description: 'Validation rules for implementation agents.',
+      applyTo: 'test/**/*',
+      rules: ['Run focused tests before broader checks.', 'Report commands and relevant failures.', 'Do not hide skipped validation.'],
+      position: { x: 520, y: 20 }
+    },
+    {
+      id: 'review-checklist',
+      type: 'instruction',
+      label: 'review checklist',
+      instructionFile: reviewChecklist,
+      description: 'Review and final response checklist.',
+      applyTo: '.github/agents/**/*.agent.md',
+      rules: ['Find correctness issues before style notes.', 'Mention missing tests or residual risk.', 'Keep final summaries concise.'],
+      position: { x: 740, y: 20 }
+    }
   ];
 
   const edges: PipelineEdge[] = [
     { id: 'prompt-to-router', from: 'start-implementation', to: 'router', kind: 'prompt' },
-    { id: 'router-to-context', from: 'router', to: 'context', kind: 'flow' },
-    { id: 'context-to-planner', from: 'context', to: 'planner', kind: 'artifact', artifact: '.github/artifacts/TASK_CONTEXT.md' },
-    { id: 'planner-to-splitter', from: 'planner', to: 'task-splitter', kind: 'artifact', artifact: '.github/artifacts/IMPLEMENTATION_PLAN.md' },
-    { id: 'splitter-to-frontend', from: 'task-splitter', to: 'frontend', kind: 'artifact', artifact: '.github/artifacts/tasks/frontend.md' },
-    { id: 'splitter-to-backend', from: 'task-splitter', to: 'backend', kind: 'artifact', artifact: '.github/artifacts/tasks/backend.md' },
-    { id: 'frontend-to-review', from: 'frontend', to: 'frontend-review', kind: 'artifact', artifact: '.github/artifacts/results/frontend-result.md' },
-    { id: 'backend-to-review', from: 'backend', to: 'backend-review', kind: 'artifact', artifact: '.github/artifacts/results/backend-result.md' },
-    { id: 'frontend-review-to-integration', from: 'frontend-review', to: 'integration', kind: 'artifact', artifact: '.github/artifacts/reviews/frontend-review.md' },
-    { id: 'backend-review-to-integration', from: 'backend-review', to: 'integration', kind: 'artifact', artifact: '.github/artifacts/reviews/backend-review.md' },
-    { id: 'integration-to-test', from: 'integration', to: 'test', kind: 'artifact', artifact: '.github/artifacts/results/integration-result.md' },
-    { id: 'test-to-gate', from: 'test', to: 'tests-green', kind: 'gate' },
-    { id: 'gate-to-fix', from: 'tests-green', to: 'fix', kind: 'gate', label: 'false' },
-    { id: 'fix-to-test', from: 'fix', to: 'test', kind: 'artifact', artifact: '.github/artifacts/results/fix-result.md' },
-    { id: 'gate-to-docs', from: 'tests-green', to: 'docs', kind: 'gate', label: 'true' },
-    { id: 'docs-to-final-review', from: 'docs', to: 'final-review', kind: 'artifact', artifact: '.github/artifacts/results/docs-result.md' }
+    { id: 'router-to-context', from: 'router', to: 'context', kind: 'artifact', artifact: planArtifact },
+    { id: 'context-to-implementer', from: 'context', to: 'implementer', kind: 'artifact', artifact: planArtifact },
+    { id: 'implementer-to-reviewer', from: 'implementer', to: 'reviewer', kind: 'artifact', artifact: resultArtifact },
+    { id: 'reviewer-to-final', from: 'reviewer', to: 'final', kind: 'artifact', artifact: resultArtifact }
   ];
 
   return { version: PIPELINE_VERSION, name: 'Default Agent Pipeline', nodes, edges };

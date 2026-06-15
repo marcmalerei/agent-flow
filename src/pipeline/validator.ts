@@ -27,8 +27,9 @@ export function validatePipeline(pipeline: AgentPipeline): ValidationFinding[] {
         if (!resolveAgentReference(call, pipeline.nodes)) findings.push(finding('error', 'unknown-subagent', `${node.id}.agent.md references subagent \`${stripYamlQuotes(call)}\`, but it does not exist.`, node.id));
       }
       if (!node.outputs?.length) findings.push(finding('warning', 'agent-no-output', `${node.id}.agent.md has no output artifact.`, node.id));
-      for (const input of node.inputs ?? []) reads.set(input, [...(reads.get(input) ?? []), node.id]);
-      for (const output of node.outputs ?? []) writes.set(output, [...(writes.get(output) ?? []), node.id]);
+      for (const input of node.inputs ?? []) addArtifactBoundary(reads, input, node.id);
+      for (const output of node.outputs ?? []) addArtifactBoundary(writes, output, node.id);
+      recordArtifactUsages(node, reads, writes);
       if (hasBroadTool(node.tools)) findings.push(finding('risk', 'broad-agent-tools', `${node.id}.agent.md can run commands and edit files. Consider command restrictions or hooks.`, node.id));
       if ((node.tools?.includes('execute') || node.tools?.includes('runCommands')) && !node.commandSafety?.length) findings.push(finding('warning', 'missing-command-safety', `${node.id}.agent.md can execute commands but has no command safety policy.`, node.id));
       if (node.id.includes('docs') && (node.tools?.includes('edit') || node.tools?.includes('editFiles')) && !node.editRules?.some((rule) => /only edit documentation|docs only/i.test(rule))) findings.push(finding('warning', 'docs-edits-production', `${node.id}.agent.md can edit files without a documentation-only rule.`, node.id));
@@ -37,14 +38,20 @@ export function validatePipeline(pipeline: AgentPipeline): ValidationFinding[] {
     if (node.type === 'prompt') {
       if (node.startAgent && !resolveAgentReference(node.startAgent, pipeline.nodes)) findings.push(finding('error', 'prompt-unknown-agent', `${node.id}.prompt.md references unknown start agent \`${stripYamlQuotes(node.startAgent)}\`.`, node.id));
       if (!node.constraints?.length) findings.push(finding('warning', 'prompt-no-constraints', `${node.id}.prompt.md has no constraints or non-goals.`, node.id));
+      for (const artifact of node.requiredArtifacts ?? []) addArtifactBoundary(reads, artifact, node.id);
+      recordArtifactUsages(node, reads, writes);
     }
     if (node.type === 'instruction') {
       if (node.applyTo === '**/*') findings.push(finding('warning', 'broad-apply-to', `${node.id}.instructions.md uses applyTo "**/*".`, node.id));
       if (node.applyTo === '**/*.md') findings.push(finding('warning', 'markdown-apply-to', `${node.id}.instructions.md uses applyTo "**/*.md", which also applies to agent, prompt, and skill Markdown files.`, node.id));
+      for (const artifact of node.requiredArtifacts ?? []) addArtifactBoundary(reads, artifact, node.id);
+      recordArtifactUsages(node, reads, writes);
     }
     if (node.type === 'skill') {
       if (!node.activationCriteria?.length) findings.push(finding('warning', 'skill-no-activation', `${node.id} skill has no activation criteria.`, node.id));
       if (!node.description || /^(useful|helpful|general|does many things)\.?$/i.test(node.description.trim())) findings.push(finding('risk', 'generic-skill-description', `${node.id} skill has a generic description.`, node.id));
+      for (const artifact of node.requiredArtifacts ?? []) addArtifactBoundary(reads, artifact, node.id);
+      recordArtifactUsages(node, reads, writes);
     }
     if (node.type === 'artifact') {
       if (!node.path.startsWith('.github/artifacts/')) findings.push(finding('warning', 'artifact-outside-artifacts', `${node.id} artifact is outside .github/artifacts.`, node.id));
@@ -67,6 +74,18 @@ export function validatePipeline(pipeline: AgentPipeline): ValidationFinding[] {
   }
 
   return findings.sort((a, b) => severityRank(a.severity) - severityRank(b.severity) || a.ruleId.localeCompare(b.ruleId));
+}
+
+function addArtifactBoundary(map: Map<string, string[]>, artifact: string, nodeId: string): void {
+  map.set(artifact, [...(map.get(artifact) ?? []), nodeId]);
+}
+
+function recordArtifactUsages(node: PipelineNode, reads: Map<string, string[]>, writes: Map<string, string[]>): void {
+  if (!('artifactUsages' in node)) return;
+  for (const usage of node.artifactUsages ?? []) {
+    const target = usage.action === 'write' || usage.action === 'append' ? writes : reads;
+    addArtifactBoundary(target, usage.path, node.id);
+  }
 }
 
 function severityRank(severity: ValidationFinding['severity']): number {

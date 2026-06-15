@@ -355,7 +355,7 @@ function createPipelineFileWatchers(workspace: string, onRefresh: (changedFiles:
         log?.(`filesystem refresh failed: ${(error as Error).stack ?? (error as Error).message}`);
         vscode.window.showWarningMessage(`Agent Flow could not refresh the pipeline after file changes: ${(error as Error).message}`);
       });
-    }, 600);
+    }, 180);
   };
   for (const watcher of watchers) {
     watcher.onDidCreate(schedule);
