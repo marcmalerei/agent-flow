@@ -276,6 +276,14 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
         log('clearing activity stream');
         activityStore.clear();
       }
+      if (message?.command === 'openWorkspaceFile' && typeof message.path === 'string') {
+        const target = path.resolve(workspace, message.path);
+        const relative = path.relative(workspace, target);
+        if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+          const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(target));
+          await vscode.window.showTextDocument(doc, { preview: true });
+        }
+      }
     } catch (error) {
       log(`error while handling ${String(message?.command ?? 'unknown')} message: ${(error as Error).stack ?? (error as Error).message}`);
       vscode.window.showErrorMessage(`Agent Flow failed to update files: ${(error as Error).message}`);

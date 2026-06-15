@@ -9,6 +9,7 @@ import { generateFiles } from './pipeline/generators';
 import { AgentPipeline, GeneratedFile } from './pipeline/types';
 import { getLatestPipelinePanelSnapshot, openPipelinePanel } from './webview/panel';
 import { ActivityStore } from './activity/store';
+import { aggregateFileAttention, fileAttentionDecoration, FileAttentionEntry } from './activity/fileAttention';
 import { completeNodeActivity, reportActivity, selectActivityNode } from './activity/tools';
 import { getCopilotDebugLogStatus, startCopilotDebugLogAdapter } from './activity/copilotDebugLogAdapter';
 import { getCodexRolloutStatus, startCodexRolloutAdapter } from './activity/codexRolloutAdapter';
@@ -36,6 +37,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }, (message) => activityOutput.appendLine(`[${new Date().toISOString()}] ${message}`)));
   context.subscriptions.push(registerPipelineDocumentActivity(activityStore));
+  context.subscriptions.push(registerFileAttentionDecorations(activityStore));
   context.subscriptions.push(...registerActivityTools());
   context.subscriptions.push(
     vscode.commands.registerCommand('agentflow.openPipeline', () => openPipelinePanel(context, activityStore)),
@@ -80,6 +82,16 @@ function registerPipelineDocumentActivity(store: ActivityStore): vscode.Disposab
   return new vscode.Disposable(() => {
     open.dispose();
     save.dispose();
+  });
+}
+
+function registerFileAttentionDecorations(store: ActivityStore): vscode.Disposable {
+  if (!vscode.window.registerFileDecorationProvider) return new vscode.Disposable(() => {});
+  const provider = new AgentFlowFileDecorationProvider(store);
+  const registration = vscode.window.registerFileDecorationProvider(provider);
+  return new vscode.Disposable(() => {
+    registration.dispose();
+    provider.dispose();
   });
 }
 
@@ -336,6 +348,35 @@ function stopActivityReplay(clearState = true): void {
   for (const timer of activeReplay.timers) clearTimeout(timer);
   if (clearState) activeReplay = undefined;
   else activeReplay.timers = [];
+}
+
+class AgentFlowFileDecorationProvider implements vscode.FileDecorationProvider {
+  private readonly emitter = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
+  readonly onDidChangeFileDecorations = this.emitter.event;
+  private attention: FileAttentionEntry[] = [];
+  private workspace = getWorkspaceRoot();
+  private readonly subscription: vscode.Disposable;
+
+  constructor(store: ActivityStore) {
+    this.subscription = store.subscribe((events) => {
+      this.workspace = getWorkspaceRoot();
+      this.attention = aggregateFileAttention(events);
+      this.emitter.fire(undefined);
+    });
+  }
+
+  provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
+    if (uri.scheme !== 'file' || !this.workspace) return undefined;
+    const relative = path.relative(this.workspace, uri.fsPath).replace(/\\/g, '/');
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return undefined;
+    const decoration = fileAttentionDecoration(this.attention, relative);
+    return decoration ? new vscode.FileDecoration(decoration.badge, decoration.tooltip, new vscode.ThemeColor('charts.blue')) : undefined;
+  }
+
+  dispose(): void {
+    this.subscription.dispose();
+    this.emitter.dispose();
+  }
 }
 
 function registerActivityTools(): vscode.Disposable[] {

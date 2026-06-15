@@ -16,6 +16,7 @@ import './styles.css';
 import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationFinding, RiskScore } from '../pipeline/types';
 import { AgentFlowActivityEvent } from '../activity/types';
 import { aggregateActivityMetrics } from '../activity/metrics';
+import { aggregateFileAttention } from '../activity/fileAttention';
 import { buildActivityTimeline } from '../activity/timeline';
 import type { ActivitySourceRuntimeState } from '../activity/sources';
 import { findCycles, validatePipeline } from '../pipeline/validator';
@@ -51,7 +52,7 @@ interface State {
   debugOverlay?: boolean;
 }
 
-type BottomTab = 'activity' | 'metrics' | 'validation' | 'files' | 'tools' | 'risk';
+type BottomTab = 'activity' | 'metrics' | 'attention' | 'validation' | 'files' | 'tools' | 'risk';
 
 declare global { interface Window { __AGENTFLOW_STATE__: State; __AGENTFLOW_APP_BOOTED__?: boolean; __AGENTFLOW_VSCODE_API__?: { postMessage(message: unknown): void }; acquireVsCodeApi?: () => { postMessage(message: unknown): void } } }
 
@@ -981,29 +982,41 @@ function EditorTool({ active, children, icon, title, onClick }: { active?: boole
 
 function Bottom({ onSelectNode, state, activeTab, setActiveTab }: { onSelectNode: (nodeId: string) => void; state: State; activeTab: BottomTab; setActiveTab: (tab: BottomTab) => void }) {
   const metrics = aggregateActivityMetrics(state.pipeline, state.activityEvents ?? []);
-  const tabs: BottomTab[] = ['activity', 'metrics', 'validation', 'files', 'tools', 'risk'];
+  const fileAttention = aggregateFileAttention(state.activityEvents ?? []);
+  const tabs: BottomTab[] = ['activity', 'metrics', 'attention', 'validation', 'files', 'tools', 'risk'];
   const tabCounts: Record<BottomTab, number | undefined> = {
     activity: state.activityEvents?.length ?? 0,
     metrics: metrics.summary.activeNodes,
+    attention: fileAttention.length,
     validation: state.findings.length,
     files: state.generatedFiles.length,
     tools: state.pipeline.nodes.filter((node) => (node.type === 'agent' || node.type === 'prompt') && (node.tools?.length ?? 0) > 0).length,
     risk: state.risk.score
   };
-  const title = ({ activity: 'Activity timeline', metrics: 'Run metrics', validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
+  const title = ({ activity: 'Activity timeline', metrics: 'Run metrics', attention: 'File attention', validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
   return <div className="diagnostics">
     <nav>{tabs.map((tab) => <VSCodeButton key={tab} variant="ghost" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}><span>{tab}</span>{tabCounts[tab] !== undefined && <span className="diagnostic-tab-count">{tabCounts[tab]}</span>}</VSCodeButton>)}</nav>
-    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} sources={state.activitySources ?? []} onSelectNode={onSelectNode} />}{activeTab === 'metrics' && <MetricsDiagnostics metrics={metrics} onSelectNode={onSelectNode} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
+    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} sources={state.activitySources ?? []} onSelectNode={onSelectNode} />}{activeTab === 'metrics' && <MetricsDiagnostics metrics={metrics} onSelectNode={onSelectNode} />}{activeTab === 'attention' && <FileAttentionDiagnostics entries={fileAttention} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
   </div>;
 }
 
 function diagnosticSummary(state: State, tab: BottomTab): string {
   if (tab === 'activity') return state.activityEvents?.length ? `${state.activityEvents.length} live event${state.activityEvents.length === 1 ? '' : 's'}` : 'No activity reported yet';
   if (tab === 'metrics') return state.activityEvents?.length ? 'Operational metrics from current activity events' : 'No run metrics yet';
+  if (tab === 'attention') return state.activityEvents?.length ? 'Files touched by current activity events' : 'No file attention yet';
   if (tab === 'validation') return state.findings.length ? `${state.findings.length} issue${state.findings.length === 1 ? '' : 's'} need attention` : 'No validation findings';
   if (tab === 'files') return `${state.generatedFiles.length} inferred output file${state.generatedFiles.length === 1 ? '' : 's'}`;
   if (tab === 'tools') return 'Configured tools by runnable node';
   return `${state.risk.score}/100`;
+}
+
+function FileAttentionDiagnostics({ entries }: { entries: ReturnType<typeof aggregateFileAttention> }) {
+  if (!entries.length) return <EmptyDiagnostics icon="eye" title="No file attention yet" detail="File reads and writes from activity events will appear here and in Explorer badges." />;
+  return <div className="file-attention-list">{entries.map((entry) => <button type="button" key={entry.path} className="file-attention-row" onClick={() => vscode?.postMessage({ command: 'openWorkspaceFile', path: entry.path })}>
+    <div className="file-attention-title"><Codicon name={entry.writes ? 'edit' : 'eye'} /><code>{entry.path}</code><span>{Math.round(entry.heat * 100)}%</span></div>
+    <div className="metrics-bar"><span style={{ width: `${Math.max(5, Math.round(entry.heat * 100))}%` }} /></div>
+    <small>{entry.reads} reads · {entry.writes} writes · {entry.events} events · {entry.tokens} tok · {entry.nodeIds.join(', ') || 'No mapped node'}</small>
+  </button>)}</div>;
 }
 
 function MetricsDiagnostics({ metrics, onSelectNode }: { metrics: ReturnType<typeof aggregateActivityMetrics>; onSelectNode: (nodeId: string) => void }) {
