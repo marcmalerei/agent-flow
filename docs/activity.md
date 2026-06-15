@@ -21,6 +21,7 @@ Activity events are workspace-local and kept in memory. Each event can include:
 - phase such as `started`, `tool`, `artifact`, `handoff`, `completed`, or `failed`
 - short sanitized summary
 - optional tool name, artifact path, duration, token estimate, model, or AI credit estimate
+- optional input and output token counts when a source exposes them
 
 Open Agent Flow panels receive activity updates through webview messages. Activity updates do not reload the pipeline and do not rewrite Markdown files.
 
@@ -57,6 +58,26 @@ When that Copilot setting is enabled, Agent Flow auto-discovers `GitHub.copilot-
 The adapter scans bounded `.json` and `.jsonl` files, imports `llm_request` usage rows with positive AI credit values, and maps known session, request, agent, and tool-call style rows when present. It reports malformed rows to the Agent Flow Activity output channel and ignores oversized files.
 
 The adapter is experimental because Copilot debug log structure is not a stable public Agent Flow contract. It never displays raw prompt or transcript contents by default.
+
+## Optional Claude Code Hook Import
+
+Claude Code can run user-defined hooks. Agent Flow can optionally watch a folder where those hooks append JSON or JSONL rows. This is disabled by default because Agent Flow does not install or manage Claude Code hooks for you.
+
+```json
+{
+  "agentflow.activity.claudeCodeHooks.enabled": true,
+  "agentflow.activity.claudeCodeHooks.dataPath": "/path/to/claude-code-hook-logs"
+}
+```
+
+Each row should contain sanitized hook metadata. Agent Flow recognizes common Claude Code-style fields such as `hook_event_name`, `session_id`, `tool_name`, and `tool_input.file_path`:
+
+```json
+{"hook_event_name":"PreToolUse","session_id":"claude-1","tool_name":"Read","tool_input":{"file_path":".github/agents/router.agent.md"}}
+{"hook_event_name":"PostToolUse","session_id":"claude-1","tool_name":"Write","tool_input":{"file_path":".github/artifacts/plan.md"}}
+```
+
+The adapter maps reads and writes to matching graph nodes when the path is under `.github`. Do not write raw prompts, secrets, file contents, or transcript text into the hook log folder.
 
 ## Unsupported
 

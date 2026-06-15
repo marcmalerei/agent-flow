@@ -135,7 +135,9 @@ describe('package contributions', () => {
       'agentflow.activity.sources.vscodeDocuments',
       'agentflow.activity.sources.agentFlowTools',
       'agentflow.activity.copilotDebugLogs.enabled',
-      'agentflow.activity.codexRollouts.enabled'
+      'agentflow.activity.codexRollouts.enabled',
+      'agentflow.activity.claudeCodeHooks.enabled',
+      'agentflow.activity.claudeCodeHooks.dataPath'
     ]));
   });
 });

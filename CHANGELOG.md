@@ -6,6 +6,7 @@
 - Add a pull request template that asks for verification commands, release notes, and documentation status.
 - Document release hygiene for keeping Marketplace documentation and changelog entries current.
 - Fix the README preview GIF URL so Marketplace renders the asset from `main`.
+- Add an optional Claude Code hook activity adapter that imports sanitized JSON/JSONL tool events from a configured local folder.
 
 ## 0.0.1
 
