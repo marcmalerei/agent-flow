@@ -88,10 +88,22 @@ describe('package contributions', () => {
 
   it('contributes a demo activity command for Copilot-free smoke tests', () => {
     const commands = new Map((manifest.contributes?.commands ?? []).map((command) => [command.command, command]));
-    expect(manifest.activationEvents).toContain('onCommand:agentflow.playDemoActivity');
+    expect(manifest.activationEvents).toEqual(expect.arrayContaining([
+      'onCommand:agentflow.playDemoActivity',
+      'onCommand:agentflow.exportReport',
+      'onCommand:agentflow.exportActivityCsv'
+    ]));
     expect(commands.get('agentflow.playDemoActivity')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
       title: 'Play Demo Activity'
+    }));
+    expect(commands.get('agentflow.exportReport')).toEqual(expect.objectContaining({
+      category: 'Agent Flow',
+      title: 'Export Report'
+    }));
+    expect(commands.get('agentflow.exportActivityCsv')).toEqual(expect.objectContaining({
+      category: 'Agent Flow',
+      title: 'Export Activity CSV'
     }));
   });
 
