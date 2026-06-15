@@ -15,6 +15,7 @@ import { getCodexRolloutStatus, startCodexRolloutAdapter } from './activity/code
 import { activityInputForPipelineDocumentPath } from './activity/fileActivity';
 import { createSyntheticActivity } from './activity/synthetic';
 import { renderActivityCsv, renderAgentFlowReport } from './activity/exportReport';
+import { createActivityReplayPlan, parseActivityLogJsonl } from './activity/importLog';
 import { buildActivitySourceStatuses } from './activity/sources';
 import { buildSetupValidationReport, renderSetupValidationReport } from './setup/setupValidator';
 import { buildToolOptionGroups, listToolOptionNames, normalizePipelineToolsForOptions } from './webview/toolOptions';
@@ -22,6 +23,7 @@ import { buildToolOptionGroups, listToolOptionNames, normalizePipelineToolsForOp
 const activityStore = new ActivityStore();
 const MINIMUM_VSCODE_VERSION = '1.120.0';
 const PIPELINE_WATCH_PATTERNS = ['.github/agents/*.agent.md', '.github/prompts/*.prompt.md', '.github/instructions/*.instructions.md', '.github/skills/**/SKILL.md', '.github/roles/*.md', '.github/artifacts/**/*.{md,json,txt}'];
+let activeReplay: { events: ReturnType<typeof createActivityReplayPlan>[number]['event'][]; speed: number; timers: ReturnType<typeof setTimeout>[] } | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const activityOutput = vscode.window.createOutputChannel('Agent Flow Activity');
@@ -45,6 +47,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('agentflow.exportReport', exportReportCommand),
     vscode.commands.registerCommand('agentflow.exportActivityCsv', exportActivityCsvCommand),
     vscode.commands.registerCommand('agentflow.checkSetup', checkSetupCommand),
+    vscode.commands.registerCommand('agentflow.importActivityLog', importActivityLogCommand),
+    vscode.commands.registerCommand('agentflow.pauseActivityReplay', pauseActivityReplayCommand),
+    vscode.commands.registerCommand('agentflow.restartActivityReplay', restartActivityReplayCommand),
     vscode.commands.registerCommand('agentflow.copyDebugSnapshot', copyDebugSnapshotCommand),
     vscode.commands.registerCommand('agentflow.toggleDebugOverlay', toggleDebugOverlayCommand),
     vscode.commands.registerCommand('agentflow.debugSnapshot', () => getLatestPipelinePanelSnapshot())
@@ -193,6 +198,61 @@ async function checkSetupCommand(): Promise<void> {
   if (answer === 'Open Docs') await vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://github.com/marcmalerei/agent-flow#readme'));
 }
 
+async function importActivityLogCommand(): Promise<void> {
+  const workspace = getWorkspaceRoot();
+  const selection = await vscode.window.showOpenDialog({
+    canSelectMany: false,
+    filters: { 'Activity JSONL': ['jsonl', 'json'] },
+    openLabel: 'Import Activity Log'
+  });
+  const uri = selection?.[0];
+  if (!uri) return;
+
+  const pipeline = workspace ? await loadOrInferPipeline(workspace) : undefined;
+  const content = await fs.readFile(uri.fsPath, 'utf8');
+  const result = parseActivityLogJsonl(content, { sourceFile: uri.fsPath, pipeline });
+  if (result.diagnostics.length) {
+    vscode.window.showWarningMessage(`Agent Flow imported ${result.events.length} events with ${result.diagnostics.length} warning(s).`);
+  }
+  if (!result.events.length) {
+    vscode.window.showWarningMessage('Agent Flow did not find activity events in that log.');
+    return;
+  }
+
+  const mode = await vscode.window.showQuickPick(['Import now', 'Replay 1x', 'Replay 2x', 'Replay 5x'], {
+    placeHolder: 'How should Agent Flow load this activity log?'
+  });
+  if (!mode) return;
+  if (mode === 'Import now') {
+    stopActivityReplay();
+    for (const event of result.events) activityStore.append(event);
+    vscode.window.showInformationMessage(`Agent Flow imported ${result.events.length} activity event${result.events.length === 1 ? '' : 's'}.`);
+    return;
+  }
+  const speed = Number.parseInt(mode.replace(/\D/g, ''), 10) || 1;
+  startActivityReplay(result.events, speed);
+  vscode.window.showInformationMessage(`Agent Flow replaying ${result.events.length} activity event${result.events.length === 1 ? '' : 's'} at ${speed}x.`);
+}
+
+function pauseActivityReplayCommand(): void {
+  if (!activeReplay) {
+    vscode.window.showInformationMessage('Agent Flow has no active activity replay.');
+    return;
+  }
+  stopActivityReplay(false);
+  vscode.window.showInformationMessage('Agent Flow activity replay paused.');
+}
+
+function restartActivityReplayCommand(): void {
+  if (!activeReplay?.events.length) {
+    vscode.window.showInformationMessage('Agent Flow has no imported activity replay to restart.');
+    return;
+  }
+  const { events, speed } = activeReplay;
+  startActivityReplay(events, speed);
+  vscode.window.showInformationMessage(`Agent Flow restarted activity replay at ${speed}x.`);
+}
+
 async function generateFilesCommand(): Promise<void> {
   const { workspace, pipeline } = await loadWorkspacePipeline();
   const files = generateFiles(pipeline);
@@ -262,6 +322,20 @@ async function listExistingGithubPaths(workspace: string): Promise<string[]> {
   }
   await visit(root);
   return [...new Set(paths)];
+}
+
+function startActivityReplay(events: ReturnType<typeof createActivityReplayPlan>[number]['event'][], speed: number): void {
+  stopActivityReplay(false);
+  const plan = createActivityReplayPlan(events, speed);
+  const timers = plan.map((step) => setTimeout(() => activityStore.append(step.event), step.delayMs));
+  activeReplay = { events, speed, timers };
+}
+
+function stopActivityReplay(clearState = true): void {
+  if (!activeReplay) return;
+  for (const timer of activeReplay.timers) clearTimeout(timer);
+  if (clearState) activeReplay = undefined;
+  else activeReplay.timers = [];
 }
 
 function registerActivityTools(): vscode.Disposable[] {
