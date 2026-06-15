@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Require every pull request to update `CHANGELOG.md` before CI can pass.
+- Add a pull request template that asks for verification commands, release notes, and documentation status.
+- Document release hygiene for keeping Marketplace documentation and changelog entries current.
+- Fix the README preview GIF URL so Marketplace renders the asset from `main`.
+
 ## 0.0.1
 
 - Add a VS Code webview for visual Agent Flow pipeline editing.

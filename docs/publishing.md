@@ -42,11 +42,13 @@ Before publishing a new VSIX:
 
 1. Run `npm run check`.
 2. Run `npm run package:marketplace`.
-3. Install the generated VSIX in a clean VS Code window.
-4. Open a disposable workspace and run `Agent Flow: Create Default Pipeline`.
-5. Run `Agent Flow: Open Pipeline`.
-6. Confirm nodes, edges, diagnostics, tool selection, auto-save, and Markdown references behave as expected.
-7. Confirm `README.md`, `CHANGELOG.md`, `LICENSE`, `SUPPORT.md`, `media/icon.png`, and `media/agent-flow-preview.gif` are present in the VSIX.
+3. Move `CHANGELOG.md` entries from `Unreleased` into the version section being published.
+4. Confirm Marketplace-facing screenshots, GIFs, README copy, categories, tags, and support links are current.
+5. Install the generated VSIX in a clean VS Code window.
+6. Open a disposable workspace and run `Agent Flow: Create Default Pipeline`.
+7. Run `Agent Flow: Open Pipeline`.
+8. Confirm nodes, edges, diagnostics, tool selection, auto-save, activity updates, and Markdown references behave as expected.
+9. Confirm `README.md`, `CHANGELOG.md`, `LICENSE`, `SUPPORT.md`, `media/icon.png`, and `media/agent-flow-preview.gif` are present in the VSIX.
 
 Inspect package contents with:
 
