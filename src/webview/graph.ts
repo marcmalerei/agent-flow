@@ -17,7 +17,7 @@ export interface VisibleFlowEdge {
   style?: Record<string, string | number>;
   markerEnd?: FlowEdgeMarker;
   data: {
-    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'handoff.targetAgent' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'instruction.artifactUsages' | 'instruction.requiredArtifacts' | 'skill.artifactUsages' | 'skill.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'instruction.instructionRefs' | 'agent.roleRefs' | 'prompt.roleRefs' | 'agent.hooks' | 'agent.mcpServers';
+    derivedFrom: 'pipeline.edges' | 'agent.calls' | 'agent.handoffs' | 'handoff.targetAgent' | 'prompt.startAgent' | 'agent.inputs' | 'agent.outputs' | 'agent.artifactUsages' | 'prompt.artifactUsages' | 'prompt.requiredArtifacts' | 'instruction.artifactUsages' | 'instruction.requiredArtifacts' | 'skill.artifactUsages' | 'skill.requiredArtifacts' | 'agent.instructionRefs' | 'prompt.instructionRefs' | 'instruction.instructionRefs' | 'agent.roleRefs' | 'prompt.roleRefs' | 'agent.hooks' | 'agent.mcpServers' | 'gate.trueBranch' | 'gate.falseBranch' | 'gate.errorBranch';
     kind: PipelineEdgeKind | 'reference';
     artifact?: string;
   };
@@ -29,6 +29,7 @@ const previewStyle = { ...defaultEdgeStyle, strokeDasharray: '5 5', opacity: 0.7
 const handoffStyle = { stroke: 'var(--vscode-charts-purple)', strokeDasharray: '3 3', strokeWidth: 2.3, opacity: 0.95 };
 const artifactStyle = { stroke: 'var(--vscode-charts-green)', strokeWidth: 2, opacity: 0.88 };
 const gateStyle = { stroke: 'var(--vscode-charts-yellow)', strokeDasharray: '8 3', strokeWidth: 2.2, opacity: 0.92 };
+const errorStyle = { stroke: 'var(--vscode-errorForeground, #f14c4c)', strokeDasharray: '10 3 2 3', strokeWidth: 2.3, opacity: 0.96 };
 const skillStyle = { stroke: 'var(--vscode-testing-iconPassed, #2ea043)', strokeDasharray: '1 4', strokeWidth: 2, opacity: 0.88 };
 const roleStyle = { stroke: 'var(--vscode-charts-cyan, #00b7c3)', strokeDasharray: '4 4', strokeWidth: 2, opacity: 0.9 };
 const hookStyle = { stroke: 'var(--vscode-charts-red)', strokeDasharray: '2 4', strokeWidth: 2, opacity: 0.9 };
@@ -68,6 +69,12 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
   const mcpNodesByAgent = mcpNodesByAgentId(normalized.nodes);
 
   for (const node of normalized.nodes) {
+    if (node.type === 'gate') {
+      addGateBranchEdge(visible, explicitPairs, node.id, node.trueBranch, 'true', 'gate.trueBranch', gateStyle, nodeIds);
+      addGateBranchEdge(visible, explicitPairs, node.id, node.falseBranch, 'false', 'gate.falseBranch', gateStyle, nodeIds);
+      addGateBranchEdge(visible, explicitPairs, node.id, node.errorBranch, 'error', 'gate.errorBranch', errorStyle, nodeIds);
+    }
+
     if (node.type === 'prompt' && node.startAgent && nodeIds.has(node.startAgent)) {
       addPreviewEdge(visible, explicitPairs, {
         id: `ref:prompt:${node.id}:startAgent:${node.startAgent}`,
@@ -188,6 +195,27 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
   }
 
   return visible;
+}
+
+function addGateBranchEdge(
+  edges: VisibleFlowEdge[],
+  explicitPairs: Set<string>,
+  gateId: string,
+  targetId: string | undefined,
+  label: string,
+  derivedFrom: 'gate.trueBranch' | 'gate.falseBranch' | 'gate.errorBranch',
+  style: Record<string, string | number>,
+  nodeIds: Set<string>
+): void {
+  if (!targetId || !nodeIds.has(targetId)) return;
+  addPreviewEdge(edges, explicitPairs, {
+    id: `ref:${derivedFrom}:${gateId}:${targetId}`,
+    source: gateId,
+    target: targetId,
+    label,
+    style,
+    data: { derivedFrom, kind: derivedFrom === 'gate.errorBranch' ? 'error' : 'gate' }
+  });
 }
 
 function hasMaterializedHandoffNode(nodes: PipelineNode[], sourceAgent: string, targetAgent: string, label: string | undefined): boolean {
@@ -399,6 +427,7 @@ function edgeStyle(kind: PipelineEdgeKind): Record<string, string | number> {
   if (kind === 'role') return roleStyle;
   if (kind === 'artifact') return artifactStyle;
   if (kind === 'gate') return gateStyle;
+  if (kind === 'error') return errorStyle;
   if (kind === 'skill') return skillStyle;
   return defaultEdgeStyle;
 }
@@ -422,6 +451,7 @@ function markerColor(kind: PipelineEdgeKind | 'reference'): string {
   if (kind === 'instruction') return 'var(--vscode-charts-orange)';
   if (kind === 'role') return 'var(--vscode-charts-cyan, #00b7c3)';
   if (kind === 'gate') return 'var(--vscode-charts-yellow)';
+  if (kind === 'error') return 'var(--vscode-errorForeground, #f14c4c)';
   if (kind === 'skill') return 'var(--vscode-testing-iconPassed, #2ea043)';
   if (kind === 'hook') return 'var(--vscode-charts-red)';
   if (kind === 'mcp-server') return 'var(--vscode-charts-cyan, #00b7c3)';

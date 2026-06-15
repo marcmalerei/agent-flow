@@ -54,6 +54,8 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .graph-edge-path { fill: none; stroke-linecap: round; }
 .graph-edge.animated .graph-edge-path { stroke-dasharray: 10 5; animation: activityDash 760ms linear infinite; filter: drop-shadow(0 0 4px currentColor); }
 .graph-edge.activity-edge .graph-edge-path { opacity: 1; }
+.graph-edge.loop-edge .graph-edge-path { stroke-dasharray: 2 6; filter: drop-shadow(0 0 3px currentColor); }
+.graph-edge.error-edge .graph-edge-path { filter: drop-shadow(0 0 5px var(--vscode-errorForeground, #f14c4c)); }
 .graph-edge-tracer { opacity: .95; filter: drop-shadow(0 0 6px currentColor); }
 .graph-edge-label { pointer-events: none; }
 .graph-edge-label rect { fill: var(--vscode-editorWidget-background); opacity: .95; }
@@ -86,6 +88,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .vscode-button.compact { padding: 3px 8px; font-size: 12px; }
 .add-node-menu { position: relative; flex: 0 0 auto; }
 .add-node-popover { position: absolute; top: calc(100% + 5px); right: 0; z-index: 20; display: grid; min-width: 260px; max-height: min(420px, calc(100vh - 90px)); overflow: auto; padding: 4px; border: 1px solid var(--vscode-quickInputList-focusBackground, var(--agentflow-border)); border-radius: var(--agentflow-control-radius); background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background)); box-shadow: 0 8px 20px var(--vscode-widget-shadow, rgba(0,0,0,.35)); }
+.node-palette-group { display: grid; gap: 1px; padding: 3px 0 5px; border-bottom: 1px solid var(--agentflow-border); }
+.node-palette-group:last-child { border-bottom: 0; }
+.node-palette-group h3 { margin: 3px 8px 4px; color: var(--vscode-descriptionForeground); font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
 .add-node-popover button { display: grid; grid-template-columns: 18px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 8px; row-gap: 1px; width: 100%; padding: 6px 8px; border: 0; background: transparent; color: var(--vscode-foreground); text-align: left; justify-content: stretch; }
 .add-node-popover button:hover, .add-node-popover button:focus-visible { background: var(--vscode-list-hoverBackground); }
 .add-node-popover .codicon { grid-row: 1 / 3; align-self: center; color: var(--vscode-icon-foreground, var(--vscode-foreground)); }

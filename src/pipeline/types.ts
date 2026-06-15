@@ -1,7 +1,7 @@
 export const PIPELINE_VERSION = 1;
 
 export type PipelineNodeType = 'agent' | 'prompt' | 'instruction' | 'skill' | 'role' | 'artifact' | 'gate' | 'hook' | 'handoff' | 'mcp-server';
-export type PipelineEdgeKind = 'flow' | 'artifact' | 'prompt' | 'skill' | 'role' | 'gate' | 'handoff' | 'hook' | 'mcp-server' | 'instruction';
+export type PipelineEdgeKind = 'flow' | 'artifact' | 'prompt' | 'skill' | 'role' | 'gate' | 'error' | 'handoff' | 'hook' | 'mcp-server' | 'instruction';
 export type ToolPermission = 'agent' | 'browser' | 'edit' | 'execute' | 'read' | 'search' | 'todo' | 'vscode' | 'web' | string;
 export type CustomizationTarget = 'vscode' | 'github-copilot' | string;
 export type SkillContext = 'inline' | 'fork' | string;
@@ -146,6 +146,7 @@ export interface GateNode extends BaseNode {
   condition: string;
   trueBranch?: string;
   falseBranch?: string;
+  errorBranch?: string;
   maxIterations?: number;
 }
 
