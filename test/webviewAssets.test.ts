@@ -33,36 +33,41 @@ describe('webview assets', () => {
     expect(webviewSource).not.toContain('placeholder={`How should this node apply');
   });
 
-  test('stabilizes React Flow sizing inside VS Code webviews', () => {
+  test('uses a native graph renderer instead of React Flow inside VS Code webviews', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
     const panelSource = readFileSync('src/webview/panel.ts', 'utf8');
+    const packageJson = readFileSync('package.json', 'utf8');
 
-    expect(webviewSource).toContain('scheduleFlowFit');
+    expect(packageJson).not.toContain('@xyflow/react');
+    expect(webviewSource).not.toContain('@xyflow/react');
+    expect(webviewSource).not.toContain('ReactFlow');
+    expect(webviewSource).not.toContain('react-flow');
+    expect(webviewSource).toContain('NativeGraph');
+    expect(webviewSource).toContain('graph-viewport');
+    expect(webviewSource).toContain('agentflow-node');
+    expect(webviewSource).toContain('graph-edge-path');
+    expect(webviewSource).toContain('fitNativeGraphViewport');
     expect(webviewSource).toContain('postFlowRenderStatus');
-    expect(webviewSource).toContain('renderedFlowNodeIds');
+    expect(webviewSource).toContain('renderedNativeNodeIds');
     expect(webviewSource).toContain('webviewBootId');
     expect(webviewSource).toContain("command: 'webviewReady'");
     expect(webviewSource).toContain('DebugOverlay');
-    expect(webviewSource).toContain('reactFlowTransform');
-    expect(webviewSource).toContain('applyMeasuredViewportFallback');
+    expect(webviewSource).toContain('graphTransform');
     expect(webviewSource).toContain('preferredVisibleNodeCount');
-    expect(webviewSource).toContain('minZoom={0.08}');
     expect(webviewSource).toContain('nodeRuntime');
-    expect(webviewSource).toContain('visibleFlowNodeCount');
-    expect(webviewSource).toContain('flowMountRevision');
-    expect(webviewSource).toContain('flowRenderKey');
-    expect(webviewSource).toContain('visibilityWatchdog');
-    expect(webviewSource).toContain('shouldRecoverFlowRender');
+    expect(webviewSource).toContain('visibleNativeNodeCount');
     expect(webviewSource).toContain('minimumUsefulVisibleNodeCount');
-    expect(webviewSource).toContain("event.data?.command === 'refitFlow'");
     expect(webviewSource).toContain('ResizeObserver');
     expect(css).toContain('#root { position: fixed; inset: 0; }');
     expect(css).toContain('--agentflow-canvas-min-height: 360px');
     expect(css).toContain('grid-template-rows: 56px minmax(var(--agentflow-canvas-min-height), 1fr) 42px');
     expect(css).toContain('min-height: var(--agentflow-canvas-min-height)');
     expect(css).toContain('.debug-overlay');
-    expect(css).toContain('.canvas .react-flow');
+    expect(css).toContain('.native-graph');
+    expect(css).toContain('.graph-edge-path');
+    expect(css).toContain('.agentflow-node');
+    expect(css).not.toContain('react-flow__');
     expect(panelSource).toContain('onDidChangeViewState');
     expect(panelSource).toContain('retainContextWhenHidden: true');
     expect(panelSource).toContain('initial-pipeline-recovery');
@@ -70,11 +75,11 @@ describe('webview assets', () => {
     expect(panelSource).toContain('webviewRenderedNodeIds');
     expect(panelSource).toContain('webviewReadyBootId');
     expect(panelSource).toContain('webviewRootHeight');
-    expect(panelSource).toContain('webviewReactFlowTransform');
+    expect(panelSource).toContain('webviewGraphTransform');
+    expect(panelSource).not.toContain('webviewReactFlowTransform');
     expect(panelSource).toContain("message?.command === 'webviewRenderStatus'");
     expect(panelSource).toContain("message?.command === 'webviewReady'");
     expect(panelSource).toContain("command: 'stateUpdated'");
-    expect(panelSource).toContain("command: 'refitFlow'");
   });
 
   test('surfaces webview bundle load and runtime failures instead of a blank panel', () => {

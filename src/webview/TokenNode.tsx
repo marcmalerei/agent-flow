@@ -1,6 +1,7 @@
 import React from 'react';
-import { Handle, Position } from '@xyflow/react';
 import { NodeActivitySummary } from '../activity/types';
+
+export type NodePortPosition = 'left' | 'top' | 'right' | 'bottom';
 
 export interface TokenNodeData {
   label: string;
@@ -10,21 +11,21 @@ export interface TokenNodeData {
   activity?: NodeActivitySummary;
   runtimeStatus?: string;
   dirty?: boolean;
-  sourcePosition: Position;
-  targetPosition: Position;
+  sourcePosition: NodePortPosition;
+  targetPosition: NodePortPosition;
 }
 
 export function TokenNode({ data }: { data: TokenNodeData }) {
   const tokenBadgeStyle = { '--agentflow-token-color': data.tokenColor } as React.CSSProperties;
 
   return <div className={`flow-node runtime-${data.runtimeStatus ?? 'clean'}${data.dirty ? ' is-dirty' : ''}${data.activity ? ` has-activity activity-node-${data.activity.phase}` : ''}`} style={tokenBadgeStyle}>
-    <Handle type="target" position={data.targetPosition} />
+    <span className={`node-port node-port-target node-port-${data.targetPosition}`} aria-hidden="true" />
     <span className="token-badge" title="Estimated token count">{data.tokenBadge}</span>
     {data.activity && <span className={`activity-badge activity-${data.activity.phase}`} title={data.activity.summary}>{activityIcon(data.activity.phase)} {activityLabel(data.activity)}</span>}
     {data.dirty && <span className="runtime-badge" title="Unsaved node changes">stale</span>}
     <span className="flow-node-label" title={data.label}>{data.label}</span>
     <small>{data.type}</small>
-    <Handle type="source" position={data.sourcePosition} />
+    <span className={`node-port node-port-source node-port-${data.sourcePosition}`} aria-hidden="true" />
   </div>;
 }
 
@@ -44,6 +45,6 @@ function activityIcon(phase: string): string {
 
 export function flowHandlePositions(layout: string): Pick<TokenNodeData, 'sourcePosition' | 'targetPosition'> {
   return layout === 'vertical'
-    ? { sourcePosition: Position.Bottom, targetPosition: Position.Top }
-    : { sourcePosition: Position.Right, targetPosition: Position.Left };
+    ? { sourcePosition: 'bottom', targetPosition: 'top' }
+    : { sourcePosition: 'right', targetPosition: 'left' };
 }

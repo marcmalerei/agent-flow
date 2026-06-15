@@ -35,7 +35,7 @@ export async function run(): Promise<void> {
   const openedSnapshot = await waitForSnapshot((snapshot) => snapshot.open && snapshot.nodeCount > 0);
   assert.ok(openedSnapshot.nodeIds.includes('router'), 'Open Agent Flow panel should load the default router node.');
   const renderedSnapshot = await waitForRenderedWebviewState();
-  assert.ok(renderedSnapshot.webviewRenderedNodeCount && renderedSnapshot.webviewRenderedNodeCount > 0, 'Agent Flow webview should render React Flow nodes for the default pipeline.');
+  assert.ok(renderedSnapshot.webviewRenderedNodeCount && renderedSnapshot.webviewRenderedNodeCount > 0, 'Agent Flow webview should render native graph nodes for the default pipeline.');
   assert.ok(renderedSnapshot.webviewVisibleNodeCount && renderedSnapshot.webviewVisibleNodeCount > 0, 'Agent Flow webview should keep at least one rendered node visible.');
   assert.equal(renderedSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after initial render.');
   const defaultNodeIds = [...renderedSnapshot.nodeIds];
@@ -203,7 +203,7 @@ interface DebugSnapshot {
   webviewRenderedNodeCount?: number;
   webviewVisibleNodeCount?: number;
   webviewCanvasHeight?: number;
-  webviewReactFlowTransform?: string;
+  webviewGraphTransform?: string;
   webviewRuntimeError?: string;
 }
 
@@ -245,15 +245,15 @@ function preferredVisibleNodeCount(nodeCount: number): number {
 function assertFittedOverview(snapshot: DebugSnapshot, label: string): void {
   if (snapshot.nodeCount < 12) return;
   const visible = snapshot.webviewVisibleNodeCount ?? 0;
-  const transform = snapshot.webviewReactFlowTransform ?? '';
-  const scale = reactFlowScale(transform);
+  const transform = snapshot.webviewGraphTransform ?? '';
+  const scale = graphScale(transform);
   assert.ok(
     visible >= preferredVisibleNodeCount(snapshot.nodeCount) || (typeof scale === 'number' && scale < 0.5),
-    `Agent Flow should fit most of the ${label} graph into view instead of staying at the default React Flow min zoom. Snapshot: ${JSON.stringify(snapshot)}`
+    `Agent Flow should fit most of the ${label} graph into view instead of staying at the default graph zoom. Snapshot: ${JSON.stringify(snapshot)}`
   );
 }
 
-function reactFlowScale(transform: string): number | undefined {
+function graphScale(transform: string): number | undefined {
   const match = transform.match(/scale\((\d+(?:\.\d+)?)\)/);
   return match ? Number(match[1]) : undefined;
 }
