@@ -2,7 +2,7 @@
   "name": "copilot-agent-flow-studio",
   "displayName": "Agent Flow Studio",
   "description": "Visual manager for GitHub Copilot agent pipelines.",
-  "version": "0.0.45",
+  "version": "0.0.46",
   "publisher": "marcmalerei",
   "icon": "media/icon.png",
   "license": "MIT",
@@ -105,6 +105,27 @@
           "type": "boolean",
           "default": false,
           "description": "Show a live Agent Flow webview diagnostic overlay with pipeline, DOM, canvas, and graph viewport metrics."
+        },
+        "agentflow.localApi.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable a read-only local Agent Flow API bound to 127.0.0.1. Disabled by default."
+        },
+        "agentflow.localApi.port": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Port for the read-only local Agent Flow API. Use 0 to choose a random local port."
+        },
+        "agentflow.webhooks.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable outbound Agent Flow activity webhooks. No webhook is sent unless a URL is configured."
+        },
+        "agentflow.webhooks.url": {
+          "type": "string",
+          "default": "",
+          "description": "Optional Slack, Discord, or generic JSON webhook URL for selected Agent Flow activity summaries."
         }
       }
     },

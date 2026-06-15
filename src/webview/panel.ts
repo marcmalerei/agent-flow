@@ -15,7 +15,7 @@ import { ActivityStore } from '../activity/store';
 import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
 import { getCodexRolloutStatus } from '../activity/codexRolloutAdapter';
 import { activityInputsForChangedFiles } from '../activity/fileActivity';
-import { buildActivitySourceStatuses } from '../activity/sources';
+import { ActivitySourceRuntimeState, buildActivitySourceStatuses } from '../activity/sources';
 import { resolveActivityEventsForPipeline } from './activity';
 import { deriveNodeRuntimeState } from './nodeRuntimeState';
 
@@ -383,7 +383,8 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
   const displayPipeline = normalizePipelineToolsForOptions(pipeline, toolOptions);
   const findings = validatePipeline(displayPipeline);
   const risk = calculateRiskScore(displayPipeline, { copilotInstructionsLines: await countCopilotInstructionLines(workspace) });
-  const activitySources = buildActivitySourceStatuses({
+  const activitySources = [
+    ...buildActivitySourceStatuses({
     filesystem: {
       enabled: activitySourceEnabled('filesystem'),
       watchingPatterns: activitySourceEnabled('filesystem') ? pipelineWatchPatterns : []
@@ -395,7 +396,9 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
     },
     copilotDebugLogs: await getCopilotDebugLogStatus(),
     codexRollouts: await getCodexRolloutStatus(workspace)
-  });
+    }),
+    ...localIntegrationSourceStatuses()
+  ];
   const activityEvents = resolveActivityEventsForPipeline(displayPipeline, activityStore.getEvents());
   return {
     stateVersion,
@@ -414,6 +417,31 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
 
 function activitySourceEnabled(key: 'filesystem' | 'vscodeDocuments' | 'agentFlowTools'): boolean {
   return vscode.workspace.getConfiguration('agentflow.activity.sources').get<boolean>(key) ?? true;
+}
+
+function localIntegrationSourceStatuses(): ActivitySourceRuntimeState[] {
+  const apiEnabled = vscode.workspace.getConfiguration('agentflow.localApi').get<boolean>('enabled') ?? false;
+  const apiPort = vscode.workspace.getConfiguration('agentflow.localApi').get<number>('port') ?? 0;
+  const webhookEnabled = vscode.workspace.getConfiguration('agentflow.webhooks').get<boolean>('enabled') ?? false;
+  const webhookUrl = vscode.workspace.getConfiguration('agentflow.webhooks').get<string>('url')?.trim();
+  return [
+    {
+      id: 'localApi',
+      label: 'Local read-only API',
+      state: apiEnabled ? 'watching' : 'disabled',
+      detail: apiEnabled ? `Serving redacted local payloads on 127.0.0.1:${apiPort || '<auto>'}.` : 'Local API is disabled. Enable agentflow.localApi.enabled to expose read-only local endpoints.',
+      canReportReads: false,
+      canReportWrites: false
+    },
+    {
+      id: 'webhooks',
+      label: 'Activity webhooks',
+      state: webhookEnabled && webhookUrl ? 'watching' : webhookEnabled ? 'degraded' : 'disabled',
+      detail: webhookEnabled && webhookUrl ? 'Posting redacted activity summaries to the configured webhook URL.' : webhookEnabled ? 'Webhook delivery is enabled but no URL is configured.' : 'Activity webhooks are disabled.',
+      canReportReads: false,
+      canReportWrites: false
+    }
+  ];
 }
 
 function html(webview: vscode.Webview, context: vscode.ExtensionContext, state: unknown): string {

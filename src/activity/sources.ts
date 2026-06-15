@@ -2,7 +2,7 @@ import type { CopilotDebugLogStatus } from './copilotDebugLogAdapter';
 import type { CodexRolloutStatus } from './codexRolloutAdapter';
 
 export type ActivitySourceState = 'disabled' | 'initializing' | 'watching' | 'degraded' | 'error';
-export type ActivitySourceId = 'filesystem' | 'vscodeDocuments' | 'agentFlowTools' | 'copilotDebugLogs' | 'codexRollouts' | 'readCoverage';
+export type ActivitySourceId = 'filesystem' | 'vscodeDocuments' | 'agentFlowTools' | 'copilotDebugLogs' | 'codexRollouts' | 'readCoverage' | 'localApi' | 'webhooks';
 
 export interface ActivitySourceRuntimeState {
   id: ActivitySourceId;
