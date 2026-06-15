@@ -16,6 +16,7 @@ import './styles.css';
 import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationFinding, RiskScore } from '../pipeline/types';
 import { AgentFlowActivityEvent } from '../activity/types';
 import { aggregateActivityMetrics } from '../activity/metrics';
+import { buildActivityTimeline } from '../activity/timeline';
 import type { ActivitySourceRuntimeState } from '../activity/sources';
 import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
@@ -1034,6 +1035,7 @@ function MetricsDiagnostics({ metrics, onSelectNode }: { metrics: ReturnType<typ
 
 function ActivityDiagnostics({ events, onSelectNode, pipeline, sources }: { events: AgentFlowActivityEvent[]; onSelectNode: (nodeId: string) => void; pipeline: AgentPipeline; sources: ActivitySourceRuntimeState[] }) {
   const [filters, setFilters] = useState({ sessionId: '', nodeId: '', phase: '', toolName: '', artifactPath: '', severity: '' });
+  const [view, setView] = useState<'events' | 'timeline' | 'transcript'>('events');
   const sourceStatus = <ActivitySourceStatuses sources={sources} />;
   if (!events.length) return <div className="activity-panel"><EmptyDiagnostics icon="pulse" title="No activity yet" detail="Agent Flow can show events from Agent Flow language model tools, VS Code document events, filesystem writes, and GitHub Copilot debug logs. File watchers alone cannot observe reads." />{sourceStatus}</div>;
   const labels = new Map(pipeline.nodes.map((node) => [node.id, node.label]));
@@ -1047,16 +1049,45 @@ function ActivityDiagnostics({ events, onSelectNode, pipeline, sources }: { even
   );
   return <div className="activity-panel">
     {sourceStatus}
-    <div className="activity-actions"><ActivityFilter label="Session" value={filters.sessionId} options={unique(events.map((event) => event.sessionId))} onChange={(sessionId) => setFilters((current) => ({ ...current, sessionId }))} /><ActivityFilter label="Node" value={filters.nodeId} options={pipeline.nodes.filter((node) => events.some((event) => event.nodeId === node.id)).map((node) => ({ value: node.id, label: node.label }))} onChange={(nodeId) => setFilters((current) => ({ ...current, nodeId }))} /><ActivityFilter label="Phase" value={filters.phase} options={unique(events.map((event) => event.phase))} onChange={(phase) => setFilters((current) => ({ ...current, phase }))} /><ActivityFilter label="Tool" value={filters.toolName} options={unique(events.map((event) => event.toolName).filter(Boolean) as string[])} onChange={(toolName) => setFilters((current) => ({ ...current, toolName }))} /><ActivityFilter label="Artifact" value={filters.artifactPath} options={unique(events.map((event) => event.artifactPath).filter(Boolean) as string[])} onChange={(artifactPath) => setFilters((current) => ({ ...current, artifactPath }))} /><ActivityFilter label="Severity" value={filters.severity} options={['info', 'warning', 'error']} onChange={(severity) => setFilters((current) => ({ ...current, severity }))} /><VSCodeButton className="compact" icon="clear-all" onClick={() => vscode?.postMessage({ command: 'clearActivity' })}>Clear activity</VSCodeButton></div>
-    <div className="diagnostic-list activity-list">{[...filtered].reverse().map((event) => <button type="button" key={event.id} className={`diagnostic-card activity-card ${event.severity === 'error' || event.phase === 'failed' ? 'error' : event.severity === 'warning' ? 'warning' : 'neutral'}`} onClick={() => event.nodeId && onSelectNode(event.nodeId)} disabled={!event.nodeId}>
+    <div className="activity-actions"><div className="activity-view-switch">{(['events', 'timeline', 'transcript'] as const).map((item) => <VSCodeButton key={item} variant="ghost" className={view === item ? 'active' : ''} onClick={() => setView(item)}>{item}</VSCodeButton>)}</div><ActivityFilter label="Session" value={filters.sessionId} options={unique(events.map((event) => event.sessionId))} onChange={(sessionId) => setFilters((current) => ({ ...current, sessionId }))} /><ActivityFilter label="Node" value={filters.nodeId} options={pipeline.nodes.filter((node) => events.some((event) => event.nodeId === node.id)).map((node) => ({ value: node.id, label: node.label }))} onChange={(nodeId) => setFilters((current) => ({ ...current, nodeId }))} /><ActivityFilter label="Phase" value={filters.phase} options={unique(events.map((event) => event.phase))} onChange={(phase) => setFilters((current) => ({ ...current, phase }))} /><ActivityFilter label="Tool" value={filters.toolName} options={unique(events.map((event) => event.toolName).filter(Boolean) as string[])} onChange={(toolName) => setFilters((current) => ({ ...current, toolName }))} /><ActivityFilter label="Artifact" value={filters.artifactPath} options={unique(events.map((event) => event.artifactPath).filter(Boolean) as string[])} onChange={(artifactPath) => setFilters((current) => ({ ...current, artifactPath }))} /><ActivityFilter label="Severity" value={filters.severity} options={['info', 'warning', 'error']} onChange={(severity) => setFilters((current) => ({ ...current, severity }))} /><VSCodeButton className="compact" icon="clear-all" onClick={() => vscode?.postMessage({ command: 'clearActivity' })}>Clear activity</VSCodeButton></div>
+    {view === 'timeline' && <ActivityTimelineDiagnostics events={filtered} labels={labels} onSelectNode={onSelectNode} />}
+    {view === 'transcript' && <ActivityTranscriptDiagnostics events={filtered} labels={labels} onSelectNode={onSelectNode} />}
+    {view === 'events' && <div className="diagnostic-list activity-list">{[...filtered].reverse().map((event) => <button type="button" key={event.id} className={`diagnostic-card activity-card ${event.severity === 'error' || event.phase === 'failed' ? 'error' : event.severity === 'warning' ? 'warning' : 'neutral'}`} onClick={() => event.nodeId && onSelectNode(event.nodeId)} disabled={!event.nodeId}>
     <Codicon name={event.phase === 'completed' ? 'pass' : event.phase === 'failed' ? 'error' : event.phase === 'tool' ? 'tools' : event.phase === 'artifact' ? 'file' : 'pulse'} />
     <div>
       <div className="diagnostic-card-title"><span>{event.phase}</span>{event.nodeId && <code>{labels.get(event.nodeId) ?? event.nodeId}</code>}{event.toolName && <code>{event.toolName}</code>}</div>
       <p>{event.summary}</p>
       <small>{new Date(event.timestamp).toLocaleTimeString()} · {event.sessionId}{event.artifactPath ? ` · ${event.artifactPath}` : ''}{event.aiCredits !== undefined ? ` · ${event.aiCredits.toFixed(3)} AI credits` : ''}</small>
     </div>
-  </button>)}</div>
+  </button>)}</div>}
   </div>;
+}
+
+function ActivityTimelineDiagnostics({ events, labels, onSelectNode }: { events: AgentFlowActivityEvent[]; labels: Map<string, string>; onSelectNode: (nodeId: string) => void }) {
+  const timeline = buildActivityTimeline(events);
+  if (!timeline.sessions.length) return <EmptyDiagnostics icon="history" title="No timeline events" detail="Current filters hide all events." />;
+  return <div className="activity-timeline">{timeline.sessions.map((session) => <section key={session.sessionId} className={`timeline-session${session.failed ? ' failed' : ''}`}>
+    <h4><span>{session.sessionId}</span><small>{session.events.length} events · {timeRange(session.startedAt, session.updatedAt)}</small></h4>
+    <div className="timeline-node-list">{session.nodes.map((node) => <div key={node.nodeId} className={`timeline-node-group${node.failed ? ' failed' : ''}`}>
+      <button type="button" className="timeline-node-title" onClick={() => onSelectNode(node.nodeId)}><Codicon name={node.failed ? 'error' : 'circle-large-filled'} /><span>{labels.get(node.nodeId) ?? node.nodeId}</span><small>{node.events.length}</small></button>
+      <ol>{node.events.map((event) => <li key={event.id}><button type="button" onClick={() => event.nodeId && onSelectNode(event.nodeId)} disabled={!event.nodeId}><span className={`timeline-dot phase-${event.phase}`} /><code>{event.phase}</code><span>{event.summary}</span><small>{new Date(event.timestamp).toLocaleTimeString()}</small></button></li>)}</ol>
+    </div>)}</div>
+  </section>)}</div>;
+}
+
+function ActivityTranscriptDiagnostics({ events, labels, onSelectNode }: { events: AgentFlowActivityEvent[]; labels: Map<string, string>; onSelectNode: (nodeId: string) => void }) {
+  if (!events.length) return <EmptyDiagnostics icon="comment-discussion" title="No transcript events" detail="Current filters hide all events." />;
+  return <div className="activity-transcript">{events.map((event) => {
+    const speaker = event.toolName ? 'tool' : event.phase === 'handoff' ? 'handoff' : event.nodeId ? labels.get(event.nodeId) ?? event.nodeId : 'runtime';
+    return <button type="button" key={event.id} className={`transcript-row phase-${event.phase}`} onClick={() => event.nodeId && onSelectNode(event.nodeId)} disabled={!event.nodeId}>
+      <span>{speaker}</span><p>{event.summary}</p><small>{event.phase} · {new Date(event.timestamp).toLocaleTimeString()}{event.artifactPath ? ` · ${event.artifactPath}` : ''}</small>
+    </button>;
+  })}</div>;
+}
+
+function timeRange(startedAt: string, updatedAt: string): string {
+  if (!startedAt || !updatedAt) return 'no timestamp';
+  return `${new Date(startedAt).toLocaleTimeString()} - ${new Date(updatedAt).toLocaleTimeString()}`;
 }
 
 function ActivitySourceStatuses({ sources }: { sources: ActivitySourceRuntimeState[] }) {
