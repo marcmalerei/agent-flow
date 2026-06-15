@@ -9,6 +9,7 @@ import { instructionFilePath } from './generators/instructionGenerator';
 import { skillFilePath } from './generators/skillGenerator';
 import { roleFilePath } from './generators/roleGenerator';
 import { GENERATED_MARKER } from './generators/shared';
+import { labelFromId, normalizeNodeLabel } from './labels';
 import { LEGACY_PIPELINE_FILE_PATH } from './paths';
 
 async function exists(file: string): Promise<boolean> {
@@ -37,7 +38,7 @@ function rel(workspace: string, file: string): string {
 }
 
 function titleFromId(id: string): string {
-  return id.split(/[-_]/).map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+  return labelFromId(id);
 }
 
 type FrontmatterScalar = string | boolean;
@@ -349,7 +350,7 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
     const artifactUsages = parseArtifactUsages(markdown, 'Artifact work');
     return {
       ...node,
-      label: typeof fm.name === 'string' && fm.name ? fm.name : node.label,
+      label: normalizeNodeLabel(typeof fm.name === 'string' && fm.name ? fm.name : node.label, node.id),
       description: typeof fm.description === 'string' ? fm.description : node.description,
       argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : node.argumentHint,
       model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : node.model,
@@ -373,7 +374,7 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
     const artifactUsages = parseArtifactUsages(markdown, 'Required artifacts');
     return {
       ...node,
-      label: typeof fm.name === 'string' ? fm.name : node.label,
+      label: normalizeNodeLabel(typeof fm.name === 'string' ? fm.name : node.label, node.id),
       description: typeof fm.description === 'string' ? fm.description : node.description,
       argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : node.argumentHint,
       model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : node.model,
@@ -389,7 +390,7 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
     const artifactUsages = parseArtifactUsages(markdown, 'Required artifacts');
     return {
       ...node,
-      label: typeof fm.name === 'string' ? fm.name : node.label,
+      label: normalizeNodeLabel(typeof fm.name === 'string' ? fm.name : node.label, node.id),
       description: typeof fm.description === 'string' ? stripYamlQuotes(fm.description) : node.description,
       applyTo: typeof fm.applyTo === 'string' ? stripYamlQuotes(fm.applyTo) : node.applyTo,
       excludeAgent: typeof fm.excludeAgent === 'string' ? stripYamlQuotes(fm.excludeAgent) : node.excludeAgent,
@@ -403,7 +404,7 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
     const artifactUsages = parseArtifactUsages(markdown, 'Required artifacts');
     return {
       ...node,
-      label: typeof fm.name === 'string' ? fm.name : node.label,
+      label: normalizeNodeLabel(typeof fm.name === 'string' ? fm.name : node.label, node.id),
       description: typeof fm.description === 'string' ? fm.description : markdown.match(/## Description\s+([\s\S]*?)(\n##|$)/)?.[1]?.trim() ?? node.description,
       argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : node.argumentHint,
       userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : node.userInvocable,
@@ -417,7 +418,7 @@ function applyMarkdownToNode(node: PipelineNode, markdown: string): PipelineNode
   if (node.type === 'role') {
     return {
       ...node,
-      label: typeof fm.name === 'string' ? fm.name : node.label,
+      label: normalizeNodeLabel(typeof fm.name === 'string' ? fm.name : node.label, node.id),
       description: typeof fm.description === 'string' ? fm.description : node.description,
       markdown
     };
@@ -560,7 +561,7 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const artifactUsages = parseArtifactUsages(content, 'Artifact work');
     const instructionRefs = parseInstructionRefs(content);
     const roleRefs = parseRoleRefs(content);
-    nodes.push({ id, type: 'agent', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), agentFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, target: typeof fm.target === 'string' ? fm.target : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, hooks: isHooks(fm.hooks) ? fm.hooks : undefined, mcpServers: Array.isArray(fm['mcp-servers']) ? fm['mcp-servers'] as McpServerConfig[] : undefined, markdown: content, tools: Array.isArray(fm.tools) ? fm.tools as string[] : [], calls: [], handoffs, outputs: artifactUsages?.filter((usage) => usage.action === 'write' || usage.action === 'append').map((usage) => usage.path) ?? [], inputs: artifactUsages?.filter((usage) => usage.action === 'read' || usage.action === 'validate').map((usage) => usage.path) ?? [], artifactUsages, instructionRefs, roleRefs, position: addPosition() });
+    nodes.push({ id, type: 'agent', label: normalizeNodeLabel(typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), id), agentFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, target: typeof fm.target === 'string' ? fm.target : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, hooks: isHooks(fm.hooks) ? fm.hooks : undefined, mcpServers: Array.isArray(fm['mcp-servers']) ? fm['mcp-servers'] as McpServerConfig[] : undefined, markdown: content, tools: Array.isArray(fm.tools) ? fm.tools as string[] : [], calls: [], handoffs, outputs: artifactUsages?.filter((usage) => usage.action === 'write' || usage.action === 'append').map((usage) => usage.path) ?? [], inputs: artifactUsages?.filter((usage) => usage.action === 'read' || usage.action === 'validate').map((usage) => usage.path) ?? [], artifactUsages, instructionRefs, roleRefs, position: addPosition() });
     pendingAgentCalls.push({ id, calls: calls as string[], handoffs });
   }
   for (const pending of pendingAgentCalls) {
@@ -584,7 +585,7 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const artifactUsages = parseArtifactUsages(content, 'Required artifacts');
     const instructionRefs = parseInstructionRefs(content);
     const roleRefs = parseRoleRefs(content);
-    nodes.push({ id, type: 'prompt', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), promptFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, tools: Array.isArray(fm.tools) ? fm.tools as string[] : undefined, markdown: content, startAgent: normalizedStartAgent, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, roleRefs, position: addPosition() });
+    nodes.push({ id, type: 'prompt', label: normalizeNodeLabel(typeof fm.name === 'string' ? fm.name : titleFromId(id), id), promptFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, model: typeof fm.model === 'string' || Array.isArray(fm.model) ? fm.model as string | string[] : undefined, tools: Array.isArray(fm.tools) ? fm.tools as string[] : undefined, markdown: content, startAgent: normalizedStartAgent, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, roleRefs, position: addPosition() });
     if (normalizedStartAgent) edges.push({ id: `${id}-starts-${normalizedStartAgent}`, from: id, to: normalizedStartAgent, kind: 'prompt' });
   }
 
@@ -595,7 +596,7 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const fm = frontmatter(content);
     const artifactUsages = parseArtifactUsages(content, 'Required artifacts');
     const instructionRefs = parseInstructionRefs(content);
-    nodes.push({ id, type: 'instruction', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), instructionFile: rel(workspace, file), applyTo: typeof fm.applyTo === 'string' ? stripYamlQuotes(fm.applyTo) : '**/*', description: typeof fm.description === 'string' ? stripYamlQuotes(fm.description) : undefined, excludeAgent: typeof fm.excludeAgent === 'string' ? stripYamlQuotes(fm.excludeAgent) : undefined, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, markdown: content, position: addPosition() });
+    nodes.push({ id, type: 'instruction', label: normalizeNodeLabel(typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), id), instructionFile: rel(workspace, file), applyTo: typeof fm.applyTo === 'string' ? stripYamlQuotes(fm.applyTo) : '**/*', description: typeof fm.description === 'string' ? stripYamlQuotes(fm.description) : undefined, excludeAgent: typeof fm.excludeAgent === 'string' ? stripYamlQuotes(fm.excludeAgent) : undefined, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, instructionRefs, markdown: content, position: addPosition() });
   }
 
   const skillFiles = await findFiles(path.join(workspace, '.github/skills'), (file) => path.basename(file) === 'SKILL.md');
@@ -604,7 +605,7 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const content = await fs.readFile(file, 'utf8');
     const fm = frontmatter(content);
     const artifactUsages = parseArtifactUsages(content, 'Required artifacts');
-    nodes.push({ id, type: 'skill', label: typeof fm.name === 'string' ? fm.name : titleFromId(id), skillFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : content.match(/## Description\s+([\s\S]*?)(\n##|$)/)?.[1]?.trim(), argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, context: typeof fm.context === 'string' ? fm.context : undefined, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, markdown: content, position: addPosition() });
+    nodes.push({ id, type: 'skill', label: normalizeNodeLabel(typeof fm.name === 'string' ? fm.name : titleFromId(id), id), skillFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : content.match(/## Description\s+([\s\S]*?)(\n##|$)/)?.[1]?.trim(), argumentHint: typeof fm['argument-hint'] === 'string' ? fm['argument-hint'] : undefined, userInvocable: typeof fm['user-invocable'] === 'boolean' ? fm['user-invocable'] : undefined, disableModelInvocation: typeof fm['disable-model-invocation'] === 'boolean' ? fm['disable-model-invocation'] : undefined, context: typeof fm.context === 'string' ? fm.context : undefined, requiredArtifacts: artifactUsages?.map((usage) => usage.path), artifactUsages, markdown: content, position: addPosition() });
   }
 
   const roleFiles = await findFiles(path.join(workspace, '.github/roles'), (file) => file.endsWith('.md'));
@@ -612,13 +613,15 @@ export async function inferPipelineFromWorkspace(workspace: string): Promise<Age
     const id = path.basename(file, '.md');
     const content = await fs.readFile(file, 'utf8');
     const fm = frontmatter(content);
-    nodes.push({ id, type: 'role', label: typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), roleFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, markdown: content, position: addPosition() });
+    nodes.push({ id, type: 'role', label: normalizeNodeLabel(typeof fm.name === 'string' && fm.name ? fm.name : titleFromId(id), id), roleFile: rel(workspace, file), description: typeof fm.description === 'string' ? fm.description : undefined, markdown: content, position: addPosition() });
   }
 
   const outputFiles = await findFiles(path.join(workspace, '.github/artifacts'), (file) => isArtifactPath(file) && (file.endsWith('.md') || file.endsWith('.json') || file.endsWith('.txt')));
   for (const file of outputFiles.sort()) {
     const id = rel(workspace, file).replace(/[^A-Za-z0-9_-]/g, '-');
-    nodes.push({ id, type: 'artifact', label: rel(workspace, file), path: rel(workspace, file), position: addPosition() });
+    const artifactPath = rel(workspace, file);
+    const content = await fs.readFile(file, 'utf8');
+    nodes.push({ id, type: 'artifact', label: normalizeNodeLabel(artifactPath, id), path: artifactPath, markdown: content, position: addPosition() });
   }
 
   addReferencedCustomizationNodes(nodes, edges, addPosition);
@@ -712,7 +715,7 @@ function addReferencedArtifactNodes(nodes: PipelineNode[], addPosition: () => { 
   for (const artifactPath of [...referenced].sort()) {
     if (!isArtifactPath(artifactPath) || existingPaths.has(artifactPath)) continue;
     const id = artifactPath.replace(/[^A-Za-z0-9_-]/g, '-');
-    nodes.push({ id, type: 'artifact', label: artifactPath, path: artifactPath, position: addPosition() });
+    nodes.push({ id, type: 'artifact', label: normalizeNodeLabel(artifactPath, id), path: artifactPath, position: addPosition() });
     existingPaths.add(artifactPath);
   }
 }

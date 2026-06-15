@@ -33,6 +33,7 @@ import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } 
 import { applyNodePatch } from './nodeMarkdownSync';
 import { mergeRemoteStateUpdate } from './stateUpdates';
 import { deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
+import { edgeGradientId, edgeMarkerColor, graphNodeDisplayLabel, nodeTypeColor, nodeTypeColors } from './nodeDisplay';
 
 interface State {
   stateVersion: number;
@@ -55,7 +56,7 @@ declare global { interface Window { __AGENTFLOW_STATE__: State; __AGENTFLOW_APP_
 const vscode = window.__AGENTFLOW_VSCODE_API__ ?? window.acquireVsCodeApi?.();
 if (vscode && !window.__AGENTFLOW_VSCODE_API__) window.__AGENTFLOW_VSCODE_API__ = vscode;
 const webviewBootId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-testing-iconPassed, #2ea043)', role: 'var(--vscode-charts-cyan, #00b7c3)', artifact: 'var(--vscode-charts-green)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)', handoff: 'var(--vscode-editorWarning-foreground, #cca700)', 'mcp-server': 'var(--vscode-charts-cyan, #00b7c3)' };
+const typeColors: Record<string, string> = nodeTypeColors;
 const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'role', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server'];
 const nodeTypeIcons: Record<PipelineNodeType, string> = { agent: 'hubot', prompt: 'comment-discussion', instruction: 'list-tree', skill: 'tools', role: 'person', artifact: 'file', gate: 'pass', hook: 'debug-disconnect', handoff: 'arrow-swap', 'mcp-server': 'server-process' };
 
@@ -194,7 +195,7 @@ function App() {
   const nodes: RenderedNode[] = useMemo(() => normalizeGraphNodePositions(draft.nodes.map((node) => ({
     id: node.id,
     position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
-    data: { label: `${risky.has(node.id) ? '! ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: typeColors[node.type] ?? 'var(--vscode-focusBorder)', activity: activityByNode.get(node.id), runtimeStatus: state.nodeRuntime?.[node.id]?.status, dirty: state.nodeRuntime?.[node.id]?.dirty, ...handlePositions },
+    data: { label: `${risky.has(node.id) ? '! ' : ''}${graphNodeDisplayLabel(node)}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: nodeTypeColor(node.type), activity: activityByNode.get(node.id), runtimeStatus: state.nodeRuntime?.[node.id]?.status, dirty: state.nodeRuntime?.[node.id]?.dirty, ...handlePositions },
     style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
   }))).nodes, [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
   const activeNodeIds = useMemo(() => [...activityByNode.keys()], [activityByNode]);
@@ -390,8 +391,17 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, viewp
     <div className="graph-viewport" style={{ transform: graphTransform(viewport), width: graphBounds.width, height: graphBounds.height }}>
       <svg className="graph-edge-layer" width={graphBounds.width} height={graphBounds.height} viewBox={`0 0 ${graphBounds.width} ${graphBounds.height}`} aria-hidden="true">
         <defs>{edges.map((edge) => {
-          const color = edgeStroke(edge);
-          return <marker id={edgeMarkerId(edge.id)} key={edge.id} markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 9 4.5 L 0 9 z" fill={color} /></marker>;
+          const source = nodesById.get(edge.source);
+          const target = nodesById.get(edge.target);
+          const sourceColor = nodeTypeColor(source?.data.type ?? 'agent');
+          const targetColor = nodeTypeColor(target?.data.type ?? 'agent');
+          return <React.Fragment key={edge.id}>
+            <linearGradient id={edgeGradientId(edge.id)} gradientUnits="userSpaceOnUse" x1={source?.position.x ?? 0} y1={source?.position.y ?? 0} x2={target?.position.x ?? 1} y2={target?.position.y ?? 1}>
+              <stop offset="0%" stopColor={sourceColor} />
+              <stop offset="100%" stopColor={targetColor} />
+            </linearGradient>
+            <marker id={edgeMarkerId(edge.id)} markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 9 4.5 L 0 9 z" fill={edgeMarkerColor(target ? { id: target.id, type: target.data.type, label: target.data.label } as PipelineNode : undefined)} /></marker>
+          </React.Fragment>;
         })}</defs>
         {edges.map((edge) => <GraphEdge key={edge.id} edge={edge} nodesById={nodesById} />)}
       </svg>
@@ -414,7 +424,7 @@ function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<str
   const target = nodesById.get(edge.target);
   if (!source || !target) return null;
   const points = edgePathBetweenNodes(source, target);
-  const color = edgeStroke(edge);
+  const color = `url(#${edgeGradientId(edge.id)})`;
   const opacity = typeof edge.style?.opacity === 'number' ? edge.style.opacity : 0.82;
   const strokeWidth = typeof edge.style?.strokeWidth === 'number' ? edge.style.strokeWidth : 1.8;
   return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}`} data-edge-id={edge.id} style={{ color }}>
@@ -427,10 +437,6 @@ function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<str
       <text textAnchor="middle" dominantBaseline="central">{edge.label}</text>
     </g>}
   </g>;
-}
-
-function edgeStroke(edge: RenderedEdge): string {
-  return typeof edge.style?.stroke === 'string' ? edge.style.stroke : 'var(--vscode-editor-foreground)';
 }
 
 function edgeMarkerId(edgeId: string): string {
@@ -547,7 +553,7 @@ function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: {
   let suffix = 1;
   while (existing.has(`${baseId}-${suffix}`)) suffix += 1;
   const id = `${baseId}-${suffix}`;
-  const base = { id, type, label: `New ${type}`, position };
+  const base = { id, type, label: `new ${type}`, position };
   if (type === 'agent') return { ...base, type, agentFile: `.github/agents/${id}.agent.md`, tools: ['read', 'search'], calls: [], inputs: [], outputs: [] };
   if (type === 'prompt') return { ...base, type, promptFile: `.github/prompts/${id}.prompt.md`, tools: [], workflow: [], constraints: [] };
   if (type === 'instruction') return { ...base, type, instructionFile: `.github/instructions/${id}.instructions.md`, rules: [] };
@@ -555,8 +561,8 @@ function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: {
   if (type === 'role') return { ...base, type, roleFile: `.github/roles/${id}.md` };
   if (type === 'artifact') return { ...base, type, path: `.github/artifacts/${id}.md` };
   if (type === 'gate') return { ...base, type, condition: 'Define condition' };
-  if (type === 'handoff') return { ...base, type, label: 'New handoff' };
-  if (type === 'mcp-server') return { ...base, type, label: 'New MCP server' };
+  if (type === 'handoff') return { ...base, type, label: 'new handoff' };
+  if (type === 'mcp-server') return { ...base, type, label: 'new mcp server' };
   return { ...base, type };
 }
 

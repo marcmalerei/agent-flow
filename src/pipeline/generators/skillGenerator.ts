@@ -1,4 +1,5 @@
 import { SkillNode } from '../types';
+import { normalizeNodeLabel } from '../labels';
 import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, replaceMarkdownSection, yamlBooleanLine, yamlString, yamlStringLine } from './shared';
 
 export function skillFilePath(node: SkillNode): string {
@@ -8,11 +9,12 @@ export function skillFilePath(node: SkillNode): string {
 
 export function generateSkillMarkdown(node: SkillNode): string {
   const frontmatter = skillFrontmatter(node);
+  const label = normalizeNodeLabel(node.label, node.id);
   if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)), frontmatter);
 
   return appendGeneratedMarker(`${frontmatter}
 
-# ${node.label}
+# ${label}
 
 ## Description
 
@@ -45,7 +47,7 @@ ${artifactUsageList(node.artifactUsages, node.requiredArtifacts)}
 }
 
 function skillFrontmatter(node: SkillNode): string {
-  const skillName = skillFilePath(node).split('/').at(-2) ?? nodeFileStem(node.id, node.label, 'skill');
+  const skillName = normalizeNodeLabel(skillFilePath(node).split('/').at(-2) ?? nodeFileStem(node.id, node.label, 'skill'), node.id);
   return `---
 name: ${yamlString(skillName)}
 ${yamlStringLine('description', node.description)}

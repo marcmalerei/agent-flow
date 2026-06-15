@@ -1,5 +1,6 @@
 import { PromptNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
+import { normalizeNodeLabel } from '../labels';
 import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, replaceMarkdownSection, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function promptFilePath(node: PromptNode): string {
@@ -9,6 +10,7 @@ export function promptFilePath(node: PromptNode): string {
 
 export function generatePromptMarkdown(node: PromptNode): string {
   const frontmatter = promptFrontmatter(node);
+  const label = normalizeNodeLabel(node.label, node.id);
   if (node.markdown?.trim()) {
     const body = replaceMarkdownSection(
       replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
@@ -20,7 +22,7 @@ export function generatePromptMarkdown(node: PromptNode): string {
 
   return appendGeneratedMarker(`${frontmatter}
 
-# ${node.label}
+# ${label}
 
 ${node.description ?? ''}
 
@@ -51,8 +53,9 @@ ${list(node.definitionOfDone)}
 }
 
 function promptFrontmatter(node: PromptNode): string {
+  const label = normalizeNodeLabel(node.label, node.id);
   return `---
-name: ${yamlString(node.label)}
+name: ${yamlString(label)}
 ${yamlStringLine('description', node.description)}
 ${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('agent', node.startAgent)}${yamlStringLine('model', node.model)}
 ${yamlOptionalList('tools', normalizeToolsForVsCode(node.tools))}
