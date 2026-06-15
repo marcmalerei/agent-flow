@@ -86,6 +86,16 @@
           "default": true,
           "description": "Enable import of local Codex rollout JSONL sessions from CODEX_HOME or ~/.codex into the Agent Flow activity timeline."
         },
+        "agentflow.activity.claudeCodeHooks.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable optional import of JSON or JSONL activity written by Claude Code hooks. Disabled by default."
+        },
+        "agentflow.activity.claudeCodeHooks.dataPath": {
+          "type": "string",
+          "default": "",
+          "description": "Folder where Claude Code hooks write Agent Flow-readable JSON or JSONL activity events."
+        },
         "agentflow.activity.sources.filesystem": {
           "type": "boolean",
           "default": true,

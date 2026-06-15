@@ -21,6 +21,13 @@ describe('activity source statuses', () => {
         discoveredFiles: ['/tmp/.codex/sessions/2026/06/15/rollout.jsonl'],
         state: 'watching',
         detail: 'Watching 1 Codex rollout file.'
+      },
+      claudeCodeHooks: {
+        enabled: true,
+        configuredPath: '/tmp/claude-hooks',
+        discoveredFiles: ['/tmp/claude-hooks/activity.jsonl'],
+        state: 'watching',
+        detail: 'Watching /tmp/claude-hooks for Claude Code hook activity.'
       }
     });
 
@@ -30,6 +37,7 @@ describe('activity source statuses', () => {
       ['agentFlowTools', 'watching'],
       ['copilotDebugLogs', 'watching'],
       ['codexRollouts', 'watching'],
+      ['claudeCodeHooks', 'watching'],
       ['readCoverage', 'watching']
     ]);
     expect(statuses.find((source) => source.id === 'vscodeDocuments')?.detail).toContain('disabled');
@@ -54,6 +62,13 @@ describe('activity source statuses', () => {
         discoveredFiles: [],
         state: 'disabled',
         detail: 'Codex rollout activity import is disabled.'
+      },
+      claudeCodeHooks: {
+        enabled: false,
+        configuredPath: undefined,
+        discoveredFiles: [],
+        state: 'disabled',
+        detail: 'Claude Code hook activity import is disabled.'
       }
     });
 

@@ -14,6 +14,7 @@ import { loadInitialPipelineWhenStable, PipelineRefreshCoordinator, refreshPipel
 import { ActivityStore } from '../activity/store';
 import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
 import { getCodexRolloutStatus } from '../activity/codexRolloutAdapter';
+import { getClaudeCodeHookStatus } from '../activity/claudeCodeHookAdapter';
 import { activityInputsForChangedFiles } from '../activity/fileActivity';
 import { ActivitySourceRuntimeState, buildActivitySourceStatuses } from '../activity/sources';
 import { resolveActivityEventsForPipeline } from './activity';
@@ -395,7 +396,8 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
       registered: Boolean(vscode.lm?.registerTool)
     },
     copilotDebugLogs: await getCopilotDebugLogStatus(),
-    codexRollouts: await getCodexRolloutStatus(workspace)
+    codexRollouts: await getCodexRolloutStatus(workspace),
+    claudeCodeHooks: await getClaudeCodeHookStatus()
     }),
     ...localIntegrationSourceStatuses()
   ];

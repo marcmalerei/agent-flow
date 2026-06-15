@@ -1,8 +1,9 @@
 import type { CopilotDebugLogStatus } from './copilotDebugLogAdapter';
 import type { CodexRolloutStatus } from './codexRolloutAdapter';
+import type { ClaudeCodeHookStatus } from './claudeCodeHookAdapter';
 
 export type ActivitySourceState = 'disabled' | 'initializing' | 'watching' | 'degraded' | 'error';
-export type ActivitySourceId = 'filesystem' | 'vscodeDocuments' | 'agentFlowTools' | 'copilotDebugLogs' | 'codexRollouts' | 'readCoverage' | 'localApi' | 'webhooks';
+export type ActivitySourceId = 'filesystem' | 'vscodeDocuments' | 'agentFlowTools' | 'copilotDebugLogs' | 'codexRollouts' | 'claudeCodeHooks' | 'readCoverage' | 'localApi' | 'webhooks';
 
 export interface ActivitySourceRuntimeState {
   id: ActivitySourceId;
@@ -28,6 +29,7 @@ export interface ActivitySourceStatusInput {
   };
   copilotDebugLogs: CopilotDebugLogStatus;
   codexRollouts: CodexRolloutStatus;
+  claudeCodeHooks: ClaudeCodeHookStatus;
 }
 
 export function buildActivitySourceStatuses(input: ActivitySourceStatusInput): ActivitySourceRuntimeState[] {
@@ -36,7 +38,8 @@ export function buildActivitySourceStatuses(input: ActivitySourceStatusInput): A
     documentsSource(input.documents),
     toolsSource(input.tools),
     copilotDebugLogSource(input.copilotDebugLogs),
-    codexRolloutSource(input.codexRollouts)
+    codexRolloutSource(input.codexRollouts),
+    claudeCodeHookSource(input.claudeCodeHooks)
   ];
   return [...sources, readCoverageSource(sources)];
 }
@@ -154,6 +157,29 @@ function codexRolloutSource(status: CodexRolloutStatus): ActivitySourceRuntimeSt
   };
 }
 
+function claudeCodeHookSource(status: ClaudeCodeHookStatus): ActivitySourceRuntimeState {
+  if (!status.enabled) {
+    return {
+      id: 'claudeCodeHooks',
+      label: 'Claude Code hooks',
+      state: 'disabled',
+      detail: status.detail,
+      canReportReads: false,
+      canReportWrites: false,
+      metadata: claudeCodeMetadata(status)
+    };
+  }
+  return {
+    id: 'claudeCodeHooks',
+    label: 'Claude Code hooks',
+    state: status.state === 'watching' ? 'watching' : 'degraded',
+    detail: status.detail,
+    canReportReads: status.state === 'watching',
+    canReportWrites: status.state === 'watching',
+    metadata: claudeCodeMetadata(status)
+  };
+}
+
 function readCoverageSource(sources: ActivitySourceRuntimeState[]): ActivitySourceRuntimeState {
   const readCapable = sources.filter((source) => source.id !== 'filesystem' && source.canReportReads && source.state === 'watching');
   return readCapable.length
@@ -186,6 +212,13 @@ function copilotMetadata(status: CopilotDebugLogStatus): Record<string, unknown>
 function codexMetadata(status: CodexRolloutStatus): Record<string, unknown> {
   return {
     codexHome: status.codexHome,
+    discoveredFiles: status.discoveredFiles
+  };
+}
+
+function claudeCodeMetadata(status: ClaudeCodeHookStatus): Record<string, unknown> {
+  return {
+    configuredPath: status.configuredPath,
     discoveredFiles: status.discoveredFiles
   };
 }

@@ -14,6 +14,7 @@ import { startLocalApiAdapter } from './activity/localApiAdapter';
 import { completeNodeActivity, reportActivity, selectActivityNode } from './activity/tools';
 import { getCopilotDebugLogStatus, startCopilotDebugLogAdapter } from './activity/copilotDebugLogAdapter';
 import { getCodexRolloutStatus, startCodexRolloutAdapter } from './activity/codexRolloutAdapter';
+import { getClaudeCodeHookStatus, startClaudeCodeHookAdapter } from './activity/claudeCodeHookAdapter';
 import { activityInputForPipelineDocumentPath } from './activity/fileActivity';
 import { createSyntheticActivity } from './activity/synthetic';
 import { renderActivityCsv, renderAgentFlowReport } from './activity/exportReport';
@@ -31,6 +32,13 @@ export function activate(context: vscode.ExtensionContext): void {
   const activityOutput = vscode.window.createOutputChannel('Agent Flow Activity');
   context.subscriptions.push(activityOutput, startCopilotDebugLogAdapter(activityStore, (message) => activityOutput.appendLine(`[${new Date().toISOString()}] ${message}`)));
   context.subscriptions.push(startCodexRolloutAdapter(activityStore, {
+    workspaceProvider: getWorkspaceRoot,
+    pipelineProvider: async () => {
+      const workspace = getWorkspaceRoot();
+      return workspace ? loadOrInferPipeline(workspace) : undefined;
+    }
+  }, (message) => activityOutput.appendLine(`[${new Date().toISOString()}] ${message}`)));
+  context.subscriptions.push(startClaudeCodeHookAdapter(activityStore, {
     workspaceProvider: getWorkspaceRoot,
     pipelineProvider: async () => {
       const workspace = getWorkspaceRoot();
@@ -191,7 +199,8 @@ async function checkSetupCommand(): Promise<void> {
       registered: Boolean(vscode.lm?.registerTool)
     },
     copilotDebugLogs: await getCopilotDebugLogStatus(),
-    codexRollouts: await getCodexRolloutStatus(workspace)
+    codexRollouts: await getCodexRolloutStatus(workspace),
+    claudeCodeHooks: await getClaudeCodeHookStatus()
   });
   const report = buildSetupValidationReport({
     vscodeVersion: vscode.version,
