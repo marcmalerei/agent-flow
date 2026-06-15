@@ -81,7 +81,7 @@ class CopilotDebugLogAdapter {
     this.timer = setTimeout(() => {
       this.timer = undefined;
       this.scanRoots().catch((error) => this.log?.(`Copilot debug log scan failed: ${(error as Error).message}`));
-    }, 500);
+    }, 150);
   }
 
   private async scanRoots(): Promise<void> {

@@ -30,7 +30,8 @@ export function TokenNode({ data }: { data: TokenNodeData }) {
 }
 
 function activityLabel(activity: NodeActivitySummary): string {
-  if (activity.toolName) return activity.toolName;
+  if (activity.phase === 'handoff') return 'handoff';
+  if (activity.toolName) return compactToolName(activity.toolName);
   if (activity.artifactPath) return activity.artifactPath.split('/').at(-1) ?? activity.phase;
   return activity.phase;
 }
@@ -39,8 +40,16 @@ function activityIcon(phase: string): string {
   if (phase === 'completed') return 'ok';
   if (phase === 'failed') return '!';
   if (phase === 'tool') return 'tool';
+  if (phase === 'file') return 'file';
   if (phase === 'artifact') return 'io';
+  if (phase === 'handoff') return 'handoff';
   return 'run';
+}
+
+function compactToolName(toolName: string): string {
+  const normalized = toolName.replace(/^tool[_/-]/, '').replace(/^copilot[_/-]/, '');
+  const parts = normalized.split('/');
+  return parts.at(-1)?.replace(/_/g, ' ') || normalized.replace(/_/g, ' ');
 }
 
 export function flowHandlePositions(layout: string): Pick<TokenNodeData, 'sourcePosition' | 'targetPosition'> {

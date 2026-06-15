@@ -51,7 +51,6 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
       source: edge.from,
       target: edge.to,
       label: deriveStoredEdgeLabel(edge.label, edge.artifact, edge.kind),
-      animated: edge.kind === 'artifact',
       style: edgeStyle(edge.kind),
       markerEnd: edgeMarker(edge.kind),
       data: { derivedFrom: 'pipeline.edges', kind: edge.kind, artifact: edge.artifact }
@@ -103,7 +102,6 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
           source: artifactNodeId,
           target: node.id,
           label: 'reads',
-          animated: true,
           style: artifactStyle,
           data: { derivedFrom: 'prompt.requiredArtifacts', kind: 'reference' }
         });
@@ -159,7 +157,6 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
         source: node.id,
         target: artifactNodeId,
         label: 'writes',
-        animated: true,
         style: artifactStyle,
         data: { derivedFrom: 'agent.outputs', kind: 'reference' }
       });
@@ -173,7 +170,6 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
         source: artifactNodeId,
         target: node.id,
         label: 'reads',
-        animated: true,
         style: artifactStyle,
         data: { derivedFrom: 'agent.inputs', kind: 'reference' }
       });
@@ -222,7 +218,6 @@ function addArtifactUsageEdges(
       source: writes ? nodeId : artifactNodeId,
       target: writes ? artifactNodeId : nodeId,
       label: artifactEdgeLabel(usage.action),
-      animated: true,
       style: artifactStyle,
       data: { derivedFrom, kind: 'reference', artifact: usage.path }
     });
@@ -245,7 +240,6 @@ function addRequiredArtifactEdges(
       source: artifactNodeId,
       target: nodeId,
       label: 'reads',
-      animated: true,
       style: artifactStyle,
       data: { derivedFrom, kind: 'reference', artifact }
     });
