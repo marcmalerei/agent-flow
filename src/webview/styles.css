@@ -257,6 +257,20 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .activity-source-status.disabled .codicon { color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)); }
 .activity-source-status.error .codicon { color: var(--vscode-errorForeground, #fca5a5); }
 .activity-source-status.watching .codicon { color: var(--vscode-charts-green); }
+.metrics-panel { display: grid; gap: 12px; max-width: 1120px; }
+.metrics-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+.metrics-card { min-height: 58px; padding: 8px 10px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
+.metrics-card span { display: block; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.metrics-card strong { display: block; margin-top: 4px; color: var(--vscode-foreground); font-size: 20px; line-height: 1.1; }
+.metrics-section { display: grid; gap: 8px; }
+.metrics-section h4 { margin: 0; color: var(--vscode-foreground); font-size: 12px; }
+.metrics-files { display: grid; gap: 6px; }
+.metrics-file-row { display: grid; gap: 5px; padding: 7px 9px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
+.metrics-file-main { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
+.metrics-file-main code { min-width: 0; overflow: hidden; color: var(--vscode-foreground); text-overflow: ellipsis; white-space: nowrap; }
+.metrics-file-main span, .metrics-file-row small { flex: 0 0 auto; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.metrics-bar { height: 4px; overflow: hidden; border-radius: 999px; background: var(--vscode-progressBar-background, var(--vscode-editor-background)); }
+.metrics-bar span { display: block; height: 100%; border-radius: inherit; background: var(--vscode-charts-blue, var(--vscode-focusBorder)); }
 .diagnostic-card { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: flex-start; padding: 7px 9px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
 .diagnostic-card > .codicon { margin-top: 1px; }
 .diagnostic-card.error > .codicon { color: var(--vscode-errorForeground, #fca5a5); }
