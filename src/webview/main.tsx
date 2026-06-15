@@ -15,6 +15,7 @@ import '@vscode/codicons/dist/codicon.css';
 import './styles.css';
 import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationFinding, RiskScore } from '../pipeline/types';
 import { AgentFlowActivityEvent } from '../activity/types';
+import { aggregateActivityMetrics } from '../activity/metrics';
 import type { ActivitySourceRuntimeState } from '../activity/sources';
 import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
@@ -49,7 +50,7 @@ interface State {
   debugOverlay?: boolean;
 }
 
-type BottomTab = 'activity' | 'validation' | 'files' | 'tools' | 'risk';
+type BottomTab = 'activity' | 'metrics' | 'validation' | 'files' | 'tools' | 'risk';
 
 declare global { interface Window { __AGENTFLOW_STATE__: State; __AGENTFLOW_APP_BOOTED__?: boolean; __AGENTFLOW_VSCODE_API__?: { postMessage(message: unknown): void }; acquireVsCodeApi?: () => { postMessage(message: unknown): void } } }
 
@@ -978,27 +979,57 @@ function EditorTool({ active, children, icon, title, onClick }: { active?: boole
 }
 
 function Bottom({ onSelectNode, state, activeTab, setActiveTab }: { onSelectNode: (nodeId: string) => void; state: State; activeTab: BottomTab; setActiveTab: (tab: BottomTab) => void }) {
-  const tabs: BottomTab[] = ['activity', 'validation', 'files', 'tools', 'risk'];
+  const metrics = aggregateActivityMetrics(state.pipeline, state.activityEvents ?? []);
+  const tabs: BottomTab[] = ['activity', 'metrics', 'validation', 'files', 'tools', 'risk'];
   const tabCounts: Record<BottomTab, number | undefined> = {
     activity: state.activityEvents?.length ?? 0,
+    metrics: metrics.summary.activeNodes,
     validation: state.findings.length,
     files: state.generatedFiles.length,
     tools: state.pipeline.nodes.filter((node) => (node.type === 'agent' || node.type === 'prompt') && (node.tools?.length ?? 0) > 0).length,
     risk: state.risk.score
   };
-  const title = ({ activity: 'Activity timeline', validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
+  const title = ({ activity: 'Activity timeline', metrics: 'Run metrics', validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
   return <div className="diagnostics">
     <nav>{tabs.map((tab) => <VSCodeButton key={tab} variant="ghost" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}><span>{tab}</span>{tabCounts[tab] !== undefined && <span className="diagnostic-tab-count">{tabCounts[tab]}</span>}</VSCodeButton>)}</nav>
-    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} sources={state.activitySources ?? []} onSelectNode={onSelectNode} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
+    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} sources={state.activitySources ?? []} onSelectNode={onSelectNode} />}{activeTab === 'metrics' && <MetricsDiagnostics metrics={metrics} onSelectNode={onSelectNode} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
   </div>;
 }
 
 function diagnosticSummary(state: State, tab: BottomTab): string {
   if (tab === 'activity') return state.activityEvents?.length ? `${state.activityEvents.length} live event${state.activityEvents.length === 1 ? '' : 's'}` : 'No activity reported yet';
+  if (tab === 'metrics') return state.activityEvents?.length ? 'Operational metrics from current activity events' : 'No run metrics yet';
   if (tab === 'validation') return state.findings.length ? `${state.findings.length} issue${state.findings.length === 1 ? '' : 's'} need attention` : 'No validation findings';
   if (tab === 'files') return `${state.generatedFiles.length} inferred output file${state.generatedFiles.length === 1 ? '' : 's'}`;
   if (tab === 'tools') return 'Configured tools by runnable node';
   return `${state.risk.score}/100`;
+}
+
+function MetricsDiagnostics({ metrics, onSelectNode }: { metrics: ReturnType<typeof aggregateActivityMetrics>; onSelectNode: (nodeId: string) => void }) {
+  if (!metrics.summary.sessions) return <EmptyDiagnostics icon="graph" title="No metrics yet" detail="Import or replay an activity log, run demo activity, or let an agent report activity to populate run metrics." />;
+  const cards = [
+    ['Sessions', metrics.summary.sessions],
+    ['Active nodes', metrics.summary.activeNodes],
+    ['Completed', metrics.summary.completed],
+    ['Failed', metrics.summary.failed],
+    ['Reads', metrics.summary.fileReads],
+    ['Writes', metrics.summary.fileWrites],
+    ['Artifacts', metrics.summary.artifactsTouched],
+    ['Tokens', metrics.summary.tokenEstimate]
+  ];
+  const maxFileEvents = Math.max(1, ...metrics.files.map((file) => file.events));
+  return <div className="metrics-panel">
+    <div className="metrics-cards">{cards.map(([label, value]) => <div className="metrics-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+    <section className="metrics-section"><h4>Node activity</h4><div className="diagnostic-list">{metrics.nodes.slice(0, 12).map((node) => <button key={node.nodeId} type="button" className={`diagnostic-card activity-card ${node.failedCount ? 'error' : 'neutral'}`} onClick={() => onSelectNode(node.nodeId)}>
+      <Codicon name={node.failedCount ? 'error' : 'pulse'} />
+      <div><div className="diagnostic-card-title"><span>{node.label}</span><code>{node.eventCount} events</code>{node.tokenEstimate > 0 && <code>{node.tokenEstimate} tok</code>}</div><p>{node.completedCount} completed · {node.failedCount} failed</p><small>{node.lastActivity ? new Date(node.lastActivity).toLocaleString() : 'No activity timestamp'}</small></div>
+    </button>)}</div></section>
+    <section className="metrics-section"><h4>Top files and artifacts</h4><div className="metrics-files">{metrics.files.slice(0, 12).map((file) => <div key={file.path} className="metrics-file-row">
+      <div className="metrics-file-main"><code>{file.path}</code><span>{file.reads} reads · {file.writes} writes · {file.events} events · {file.tokens} tok</span></div>
+      <div className="metrics-bar"><span style={{ width: `${Math.max(5, Math.round((file.events / maxFileEvents) * 100))}%` }} /></div>
+      <small>{file.nodeIds.join(', ') || 'No node mapped'}</small>
+    </div>)}</div></section>
+  </div>;
 }
 
 function ActivityDiagnostics({ events, onSelectNode, pipeline, sources }: { events: AgentFlowActivityEvent[]; onSelectNode: (nodeId: string) => void; pipeline: AgentPipeline; sources: ActivitySourceRuntimeState[] }) {
