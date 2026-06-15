@@ -75,6 +75,11 @@
           "default": "",
           "description": "Optional folder containing Copilot debug log JSON or JSONL files. Leave empty to auto-detect VS Code Copilot debug-log folders."
         },
+        "agentflow.activity.codexRollouts.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable import of local Codex rollout JSONL sessions from CODEX_HOME or ~/.codex into the Agent Flow activity timeline."
+        },
         "agentflow.activity.sources.filesystem": {
           "type": "boolean",
           "default": true,

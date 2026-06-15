@@ -11,6 +11,7 @@ import { getLatestPipelinePanelSnapshot, openPipelinePanel } from './webview/pan
 import { ActivityStore } from './activity/store';
 import { completeNodeActivity, reportActivity, selectActivityNode } from './activity/tools';
 import { startCopilotDebugLogAdapter } from './activity/copilotDebugLogAdapter';
+import { startCodexRolloutAdapter } from './activity/codexRolloutAdapter';
 import { activityInputForPipelineDocumentPath } from './activity/fileActivity';
 import { createSyntheticActivity } from './activity/synthetic';
 
@@ -19,6 +20,13 @@ const activityStore = new ActivityStore();
 export function activate(context: vscode.ExtensionContext): void {
   const activityOutput = vscode.window.createOutputChannel('Agent Flow Activity');
   context.subscriptions.push(activityOutput, startCopilotDebugLogAdapter(activityStore, (message) => activityOutput.appendLine(`[${new Date().toISOString()}] ${message}`)));
+  context.subscriptions.push(startCodexRolloutAdapter(activityStore, {
+    workspaceProvider: getWorkspaceRoot,
+    pipelineProvider: async () => {
+      const workspace = getWorkspaceRoot();
+      return workspace ? loadOrInferPipeline(workspace) : undefined;
+    }
+  }, (message) => activityOutput.appendLine(`[${new Date().toISOString()}] ${message}`)));
   context.subscriptions.push(registerPipelineDocumentActivity(activityStore));
   context.subscriptions.push(...registerActivityTools());
   context.subscriptions.push(

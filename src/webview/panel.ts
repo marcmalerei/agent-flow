@@ -13,6 +13,7 @@ import { FileWatchSuppression } from './fileWatchSuppression';
 import { loadInitialPipelineWhenStable, PipelineRefreshCoordinator, refreshPipelineAfterWorkspaceChange } from './pipelineRefresh';
 import { ActivityStore } from '../activity/store';
 import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
+import { getCodexRolloutStatus } from '../activity/codexRolloutAdapter';
 import { activityInputsForChangedFiles } from '../activity/fileActivity';
 import { buildActivitySourceStatuses } from '../activity/sources';
 import { resolveActivityEventsForPipeline } from './activity';
@@ -384,7 +385,8 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
       enabled: activitySourceEnabled('agentFlowTools'),
       registered: Boolean(vscode.lm?.registerTool)
     },
-    copilotDebugLogs: await getCopilotDebugLogStatus()
+    copilotDebugLogs: await getCopilotDebugLogStatus(),
+    codexRollouts: await getCodexRolloutStatus(workspace)
   });
   const activityEvents = resolveActivityEventsForPipeline(displayPipeline, activityStore.getEvents());
   return {
