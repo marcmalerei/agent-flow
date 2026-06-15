@@ -45,6 +45,9 @@ describe('webview assets', () => {
     expect(webviewSource).toContain("command: 'webviewReady'");
     expect(webviewSource).toContain('DebugOverlay');
     expect(webviewSource).toContain('reactFlowTransform');
+    expect(webviewSource).toContain('applyMeasuredViewportFallback');
+    expect(webviewSource).toContain('preferredVisibleNodeCount');
+    expect(webviewSource).toContain('minZoom={0.08}');
     expect(webviewSource).toContain('visibleFlowNodeCount');
     expect(webviewSource).toContain('flowMountRevision');
     expect(webviewSource).toContain('flowRenderKey');

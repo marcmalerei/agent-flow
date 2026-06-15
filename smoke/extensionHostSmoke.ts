@@ -52,6 +52,7 @@ export async function run(): Promise<void> {
   assert.equal(stableDefaultSnapshot.webviewRenderedNodeCount, stableDefaultSnapshot.nodeCount, 'Agent Flow webview should still render every parsed default pipeline node after settling.');
   assert.ok((stableDefaultSnapshot.webviewCanvasHeight ?? 0) >= 320, `Agent Flow webview canvas should not collapse after the default pipeline settles. Snapshot: ${JSON.stringify(stableDefaultSnapshot)}`);
   assert.ok((stableDefaultSnapshot.webviewVisibleNodeCount ?? 0) >= minimumUsefulVisibleNodeCount(stableDefaultSnapshot.nodeCount), 'Agent Flow webview should fit more than a tiny node cluster after the default pipeline settles.');
+  assertFittedOverview(stableDefaultSnapshot, 'default pipeline');
   assert.ok(defaultNodeIds.every((nodeId) => stableDefaultSnapshot.nodeIds.includes(nodeId)), 'Agent Flow webview should not lose default pipeline nodes after settling.');
   assert.ok(defaultNodeIds.every((nodeId) => stableDefaultSnapshot.webviewNodeIds?.includes(nodeId)), 'Agent Flow webview state should still include every default pipeline node after settling.');
   assert.ok(defaultNodeIds.every((nodeId) => stableDefaultSnapshot.webviewRenderedNodeIds?.includes(nodeId)), 'Agent Flow webview DOM should still include every default pipeline node after settling.');
@@ -131,6 +132,7 @@ tools:
   assert.equal(stableRefreshSnapshot.webviewRenderedNodeCount, stableRefreshSnapshot.nodeCount, 'Agent Flow webview should still render every parsed node after filesystem refresh settles.');
   assert.ok((stableRefreshSnapshot.webviewCanvasHeight ?? 0) >= 320, `Agent Flow webview canvas should not collapse after filesystem refresh settles. Snapshot: ${JSON.stringify(stableRefreshSnapshot)}`);
   assert.ok((stableRefreshSnapshot.webviewVisibleNodeCount ?? 0) >= minimumUsefulVisibleNodeCount(stableRefreshSnapshot.nodeCount), 'Agent Flow webview should fit more than a tiny node cluster after filesystem refresh settles.');
+  assertFittedOverview(stableRefreshSnapshot, 'filesystem refresh');
 
   const documentRefreshSnapshot = await exerciseDocumentSaveRefresh(workspace, stableRefreshSnapshot.nodeCount);
   assert.equal(documentRefreshSnapshot.webviewRuntimeError, undefined, 'Agent Flow webview should not report a runtime error after VS Code document save refresh settles.');
@@ -138,6 +140,7 @@ tools:
   assert.equal(documentRefreshSnapshot.webviewRenderedNodeCount, documentRefreshSnapshot.nodeCount, 'Agent Flow webview should still render every parsed node after VS Code document save refresh settles.');
   assert.ok((documentRefreshSnapshot.webviewCanvasHeight ?? 0) >= 320, `Agent Flow webview canvas should not collapse after VS Code document save refresh settles. Snapshot: ${JSON.stringify(documentRefreshSnapshot)}`);
   assert.ok((documentRefreshSnapshot.webviewVisibleNodeCount ?? 0) >= minimumUsefulVisibleNodeCount(documentRefreshSnapshot.nodeCount), 'Agent Flow webview should fit more than a tiny node cluster after VS Code document save refresh settles.');
+  assertFittedOverview(documentRefreshSnapshot, 'VS Code document save refresh');
 
   const originalShowWarningMessage = vscode.window.showWarningMessage;
   (vscode.window as unknown as { showWarningMessage: typeof vscode.window.showWarningMessage }).showWarningMessage = async (_message: string, ...items: unknown[]) => {
@@ -200,6 +203,7 @@ interface DebugSnapshot {
   webviewRenderedNodeCount?: number;
   webviewVisibleNodeCount?: number;
   webviewCanvasHeight?: number;
+  webviewReactFlowTransform?: string;
   webviewRuntimeError?: string;
 }
 
@@ -231,4 +235,25 @@ function delay(ms: number): Promise<void> {
 function minimumUsefulVisibleNodeCount(nodeCount: number): number {
   if (nodeCount <= 1) return nodeCount;
   return Math.min(nodeCount, Math.max(4, Math.ceil(nodeCount * 0.15)));
+}
+
+function preferredVisibleNodeCount(nodeCount: number): number {
+  if (nodeCount <= 1) return nodeCount;
+  return Math.min(nodeCount, Math.max(8, Math.ceil(nodeCount * 0.85)));
+}
+
+function assertFittedOverview(snapshot: DebugSnapshot, label: string): void {
+  if (snapshot.nodeCount < 12) return;
+  const visible = snapshot.webviewVisibleNodeCount ?? 0;
+  const transform = snapshot.webviewReactFlowTransform ?? '';
+  const scale = reactFlowScale(transform);
+  assert.ok(
+    visible >= preferredVisibleNodeCount(snapshot.nodeCount) || (typeof scale === 'number' && scale < 0.5),
+    `Agent Flow should fit most of the ${label} graph into view instead of staying at the default React Flow min zoom. Snapshot: ${JSON.stringify(snapshot)}`
+  );
+}
+
+function reactFlowScale(transform: string): number | undefined {
+  const match = transform.match(/scale\((\d+(?:\.\d+)?)\)/);
+  return match ? Number(match[1]) : undefined;
 }
