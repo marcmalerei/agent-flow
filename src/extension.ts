@@ -10,6 +10,7 @@ import { AgentPipeline, GeneratedFile } from './pipeline/types';
 import { getLatestPipelinePanelSnapshot, openPipelinePanel } from './webview/panel';
 import { ActivityStore } from './activity/store';
 import { aggregateFileAttention, fileAttentionDecoration, FileAttentionEntry } from './activity/fileAttention';
+import { startLocalApiAdapter } from './activity/localApiAdapter';
 import { completeNodeActivity, reportActivity, selectActivityNode } from './activity/tools';
 import { getCopilotDebugLogStatus, startCopilotDebugLogAdapter } from './activity/copilotDebugLogAdapter';
 import { getCodexRolloutStatus, startCodexRolloutAdapter } from './activity/codexRolloutAdapter';
@@ -36,6 +37,13 @@ export function activate(context: vscode.ExtensionContext): void {
       return workspace ? loadOrInferPipeline(workspace) : undefined;
     }
   }, (message) => activityOutput.appendLine(`[${new Date().toISOString()}] ${message}`)));
+  context.subscriptions.push(startLocalApiAdapter(activityStore, {
+    pipelineProvider: async () => {
+      const workspace = getWorkspaceRoot();
+      return workspace ? loadOrInferPipeline(workspace) : undefined;
+    },
+    log: (message) => activityOutput.appendLine(`[${new Date().toISOString()}] ${message}`)
+  }));
   context.subscriptions.push(registerPipelineDocumentActivity(activityStore));
   context.subscriptions.push(registerFileAttentionDecorations(activityStore));
   context.subscriptions.push(...registerActivityTools());
