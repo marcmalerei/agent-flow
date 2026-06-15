@@ -20,8 +20,19 @@ describe('webview assets', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 
     expect(webviewSource).toContain('add-node-menu');
+    expect(webviewSource).toContain('nodePaletteGroups');
     expect(webviewSource).toContain('Add Node');
     expect(webviewSource).not.toContain('className="node-buttons"');
+  });
+
+  test('exposes builder clipboard and complete undo redo controls', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+
+    expect(webviewSource).toContain('duplicatePipelineSelection');
+    expect(webviewSource).toContain('copySelection');
+    expect(webviewSource).toContain('pasteSelection');
+    expect(webviewSource).toContain('redoLast');
+    expect(webviewSource).toContain('canRedo');
   });
 
   test('uses compact TipTap editors for reference instructions', () => {
@@ -74,6 +85,8 @@ describe('webview assets', () => {
     expect(css).toContain('.native-graph');
     expect(css).toContain('.graph-edge-path');
     expect(css).toContain('.graph-edge.activity-edge');
+    expect(css).toContain('.graph-edge.loop-edge');
+    expect(css).toContain('.graph-edge.error-edge');
     expect(css).toContain('.graph-edge-tracer');
     expect(css).toContain('.agentflow-node');
     expect(css).toContain('.agentflow-node.active');

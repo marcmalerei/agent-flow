@@ -880,6 +880,25 @@ describe('webview graph projection', () => {
     ]);
   });
 
+  it('renders gate branch metadata as visible true, false, and error edges', () => {
+    const pipeline: AgentPipeline = {
+      name: 'gates',
+      nodes: [
+        { id: 'gate', type: 'gate', label: 'quality gate', condition: 'tests passed', trueBranch: 'ship', falseBranch: 'fix', errorBranch: 'fallback' },
+        { id: 'ship', type: 'agent', label: 'ship' },
+        { id: 'fix', type: 'agent', label: 'fix' },
+        { id: 'fallback', type: 'agent', label: 'fallback' }
+      ],
+      edges: []
+    };
+
+    expect(deriveVisibleFlowEdges(pipeline).map((edge) => [edge.source, edge.target, edge.label, edge.data.derivedFrom, edge.data.kind])).toEqual([
+      ['gate', 'ship', 'true', 'gate.trueBranch', 'gate'],
+      ['gate', 'fix', 'false', 'gate.falseBranch', 'gate'],
+      ['gate', 'fallback', 'error', 'gate.errorBranch', 'error']
+    ]);
+  });
+
   it('hides stored handoff edges when the handoff reference is removed', () => {
     const pipeline: AgentPipeline = {
       version: 1,

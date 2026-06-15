@@ -22,7 +22,7 @@ function assertOptionalString(value: unknown, field: string): string | undefined
 }
 
 const nodeTypes = new Set(['agent', 'prompt', 'instruction', 'skill', 'role', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server']);
-const edgeKinds = new Set(['flow', 'artifact', 'prompt', 'skill', 'role', 'gate', 'handoff', 'hook', 'mcp-server', 'instruction']);
+const edgeKinds = new Set(['flow', 'artifact', 'prompt', 'skill', 'role', 'gate', 'error', 'handoff', 'hook', 'mcp-server', 'instruction']);
 
 export function parsePipelineJson(source: string): AgentPipeline {
   let parsed: unknown;
@@ -65,7 +65,15 @@ function parseNode(value: unknown, field: string, seen: Set<string>): PipelineNo
     case 'artifact':
       return { ...base, type, path: assertString(value.path, `${field}.path`) } as PipelineNode;
     case 'gate':
-      return { ...base, type, condition: assertString(value.condition, `${field}.condition`) } as PipelineNode;
+      return {
+        ...base,
+        type,
+        condition: assertString(value.condition, `${field}.condition`),
+        trueBranch: assertOptionalString(value.trueBranch, `${field}.trueBranch`),
+        falseBranch: assertOptionalString(value.falseBranch, `${field}.falseBranch`),
+        errorBranch: assertOptionalString(value.errorBranch, `${field}.errorBranch`),
+        maxIterations: typeof value.maxIterations === 'number' ? value.maxIterations : undefined
+      } as PipelineNode;
     default:
       return { ...base, type } as PipelineNode;
   }
