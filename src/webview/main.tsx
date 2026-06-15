@@ -11,8 +11,6 @@ import ListItem from '@tiptap/extension-list-item';
 import CodeBlock from '@tiptap/extension-code-block';
 import Code from '@tiptap/extension-code';
 import Link from '@tiptap/extension-link';
-import { Background, Controls, ReactFlow, ReactFlowProvider, useNodesInitialized, useReactFlow, type Connection, type Edge, type Node } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
 import '@vscode/codicons/dist/codicon.css';
 import './styles.css';
 import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationFinding, RiskScore } from '../pipeline/types';
@@ -21,7 +19,7 @@ import type { ActivitySourceRuntimeState } from '../activity/sources';
 import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
-import { deriveVisibleFlowEdges } from './graph';
+import { deriveVisibleFlowEdges, type VisibleFlowEdge } from './graph';
 import { activeEdgeIds, recentActivityEvents, resolveActivityEventsForPipeline } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
@@ -59,9 +57,32 @@ const webviewBootId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-testing-iconPassed, #2ea043)', role: 'var(--vscode-charts-cyan, #00b7c3)', artifact: 'var(--vscode-charts-green)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)', handoff: 'var(--vscode-editorWarning-foreground, #cca700)', 'mcp-server': 'var(--vscode-charts-cyan, #00b7c3)' };
 const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'role', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server'];
 const nodeTypeIcons: Record<PipelineNodeType, string> = { agent: 'hubot', prompt: 'comment-discussion', instruction: 'list-tree', skill: 'tools', role: 'person', artifact: 'file', gate: 'pass', hook: 'debug-disconnect', handoff: 'arrow-swap', 'mcp-server': 'server-process' };
-const nodeTypesConfig = {
-  tokenNode: TokenNode
-};
+const graphNodeWidth = 190;
+const graphNodeHeight = 96;
+const nativeGraphMinZoom = 0.08;
+const nativeGraphMaxZoom = 1.4;
+
+interface RenderedNode {
+  id: string;
+  position: { x: number; y: number };
+  data: React.ComponentProps<typeof TokenNode>['data'];
+  style: React.CSSProperties;
+}
+
+type RenderedEdge = VisibleFlowEdge & { className?: string };
+
+interface GraphViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+interface GraphBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 function deriveState(pipeline: AgentPipeline, previous: State): State {
   const activityEvents = resolveActivityEventsForPipeline(pipeline, previous.activityEvents ?? []);
@@ -189,15 +210,13 @@ function App() {
     return summary ? [[node.id, summary] as const] : [];
   })), [activityClock, draft.nodes, state.nodeRuntime]);
   const activeEdges = useMemo(() => new Set(activeEdgeIds(draft, visualActivity)), [draft, visualActivity]);
-  const nodes: Node[] = useMemo(() => draft.nodes.map((node) => ({
+  const nodes: RenderedNode[] = useMemo(() => draft.nodes.map((node) => ({
     id: node.id,
     position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
-    draggable: false,
-    type: 'tokenNode',
     data: { label: `${risky.has(node.id) ? '! ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: typeColors[node.type] ?? 'var(--vscode-focusBorder)', activity: activityByNode.get(node.id), runtimeStatus: state.nodeRuntime?.[node.id]?.status, dirty: state.nodeRuntime?.[node.id]?.dirty, ...handlePositions },
     style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
   })), [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
-  const edges: Edge[] = useMemo(() => deriveVisibleFlowEdges(draft).map((edge) => activeEdges.has(edge.id) ? { ...edge, animated: true, className: 'activity-edge', style: { ...(edge.style ?? {}), strokeWidth: 3, opacity: 1 } } : edge), [activeEdges, draft]);
+  const edges: RenderedEdge[] = useMemo(() => deriveVisibleFlowEdges(draft).map((edge) => activeEdges.has(edge.id) ? { ...edge, animated: true, className: 'activity-edge', style: { ...(edge.style ?? {}), strokeWidth: 3, opacity: 1 } } : edge), [activeEdges, draft]);
 
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
     commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? applyNodePatch(node, patch) : node) }), undefined, [nodeId]);
@@ -215,22 +234,21 @@ function App() {
     }, node.id, [node.id]);
     setInspectorOpen(true);
   };
-  return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} canUndo={undoStack.current.length > 0} undoLast={undoLast} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} /></ReactFlowProvider>;
+  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} canUndo={undoStack.current.length > 0} undoLast={undoLast} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} />;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, viewportSignal, canUndo, undoLast, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, connectNodes, deleteNodes, deleteEdges, addNode }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: Node[]; edges: Edge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; viewportSignal: number; canUndo: boolean; undoLast: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void }) {
-  const { fitView, screenToFlowPosition, setViewport } = useReactFlow();
-  const nodesInitialized = useNodesInitialized();
-  const connectingNodeId = useRef<string | null>(null);
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, viewportSignal, canUndo, undoLast, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, deleteNodes, addNode }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; viewportSignal: number; canUndo: boolean; undoLast: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void }) {
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
-  const emptyRenderMisses = useRef(0);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
-  const [viewportRevision, setViewportRevision] = useState(0);
+  const [viewport, setViewport] = useState<GraphViewport>({ x: 0, y: 0, zoom: 1 });
+  const viewportRef = useRef(viewport);
   const [renderStatus, setRenderStatus] = useState<FlowRenderStatus | undefined>(undefined);
   const flowNodeSignature = useMemo(() => nodes.map((node) => node.id).join('|'), [nodes]);
-  const flowMountRevision = 0;
-  const flowRenderKey = 'flow';
+  const graphBounds = useMemo(() => measuredGraphBounds(nodes), [nodes]);
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -258,168 +276,195 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
     window.addEventListener('pointerdown', onPointerDown);
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [addNodeMenuOpen]);
-  const onConnect = useCallback((params: Connection) => {
-    if (params.source && params.target) connectNodes(params.source, params.target);
-  }, [connectNodes]);
-  const onNodesDelete = useCallback((deletedNodes: Node[]) => deleteNodes(deletedNodes.map((node) => node.id)), [deleteNodes]);
-  const onEdgesDelete = useCallback((deletedEdges: Edge[]) => deleteEdges(deletedEdges.map((edge) => edge.id)), [deleteEdges]);
-  const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
-    if (!connectingNodeId.current) return;
-    const target = event.target as Element | null;
-    if (target?.closest('.react-flow__pane')) {
-      const point = 'changedTouches' in event ? event.changedTouches[0] : event;
-      addNode('agent', screenToFlowPosition({ x: point.clientX, y: point.clientY }), connectingNodeId.current);
-    }
-    connectingNodeId.current = null;
-  }, [addNode, screenToFlowPosition]);
+
+  const fitViewport = useCallback(() => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect || rect.width < 20 || rect.height < 20 || !nodes.length) return;
+    setViewport(fitNativeGraphViewport(graphBounds, rect));
+  }, [graphBounds, nodes.length]);
+
   useEffect(() => {
     const report = (reason: string) => {
-      const status = postFlowRenderStatus(canvasRef.current, state.stateVersion, nodes.map((node) => node.id), edges.length, reason);
+      const status = postFlowRenderStatus(canvasRef.current, state.stateVersion, nodes.map((node) => node.id), edges.length, reason, viewportRef.current, graphBounds);
       setRenderStatus(status);
-      return status;
-    };
-    const recoverIfBlank = (reason: string) => {
-      const status = report(reason);
-      if (!shouldRecoverFlowRender(status)) {
-        emptyRenderMisses.current = 0;
-        return status;
-      }
-
-      emptyRenderMisses.current += 1;
-      refit();
-      if (emptyRenderMisses.current >= 3) {
-        emptyRenderMisses.current = 0;
-        applyMeasuredViewportFallback(setViewport, canvasRef.current, nodes);
-      }
       return status;
     };
     if (!nodes.length) {
       report('empty-pipeline');
       return;
     }
-    const refit = () => scheduleFlowFit(fitView, setViewport, canvasRef.current, nodes);
-    refit();
-    const startedAt = Date.now();
+    fitViewport();
     const renderStatusTimers = [0, 120, 500, 1200, 2400].map((delay) => window.setTimeout(() => report(`render-check-${delay}`), delay));
-    const visibilityWatchdog = window.setInterval(() => {
-      if (Date.now() - startedAt > 15_000) {
-        window.clearInterval(visibilityWatchdog);
-        return;
-      }
-      recoverIfBlank('visibility-watchdog');
-    }, 500);
-    const observer = typeof ResizeObserver !== 'undefined' && canvasRef.current ? new ResizeObserver(refit) : undefined;
+    const observer = typeof ResizeObserver !== 'undefined' && canvasRef.current ? new ResizeObserver(fitViewport) : undefined;
     if (observer && canvasRef.current) observer.observe(canvasRef.current);
-    const onMessage = (event: MessageEvent) => {
-      if (event.data?.command === 'refitFlow') {
-        refit();
-        window.setTimeout(() => recoverIfBlank('refit-flow-message'), 120);
-      }
-    };
     const onVisibility = () => {
       if (!document.hidden) {
-        refit();
-        window.setTimeout(() => recoverIfBlank('visibilitychange'), 120);
+        fitViewport();
+        window.setTimeout(() => report('visibilitychange'), 120);
       }
     };
-    window.addEventListener('resize', refit);
-    window.addEventListener('focus', refit);
-    window.addEventListener('pageshow', refit);
-    window.addEventListener('message', onMessage);
+    window.addEventListener('resize', fitViewport);
+    window.addEventListener('focus', fitViewport);
+    window.addEventListener('pageshow', fitViewport);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       renderStatusTimers.forEach((timer) => window.clearTimeout(timer));
-      window.clearInterval(visibilityWatchdog);
       observer?.disconnect();
-      window.removeEventListener('resize', refit);
-      window.removeEventListener('focus', refit);
-      window.removeEventListener('pageshow', refit);
-      window.removeEventListener('message', onMessage);
+      window.removeEventListener('resize', fitViewport);
+      window.removeEventListener('focus', fitViewport);
+      window.removeEventListener('pageshow', fitViewport);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [bottomOpen, edges.length, fitView, flowMountRevision, flowNodeSignature, inspectorOpen, nodes, nodesInitialized, setViewport, state.flowLayout, state.stateVersion, viewportRevision, viewportSignal]);
+  }, [bottomOpen, edges.length, fitViewport, flowNodeSignature, graphBounds, inspectorOpen, nodes, state.flowLayout, state.stateVersion, viewportSignal]);
+
+  const addNodeAtCenter = (type: PipelineNodeType) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const position = rect
+      ? screenToGraphPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }, rect, viewport)
+      : { x: 120, y: 120 };
+    addNode(type, position);
+  };
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
-    <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeTypes.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNode(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</div>}</div></header>
-    <main className="canvas" ref={canvasRef}><ReactFlow key={flowRenderKey} nodes={nodes} edges={edges} nodeTypes={nodeTypesConfig} onNodeClick={(_: unknown, node: Node) => { setSelectedId(node.id); setInspectorOpen(true); }} onPaneClick={() => setInspectorOpen(false)} onConnect={onConnect} onNodesDelete={onNodesDelete} onEdgesDelete={onEdgesDelete} deleteKeyCode={['Backspace', 'Delete']} onConnectStart={(_: unknown, params: { nodeId?: string | null }) => { connectingNodeId.current = params.nodeId ?? null; }} onConnectEnd={onConnectEnd} onInit={() => setViewportRevision((revision) => revision + 1)} minZoom={0.08} maxZoom={1.4} fitView fitViewOptions={{ padding: 0.18, minZoom: 0.08, maxZoom: 1 }}><Controls /><Background /></ReactFlow></main>
-    {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} flowMountRevision={flowMountRevision} />}
+    <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeTypes.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</div>}</div></header>
+    <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} viewport={viewport} graphBounds={graphBounds} onViewportChange={setViewport} onFit={fitViewport} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
+    {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
 }
 
-function scheduleFlowFit(fitView: (options?: { padding?: number; duration?: number; minZoom?: number; maxZoom?: number }) => unknown, setViewport: (viewport: { x: number; y: number; zoom: number }, options?: { duration?: number }) => unknown, container: HTMLElement | null, nodes: readonly Node[]): void {
-  const run = () => {
-    const rect = container?.getBoundingClientRect();
-    if (!rect || rect.width < 20 || rect.height < 20) return;
-    void Promise.resolve(fitView({ padding: 0.18, duration: 0, minZoom: 0.08, maxZoom: 1 })).finally(() => {
-      window.requestAnimationFrame(() => {
-        const status = collectFlowRenderStatus(container, 0, nodes.map((node) => node.id), 0, 'fit-check');
-        if (shouldApplyMeasuredViewportFallback(status)) applyMeasuredViewportFallback(setViewport, container, nodes);
-      });
+function NativeGraph({ canvasRef, nodes, edges, selectedId, viewport, graphBounds, onViewportChange, onFit, onNodeClick, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; viewport: GraphViewport; graphBounds: GraphBounds; onViewportChange: (viewport: GraphViewport) => void; onFit: () => void; onNodeClick: (nodeId: string) => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
+  const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
+  const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+
+  const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('.agentflow-node, .native-controls')) return;
+    onCanvasClick();
+    panStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, viewport };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const onPointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    const start = panStart.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    onViewportChange({ ...start.viewport, x: start.viewport.x + event.clientX - start.x, y: start.viewport.y + event.clientY - start.y });
+  };
+  const endPan = (event: React.PointerEvent<HTMLElement>) => {
+    if (panStart.current?.pointerId === event.pointerId) panStart.current = undefined;
+  };
+  const onWheel = (event: React.WheelEvent<HTMLElement>) => {
+    event.preventDefault();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const nextZoom = clamp(viewport.zoom * Math.exp(-event.deltaY * 0.0012), nativeGraphMinZoom, nativeGraphMaxZoom);
+    const graphPoint = screenToGraphPosition({ x: event.clientX, y: event.clientY }, rect, viewport);
+    onViewportChange({
+      x: event.clientX - rect.left - graphPoint.x * nextZoom,
+      y: event.clientY - rect.top - graphPoint.y * nextZoom,
+      zoom: nextZoom
     });
   };
-  for (const delay of [0, 80, 240, 600, 1200, 2200]) {
-    window.setTimeout(() => window.requestAnimationFrame(run), delay);
-  }
+  const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+    if (event.key === 'Backspace' || event.key === 'Delete') {
+      event.preventDefault();
+      onDeleteSelected();
+    }
+  };
+
+  return <main className="canvas native-graph" ref={canvasRef} tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endPan} onPointerCancel={endPan} onWheel={onWheel} onKeyDown={onKeyDown}>
+    <div className="graph-viewport" style={{ transform: graphTransform(viewport), width: graphBounds.width, height: graphBounds.height }}>
+      <svg className="graph-edge-layer" width={graphBounds.width} height={graphBounds.height} viewBox={`${graphBounds.x} ${graphBounds.y} ${graphBounds.width} ${graphBounds.height}`} aria-hidden="true">
+        <defs>{edges.map((edge) => {
+          const color = edgeStroke(edge);
+          return <marker id={edgeMarkerId(edge.id)} key={edge.id} markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 9 4.5 L 0 9 z" fill={color} /></marker>;
+        })}</defs>
+        {edges.map((edge) => <GraphEdge key={edge.id} edge={edge} nodesById={nodesById} />)}
+      </svg>
+      <div className="graph-node-layer">
+        {nodes.map((node) => <button type="button" key={node.id} className={`agentflow-node${node.id === selectedId ? ' selected' : ''}`} data-node-id={node.id} style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: graphNodeHeight }} onClick={(event) => { event.stopPropagation(); onNodeClick(node.id); }}>
+          <TokenNode data={node.data} />
+        </button>)}
+      </div>
+    </div>
+    <div className="native-controls" aria-label="Graph controls">
+      <button type="button" title="Zoom in" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom * 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) })}><Codicon name="add" /></button>
+      <button type="button" title="Zoom out" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom / 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) })}><Codicon name="dash" /></button>
+      <button type="button" title="Fit graph" onClick={onFit}><Codicon name="screen-full" /></button>
+    </div>
+  </main>;
 }
 
-function shouldApplyMeasuredViewportFallback(status: FlowRenderStatus): boolean {
-  if (status.nodeCount < 2) return false;
-  if (status.canvasWidth < 20 || status.canvasHeight < 20) return false;
-  if (status.renderedNodeCount < status.nodeCount) return false;
-  return status.visibleNodeCount < preferredVisibleNodeCount(status.nodeCount)
-    || /^translate\(0(?:px)?, 0(?:px)?\) scale\(1\)$/.test(status.reactFlowTransform);
+function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<string, RenderedNode> }) {
+  const source = nodesById.get(edge.source);
+  const target = nodesById.get(edge.target);
+  if (!source || !target) return null;
+  const points = edgePoints(source, target);
+  const color = edgeStroke(edge);
+  const opacity = typeof edge.style?.opacity === 'number' ? edge.style.opacity : 0.82;
+  const strokeWidth = typeof edge.style?.strokeWidth === 'number' ? edge.style.strokeWidth : 1.8;
+  return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}`} data-edge-id={edge.id}>
+    <path className="graph-edge-path" d={points.path} stroke={color} strokeWidth={strokeWidth} strokeDasharray={typeof edge.style?.strokeDasharray === 'string' ? edge.style.strokeDasharray : undefined} opacity={opacity} markerEnd={`url(#${edgeMarkerId(edge.id)})`} />
+    {edge.label && <g className="graph-edge-label" transform={`translate(${points.labelX} ${points.labelY})`}>
+      <rect x="-28" y="-10" width="56" height="20" rx="2" />
+      <text textAnchor="middle" dominantBaseline="central">{edge.label}</text>
+    </g>}
+  </g>;
 }
 
-function applyMeasuredViewportFallback(setViewport: (viewport: { x: number; y: number; zoom: number }, options?: { duration?: number }) => unknown, container: HTMLElement | null, nodes: readonly Node[]): void {
-  const rect = container?.getBoundingClientRect();
-  const bounds = measuredFlowBounds(container, nodes);
-  if (!rect || !bounds || rect.width < 20 || rect.height < 20 || bounds.width <= 0 || bounds.height <= 0) return;
+function edgePoints(source: RenderedNode, target: RenderedNode): { path: string; labelX: number; labelY: number } {
+  const sx = source.position.x + graphNodeWidth;
+  const sy = source.position.y + graphNodeHeight / 2;
+  const tx = target.position.x;
+  const ty = target.position.y + graphNodeHeight / 2;
+  const dx = Math.max(72, Math.abs(tx - sx) * 0.45);
+  const path = `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`;
+  return { path, labelX: (sx + tx) / 2, labelY: (sy + ty) / 2 };
+}
+
+function edgeStroke(edge: RenderedEdge): string {
+  return typeof edge.style?.stroke === 'string' ? edge.style.stroke : 'var(--vscode-editor-foreground)';
+}
+
+function edgeMarkerId(edgeId: string): string {
+  return `agentflow-arrow-${edgeId.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+}
+
+function measuredGraphBounds(nodes: readonly RenderedNode[]): GraphBounds {
+  if (!nodes.length) return { x: -100, y: -100, width: 200, height: 200 };
+  const padding = 120;
+  const minX = Math.min(...nodes.map((node) => node.position.x)) - padding;
+  const minY = Math.min(...nodes.map((node) => node.position.y)) - padding;
+  const maxX = Math.max(...nodes.map((node) => node.position.x + graphNodeWidth)) + padding;
+  const maxY = Math.max(...nodes.map((node) => node.position.y + graphNodeHeight)) + padding;
+  return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
+}
+
+function fitNativeGraphViewport(bounds: GraphBounds, rect: DOMRect): GraphViewport {
   const padding = 56;
   const availableWidth = Math.max(40, rect.width - padding * 2);
   const availableHeight = Math.max(40, rect.height - padding * 2);
-  const zoom = Math.max(0.08, Math.min(1, availableWidth / bounds.width, availableHeight / bounds.height));
-  const x = (rect.width - bounds.width * zoom) / 2 - bounds.x * zoom;
-  const y = (rect.height - bounds.height * zoom) / 2 - bounds.y * zoom;
-  setViewport({ x, y, zoom }, { duration: 0 });
+  const zoom = clamp(Math.min(1, availableWidth / bounds.width, availableHeight / bounds.height), nativeGraphMinZoom, 1);
+  return {
+    x: (rect.width - bounds.width * zoom) / 2 - bounds.x * zoom,
+    y: (rect.height - bounds.height * zoom) / 2 - bounds.y * zoom,
+    zoom
+  };
 }
 
-function measuredFlowBounds(container: HTMLElement | null, nodes: readonly Node[]): { x: number; y: number; width: number; height: number } | undefined {
-  if (!nodes.length) return undefined;
-  const renderedBounds = renderedFlowBounds(container);
-  if (renderedBounds) return renderedBounds;
-  const nodeWidth = 190;
-  const nodeHeight = 96;
-  const minX = Math.min(...nodes.map((node) => node.position.x));
-  const minY = Math.min(...nodes.map((node) => node.position.y));
-  const maxX = Math.max(...nodes.map((node) => node.position.x + nodeWidth));
-  const maxY = Math.max(...nodes.map((node) => node.position.y + nodeHeight));
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+function screenToGraphPosition(point: { x: number; y: number }, rect: DOMRect, viewport: GraphViewport): { x: number; y: number } {
+  return { x: (point.x - rect.left - viewport.x) / viewport.zoom, y: (point.y - rect.top - viewport.y) / viewport.zoom };
 }
 
-function renderedFlowBounds(container: HTMLElement | null): { x: number; y: number; width: number; height: number } | undefined {
-  if (!container) return undefined;
-  const viewport = container.querySelector<HTMLElement>('.react-flow__viewport');
-  const transform = viewport?.style.transform ?? '';
-  const parsed = parseReactFlowTransform(transform);
-  if (!parsed) return undefined;
-  const nodeRects = Array.from(container.querySelectorAll<HTMLElement>('.react-flow__node'))
-    .map((node) => node.getBoundingClientRect())
-    .filter((rect) => rect.width > 0 && rect.height > 0);
-  if (!nodeRects.length) return undefined;
-  const containerRect = container.getBoundingClientRect();
-  const minX = Math.min(...nodeRects.map((rect) => (rect.left - containerRect.left - parsed.x) / parsed.zoom));
-  const minY = Math.min(...nodeRects.map((rect) => (rect.top - containerRect.top - parsed.y) / parsed.zoom));
-  const maxX = Math.max(...nodeRects.map((rect) => (rect.right - containerRect.left - parsed.x) / parsed.zoom));
-  const maxY = Math.max(...nodeRects.map((rect) => (rect.bottom - containerRect.top - parsed.y) / parsed.zoom));
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+function graphTransform(viewport: GraphViewport): string {
+  return `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
 }
 
-function parseReactFlowTransform(transform: string): { x: number; y: number; zoom: number } | undefined {
-  const match = transform.match(/translate\((-?\d+(?:\.\d+)?)px,\s*(-?\d+(?:\.\d+)?)px\)\s+scale\((\d+(?:\.\d+)?)\)/);
-  if (!match) return undefined;
-  return { x: Number(match[1]), y: Number(match[2]), zoom: Number(match[3]) };
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
 interface FlowRenderStatus {
@@ -436,24 +481,22 @@ interface FlowRenderStatus {
   visualViewportHeight: number;
   rootHeight: number;
   appHeight: number;
-  reactFlowTransform: string;
-  reactFlowViewportRect: string;
+  graphTransform: string;
+  graphBounds: string;
   reason: string;
 }
 
-function postFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeIds: string[], edgeCount: number, reason: string): FlowRenderStatus {
-  const status = collectFlowRenderStatus(container, stateVersion, nodeIds, edgeCount, reason);
+function postFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeIds: string[], edgeCount: number, reason: string, viewport: GraphViewport, bounds: GraphBounds): FlowRenderStatus {
+  const status = collectFlowRenderStatus(container, stateVersion, nodeIds, edgeCount, reason, viewport, bounds);
   vscode?.postMessage({ command: 'webviewRenderStatus', ...status });
   return status;
 }
 
-function collectFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeIds: string[], edgeCount: number, reason: string): FlowRenderStatus {
+function collectFlowRenderStatus(container: HTMLElement | null, stateVersion: number, nodeIds: string[], edgeCount: number, reason: string, viewport: GraphViewport, bounds: GraphBounds): FlowRenderStatus {
   const containerRect = container?.getBoundingClientRect();
   const rootRect = document.getElementById('root')?.getBoundingClientRect();
   const appRect = container?.closest<HTMLElement>('.app')?.getBoundingClientRect();
-  const reactFlowViewport = container?.querySelector<HTMLElement>('.react-flow__viewport');
-  const reactFlowViewportRect = reactFlowViewport?.getBoundingClientRect();
-  const renderedNodeIds = renderedFlowNodeIds(container);
+  const renderedNodeIds = renderedNativeNodeIds(container);
   return {
     stateVersion,
     nodeIds,
@@ -461,32 +504,24 @@ function collectFlowRenderStatus(container: HTMLElement | null, stateVersion: nu
     nodeCount: nodeIds.length,
     edgeCount,
     renderedNodeCount: renderedNodeIds.length,
-    visibleNodeCount: visibleFlowNodeCount(container),
+    visibleNodeCount: visibleNativeNodeCount(container),
     canvasWidth: Math.round(containerRect?.width ?? 0),
     canvasHeight: Math.round(containerRect?.height ?? 0),
     windowInnerHeight: Math.round(window.innerHeight || 0),
     visualViewportHeight: Math.round(window.visualViewport?.height ?? 0),
     rootHeight: Math.round(rootRect?.height ?? 0),
     appHeight: Math.round(appRect?.height ?? 0),
-    reactFlowTransform: reactFlowViewport?.style.transform || 'none',
-    reactFlowViewportRect: reactFlowViewportRect ? `${Math.round(reactFlowViewportRect.width)}x${Math.round(reactFlowViewportRect.height)}@${Math.round(reactFlowViewportRect.left)},${Math.round(reactFlowViewportRect.top)}` : 'none',
+    graphTransform: graphTransform(viewport),
+    graphBounds: `${Math.round(bounds.width)}x${Math.round(bounds.height)}@${Math.round(bounds.x)},${Math.round(bounds.y)}`,
     reason
   };
 }
 
-function renderedFlowNodeIds(container: HTMLElement | null): string[] {
+function renderedNativeNodeIds(container: HTMLElement | null): string[] {
   if (!container) return [];
-  return Array.from(container.querySelectorAll<HTMLElement>('.react-flow__node'))
-    .map((node) => node.dataset.id)
+  return Array.from(container.querySelectorAll<HTMLElement>('.agentflow-node'))
+    .map((node) => node.dataset.nodeId)
     .filter((nodeId): nodeId is string => Boolean(nodeId));
-}
-
-function shouldRecoverFlowRender(status: FlowRenderStatus): boolean {
-  if (status.nodeCount === 0) return false;
-  if (status.canvasWidth < 20 || status.canvasHeight < 20) return false;
-  return status.renderedNodeCount < status.nodeCount
-    || status.visibleNodeCount === 0
-    || status.visibleNodeCount < minimumUsefulVisibleNodeCount(status.nodeCount);
 }
 
 function minimumUsefulVisibleNodeCount(nodeCount: number): number {
@@ -499,7 +534,7 @@ function preferredVisibleNodeCount(nodeCount: number): number {
   return Math.min(nodeCount, Math.max(8, Math.ceil(nodeCount * 0.85)));
 }
 
-function DebugOverlay({ status, stateVersion, draft, flowMountRevision }: { status?: FlowRenderStatus; stateVersion: number; draft: AgentPipeline; flowMountRevision: number }) {
+function DebugOverlay({ status, stateVersion, draft }: { status?: FlowRenderStatus; stateVersion: number; draft: AgentPipeline }) {
   const expectedVisible = minimumUsefulVisibleNodeCount(draft.nodes.length);
   const rows = [
     ['state', String(stateVersion)],
@@ -512,10 +547,9 @@ function DebugOverlay({ status, stateVersion, draft, flowMountRevision }: { stat
     ['window', String(status?.windowInnerHeight ?? 'n/a')],
     ['visual viewport', String(status?.visualViewportHeight ?? 'n/a')],
     ['root/app', `${status?.rootHeight ?? 'n/a'} / ${status?.appHeight ?? 'n/a'}`],
-    ['rf viewport', status?.reactFlowViewportRect ?? 'n/a'],
-    ['transform', status?.reactFlowTransform ?? 'n/a'],
-    ['reason', status?.reason ?? 'n/a'],
-    ['remount', String(flowMountRevision)]
+    ['graph bounds', status?.graphBounds ?? 'n/a'],
+    ['transform', status?.graphTransform ?? 'n/a'],
+    ['reason', status?.reason ?? 'n/a']
   ];
   return <aside className="debug-overlay" aria-label="Agent Flow debug overlay">
     <strong>Agent Flow Debug</strong>
@@ -523,11 +557,11 @@ function DebugOverlay({ status, stateVersion, draft, flowMountRevision }: { stat
   </aside>;
 }
 
-function visibleFlowNodeCount(container: HTMLElement | null): number {
+function visibleNativeNodeCount(container: HTMLElement | null): number {
   if (!container) return 0;
   const containerRect = container.getBoundingClientRect();
   if (!containerRect || containerRect.width < 20 || containerRect.height < 20) return 0;
-  const nodes = Array.from(container.querySelectorAll<HTMLElement>('.react-flow__node'));
+  const nodes = Array.from(container.querySelectorAll<HTMLElement>('.agentflow-node'));
   return nodes.filter((node) => {
     const rect = node.getBoundingClientRect();
     return rect.right > containerRect.left

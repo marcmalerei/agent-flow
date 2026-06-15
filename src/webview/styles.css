@@ -16,7 +16,14 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .toolbar > span { flex: 1; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toolbar .autosave-status { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: 12px; }
 .canvas { position: relative; min-width: 0; min-height: var(--agentflow-canvas-min-height); width: 100%; height: 100%; overflow: hidden; background: var(--vscode-editor-background); }
-.canvas .react-flow { width: 100%; height: 100%; }
+.native-graph { touch-action: none; background-image: radial-gradient(color-mix(in srgb, var(--vscode-editor-foreground) 42%, transparent) 1px, transparent 1px); background-size: 24px 24px; cursor: grab; }
+.native-graph:active { cursor: grabbing; }
+.graph-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.graph-edge-layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.graph-node-layer { position: absolute; left: 0; top: 0; }
+.agentflow-node { position: absolute; box-sizing: border-box; display: block; min-width: 0; padding: 0; text-align: initial; transform-origin: 0 0; cursor: pointer; }
+.agentflow-node:hover { background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-list-hoverBackground, transparent)); }
+.agentflow-node.selected { box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
 .flow-node { position: relative; display: grid; min-height: 72px; min-width: 0; place-items: center; padding: 24px 18px 12px; text-align: center; white-space: normal; overflow: hidden; }
 .flow-node.has-activity { animation: nodeActivityPulse 1.15s ease-in-out infinite; box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 72%, transparent), 0 0 18px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 38%, transparent); }
 .flow-node.activity-node-file, .flow-node.activity-node-artifact { animation-duration: .9s; }
@@ -27,6 +34,20 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .runtime-badge { position: absolute; left: 8px; top: 6px; max-width: calc(100% - 78px); padding: 1px 6px; border: 1px solid var(--vscode-editorWarning-foreground, #cca700); border-radius: 999px; background: color-mix(in srgb, var(--vscode-editor-background) 75%, var(--vscode-editorWarning-foreground, #cca700)); color: var(--vscode-foreground); font-size: 10px; font-weight: 700; line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flow-node.runtime-error { box-shadow: inset 0 0 0 1px var(--vscode-errorForeground, #f14c4c); }
 .flow-node.is-dirty { box-shadow: inset 0 0 0 1px var(--vscode-editorWarning-foreground, #cca700); }
+.node-port { position: absolute; z-index: 2; width: 9px; height: 9px; border: 1px solid var(--vscode-focusBorder); border-radius: 50%; background: var(--vscode-editor-background); }
+.node-port-left { left: -10px; top: 50%; transform: translateY(-50%); }
+.node-port-right { right: -10px; top: 50%; transform: translateY(-50%); }
+.node-port-top { top: -10px; left: 50%; transform: translateX(-50%); }
+.node-port-bottom { bottom: -10px; left: 50%; transform: translateX(-50%); }
+.native-controls { position: absolute; left: 12px; bottom: 12px; z-index: 5; display: grid; border: 1px solid var(--agentflow-border); background: var(--vscode-editorWidget-background); }
+.native-controls button { width: 28px; height: 28px; padding: 0; border: 0; border-bottom: 1px solid var(--agentflow-border); border-radius: 0; background: transparent; color: var(--vscode-icon-foreground, var(--vscode-foreground)); }
+.native-controls button:last-child { border-bottom: 0; }
+.native-controls button:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); }
+.graph-edge-path { fill: none; stroke-linecap: round; }
+.graph-edge.animated .graph-edge-path { stroke-dasharray: 8 4; animation: activityDash 900ms linear infinite; }
+.graph-edge-label { pointer-events: none; }
+.graph-edge-label rect { fill: var(--vscode-editorWidget-background); opacity: .95; }
+.graph-edge-label text { fill: var(--vscode-editorWidget-foreground); font-size: 11px; font-family: var(--vscode-font-family, system-ui); }
 .activity-started, .activity-thinking, .activity-tool, .activity-file, .activity-artifact { animation: activityPulse 1.2s ease-in-out infinite; }
 .activity-failed { border-color: var(--vscode-errorForeground, #f14c4c); color: var(--vscode-errorForeground, #f14c4c); }
 .debug-overlay { position: fixed; right: 12px; bottom: 52px; z-index: 30; box-sizing: border-box; width: min(360px, calc(100vw - 24px)); max-height: min(460px, calc(100vh - 80px)); overflow: auto; padding: 10px 12px; border: 1px solid var(--vscode-editorWidget-border, var(--agentflow-border)); border-radius: var(--agentflow-control-radius); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 94%, transparent); color: var(--vscode-editorWidget-foreground, var(--vscode-foreground)); box-shadow: 0 6px 18px var(--vscode-widget-shadow, rgba(0,0,0,.35)); font: 11px/1.35 var(--vscode-editor-font-family, ui-monospace, Menlo, monospace); pointer-events: none; }
@@ -255,20 +276,10 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .diagnostic-empty { display: grid; place-items: center; gap: 6px; min-height: 110px; max-width: 480px; border: 1px dashed var(--agentflow-border); border-radius: var(--agentflow-control-radius); color: var(--vscode-descriptionForeground); text-align: center; }
 .diagnostic-empty .codicon { font-size: 20px; }
 .diagnostic-empty strong { color: var(--vscode-foreground); }
-.react-flow__controls { box-shadow: 0 0 0 1px var(--agentflow-border); }
-.react-flow__controls-button { border: 0 !important; border-bottom: 1px solid var(--agentflow-border) !important; background: var(--vscode-editorWidget-background) !important; color: var(--vscode-icon-foreground, var(--vscode-foreground)) !important; fill: currentColor; }
-.react-flow__controls-button:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)) !important; }
-.react-flow__controls-button svg { fill: currentColor; }
-.react-flow__edge-path { stroke: var(--vscode-editor-foreground); stroke-opacity: .75; stroke-width: 1.5; }
-.react-flow__edge.activity-edge .react-flow__edge-path { stroke-dasharray: 8 4; animation: activityDash 900ms linear infinite; }
-.react-flow__edge-textbg { fill: var(--vscode-editorWidget-background); }
-.react-flow__edge-text { fill: var(--vscode-editorWidget-foreground); font-size: 11px; }
-.react-flow__handle { width: 7px; height: 7px; border: 1px solid var(--vscode-focusBorder); background: var(--vscode-editor-background); }
-.react-flow__node.selected { box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
 .error { color: var(--vscode-errorForeground, #fca5a5); } .warning { color: var(--vscode-editorWarning-foreground, #fde68a); } .risk { color: var(--vscode-editorInfo-foreground, #fdba74); } .info { color: var(--vscode-editorInfo-foreground, #bfdbfe); }
 @keyframes activityPulse { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
 @keyframes nodeActivityPulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.28); } }
 @keyframes activityDash { to { stroke-dashoffset: -12; } }
 @media (prefers-reduced-motion: reduce) {
-  .flow-node.has-activity, .activity-started, .activity-thinking, .activity-tool, .activity-file, .activity-artifact, .react-flow__edge.activity-edge .react-flow__edge-path { animation: none; }
+  .flow-node.has-activity, .activity-started, .activity-thinking, .activity-tool, .activity-file, .activity-artifact, .graph-edge.animated .graph-edge-path { animation: none; }
 }

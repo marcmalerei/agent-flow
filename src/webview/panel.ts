@@ -37,8 +37,8 @@ export interface AgentFlowPanelSnapshot {
   webviewVisualViewportHeight?: number;
   webviewRootHeight?: number;
   webviewAppHeight?: number;
-  webviewReactFlowTransform?: string;
-  webviewReactFlowViewportRect?: string;
+  webviewGraphTransform?: string;
+  webviewGraphBounds?: string;
   webviewRenderReason?: string;
   webviewReadyCount?: number;
   webviewReadyBootId?: string;
@@ -106,16 +106,9 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     updatePanelSnapshot(pipeline, selectedId, reason, stateVersion);
     return stateVersion;
   };
-  const postStateUpdated = async (reason: string, refit = false): Promise<void> => {
+  const postStateUpdated = async (reason: string, _refit = false): Promise<void> => {
     const version = markStateForPost(reason);
     panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore, version), selectedId });
-    if (refit) panel.webview.postMessage({ command: 'refitFlow' });
-  };
-  const postRefitBurst = (reason: string): void => {
-    log(`requesting React Flow refit burst (${reason})`);
-    for (const delay of [0, 80, 240, 600, 1_200, 2_400]) {
-      scheduleStartupTask(delay, () => panel.webview.postMessage({ command: 'refitFlow', reason }));
-    }
   };
   const initialStateVersion = markStateForPost('opened');
   const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'Agent Flow Pipeline', vscode.ViewColumn.One, {
@@ -124,7 +117,6 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'webview-dist'))]
   });
   panel.webview.html = html(panel.webview, context, await buildState(workspace, pipeline, activityStore, initialStateVersion));
-  postRefitBurst('startup');
   for (const delay of [500, 1_500, 3_000, 5_000]) {
     scheduleStartupTask(delay, async () => {
       if (pipeline.nodes.length > 0) return;
@@ -148,7 +140,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   });
   const viewStateListener = panel.onDidChangeViewState((event) => {
     if (!event.webviewPanel.visible) return;
-    log('pipeline panel became visible; posting latest state and requesting React Flow refit');
+    log('pipeline panel became visible; posting latest state');
     setTimeout(() => {
       postStateUpdated('visible-refit', true)
         .catch((error) => log(`failed to refresh visible pipeline panel: ${(error as Error).stack ?? (error as Error).message}`));
@@ -206,7 +198,6 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
         };
         log(`webview ready${bootId ? ` (${bootId})` : ''}; posting current state with ${pipeline.nodes.length} nodes`);
         await postStateUpdated('webview-ready', true);
-        postRefitBurst('webview-ready');
         return;
       }
       if (message?.command === 'webviewRuntimeError') {
@@ -321,8 +312,8 @@ function updateWebviewRenderSnapshot(message: Record<string, unknown>, currentSt
     webviewVisualViewportHeight: typeof message.visualViewportHeight === 'number' ? message.visualViewportHeight : latestPanelSnapshot.webviewVisualViewportHeight,
     webviewRootHeight: typeof message.rootHeight === 'number' ? message.rootHeight : latestPanelSnapshot.webviewRootHeight,
     webviewAppHeight: typeof message.appHeight === 'number' ? message.appHeight : latestPanelSnapshot.webviewAppHeight,
-    webviewReactFlowTransform: typeof message.reactFlowTransform === 'string' ? message.reactFlowTransform : latestPanelSnapshot.webviewReactFlowTransform,
-    webviewReactFlowViewportRect: typeof message.reactFlowViewportRect === 'string' ? message.reactFlowViewportRect : latestPanelSnapshot.webviewReactFlowViewportRect,
+    webviewGraphTransform: typeof message.graphTransform === 'string' ? message.graphTransform : latestPanelSnapshot.webviewGraphTransform,
+    webviewGraphBounds: typeof message.graphBounds === 'string' ? message.graphBounds : latestPanelSnapshot.webviewGraphBounds,
     webviewRenderReason: typeof message.reason === 'string' ? message.reason : latestPanelSnapshot.webviewRenderReason,
     updatedAt: new Date().toISOString()
   };
