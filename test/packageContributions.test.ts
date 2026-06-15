@@ -58,6 +58,7 @@ describe('package contributions', () => {
       'agentflow.openPipeline',
       'agentflow.scanWorkspace',
       'agentflow.validatePipeline',
+      'agentflow.checkSetup',
       'agentflow.generateFiles'
     ]);
     expect(submenuEntries.every((entry) => !entry.when)).toBe(true);
@@ -91,7 +92,8 @@ describe('package contributions', () => {
     expect(manifest.activationEvents).toEqual(expect.arrayContaining([
       'onCommand:agentflow.playDemoActivity',
       'onCommand:agentflow.exportReport',
-      'onCommand:agentflow.exportActivityCsv'
+      'onCommand:agentflow.exportActivityCsv',
+      'onCommand:agentflow.checkSetup'
     ]));
     expect(commands.get('agentflow.playDemoActivity')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
@@ -104,6 +106,10 @@ describe('package contributions', () => {
     expect(commands.get('agentflow.exportActivityCsv')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
       title: 'Export Activity CSV'
+    }));
+    expect(commands.get('agentflow.checkSetup')).toEqual(expect.objectContaining({
+      category: 'Agent Flow',
+      title: 'Check Setup'
     }));
   });
 

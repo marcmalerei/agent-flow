@@ -10,13 +10,18 @@ import { AgentPipeline, GeneratedFile } from './pipeline/types';
 import { getLatestPipelinePanelSnapshot, openPipelinePanel } from './webview/panel';
 import { ActivityStore } from './activity/store';
 import { completeNodeActivity, reportActivity, selectActivityNode } from './activity/tools';
-import { startCopilotDebugLogAdapter } from './activity/copilotDebugLogAdapter';
-import { startCodexRolloutAdapter } from './activity/codexRolloutAdapter';
+import { getCopilotDebugLogStatus, startCopilotDebugLogAdapter } from './activity/copilotDebugLogAdapter';
+import { getCodexRolloutStatus, startCodexRolloutAdapter } from './activity/codexRolloutAdapter';
 import { activityInputForPipelineDocumentPath } from './activity/fileActivity';
 import { createSyntheticActivity } from './activity/synthetic';
 import { renderActivityCsv, renderAgentFlowReport } from './activity/exportReport';
+import { buildActivitySourceStatuses } from './activity/sources';
+import { buildSetupValidationReport, renderSetupValidationReport } from './setup/setupValidator';
+import { buildToolOptionGroups, listToolOptionNames, normalizePipelineToolsForOptions } from './webview/toolOptions';
 
 const activityStore = new ActivityStore();
+const MINIMUM_VSCODE_VERSION = '1.120.0';
+const PIPELINE_WATCH_PATTERNS = ['.github/agents/*.agent.md', '.github/prompts/*.prompt.md', '.github/instructions/*.instructions.md', '.github/skills/**/SKILL.md', '.github/roles/*.md', '.github/artifacts/**/*.{md,json,txt}'];
 
 export function activate(context: vscode.ExtensionContext): void {
   const activityOutput = vscode.window.createOutputChannel('Agent Flow Activity');
@@ -39,6 +44,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('agentflow.playDemoActivity', playDemoActivityCommand),
     vscode.commands.registerCommand('agentflow.exportReport', exportReportCommand),
     vscode.commands.registerCommand('agentflow.exportActivityCsv', exportActivityCsvCommand),
+    vscode.commands.registerCommand('agentflow.checkSetup', checkSetupCommand),
     vscode.commands.registerCommand('agentflow.copyDebugSnapshot', copyDebugSnapshotCommand),
     vscode.commands.registerCommand('agentflow.toggleDebugOverlay', toggleDebugOverlayCommand),
     vscode.commands.registerCommand('agentflow.debugSnapshot', () => getLatestPipelinePanelSnapshot())
@@ -145,6 +151,48 @@ async function exportActivityCsvCommand(): Promise<void> {
   vscode.window.showInformationMessage(`Agent Flow activity CSV exported to ${target.fsPath}.`);
 }
 
+async function checkSetupCommand(): Promise<void> {
+  const workspace = getWorkspaceRoot();
+  const toolGroups = buildToolOptionGroups(vscode.lm?.tools ?? []);
+  const pipeline = workspace ? normalizePipelineToolsForOptions(await loadOrInferPipeline(workspace), toolGroups) : undefined;
+  const activitySources = buildActivitySourceStatuses({
+    filesystem: {
+      enabled: activitySourceEnabled('filesystem'),
+      watchingPatterns: activitySourceEnabled('filesystem') ? PIPELINE_WATCH_PATTERNS : []
+    },
+    documents: { enabled: activitySourceEnabled('vscodeDocuments') },
+    tools: {
+      enabled: activitySourceEnabled('agentFlowTools'),
+      registered: Boolean(vscode.lm?.registerTool)
+    },
+    copilotDebugLogs: await getCopilotDebugLogStatus(),
+    codexRollouts: await getCodexRolloutStatus(workspace)
+  });
+  const report = buildSetupValidationReport({
+    vscodeVersion: vscode.version,
+    minimumVscodeVersion: MINIMUM_VSCODE_VERSION,
+    hasLanguageModelToolApi: Boolean(vscode.lm?.registerTool),
+    workspace: workspace ? {
+      root: workspace,
+      existingPaths: await listExistingGithubPaths(workspace),
+      pipeline
+    } : undefined,
+    registeredTools: listToolOptionNames(vscode.lm?.tools ?? []),
+    activitySources
+  });
+  const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: renderSetupValidationReport(report) });
+  await vscode.window.showTextDocument(doc, { preview: true });
+  const actionable = report.checks.filter((check) => check.severity === 'error' || check.severity === 'warning');
+  if (!actionable.length) {
+    vscode.window.showInformationMessage('Agent Flow setup check passed.');
+    return;
+  }
+  const answer = await vscode.window.showWarningMessage(`Agent Flow setup found ${report.summary.errors} error(s) and ${report.summary.warnings} warning(s).`, 'Open Settings', 'Create Default Pipeline', 'Open Docs');
+  if (answer === 'Open Settings') await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:marcmalerei.copilot-agent-flow-studio agentflow');
+  if (answer === 'Create Default Pipeline') await vscode.commands.executeCommand('agentflow.createDefaultPipeline');
+  if (answer === 'Open Docs') await vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://github.com/marcmalerei/agent-flow#readme'));
+}
+
 async function generateFilesCommand(): Promise<void> {
   const { workspace, pipeline } = await loadWorkspacePipeline();
   const files = generateFiles(pipeline);
@@ -188,6 +236,32 @@ async function anyFileExists(workspace: string, files: GeneratedFile[]): Promise
 
 function renderValidationReport(name: string, findings: ReturnType<typeof validatePipeline>, risk: ReturnType<typeof calculateRiskScore>): string {
   return `# Agent Flow Validation: ${name}\n\n## Findings\n\n${findings.length ? findings.map((item) => `- **${item.severity.toUpperCase()}** (${item.ruleId}) ${item.message}`).join('\n') : 'No findings.'}\n\n## Context Risk Score\n\n${risk.score}/100\n\n${risk.reasons.map((reason) => `- ${reason}`).join('\n') || 'No risk reasons.'}\n`;
+}
+
+function activitySourceEnabled(source: 'filesystem' | 'vscodeDocuments' | 'agentFlowTools'): boolean {
+  return vscode.workspace.getConfiguration('agentflow.activity.sources').get<boolean>(source) ?? true;
+}
+
+async function listExistingGithubPaths(workspace: string): Promise<string[]> {
+  const root = path.join(workspace, '.github');
+  const paths: string[] = [];
+  async function visit(folder: string): Promise<void> {
+    let entries: Array<{ name: string; isDirectory(): boolean }>;
+    try {
+      entries = await fs.readdir(folder, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    paths.push(path.relative(workspace, folder).replace(/\\/g, '/'));
+    for (const entry of entries) {
+      const target = path.join(folder, entry.name);
+      const relative = path.relative(workspace, target).replace(/\\/g, '/');
+      paths.push(relative);
+      if (entry.isDirectory()) await visit(target);
+    }
+  }
+  await visit(root);
+  return [...new Set(paths)];
 }
 
 function registerActivityTools(): vscode.Disposable[] {
