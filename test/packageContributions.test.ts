@@ -35,7 +35,7 @@ describe('package contributions', () => {
 
   it('uses an externally renderable animated Marketplace preview', () => {
     expect(existsSync(resolve(root, 'media/agent-flow-preview.gif'))).toBe(true);
-    expect(readme).toContain('https://raw.githubusercontent.com/marcmalerei/agent-flow/refs/heads/codex/reference-markdown-editors/media/agent-flow-preview.gif');
+    expect(readme).toContain('https://raw.githubusercontent.com/marcmalerei/agent-flow/main/media/agent-flow-preview.gif');
     expect(readme).not.toContain('](media/agent-flow-screenshot.png)');
   });
 

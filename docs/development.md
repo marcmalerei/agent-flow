@@ -100,4 +100,6 @@ After installing a packaged build, reload VS Code and run the Agent Flow command
 
 Pull requests and pushes to `main` run CI with `npm ci`, `npm run check`, an Extension Host smoke test, `npm run build:webview`, and `npm audit`.
 
+Pull requests must update `CHANGELOG.md` under `Unreleased`. When the change affects commands, settings, screenshots, activity behavior, generated files, validation rules, or Marketplace-facing behavior, update the relevant file in `README.md` or `docs/` in the same PR.
+
 In restricted environments, package installation may be blocked. The TypeScript sources include lightweight local declaration shims so core type-checking can still be run with a globally available `tsc`.

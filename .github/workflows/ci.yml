@@ -24,6 +24,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Require changelog update
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          if ! git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qx 'CHANGELOG.md'; then
+            echo "::error::Pull requests must update CHANGELOG.md under the Unreleased section."
+            exit 1
+          fi
+
       - name: Compile and test
         run: npm run check
 
