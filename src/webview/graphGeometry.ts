@@ -31,6 +31,9 @@ export const graphNodeHeight = 96;
 export const nativeGraphMinZoom = 0.08;
 export const nativeGraphMaxZoom = 1.4;
 const graphPadding = 120;
+const defaultEdgeLabelWidth = 56;
+const defaultEdgeLabelHeight = 20;
+const edgeLabelGap = 12;
 
 export function normalizeGraphNodePositions<T extends GraphGeometryNode>(nodes: readonly T[]): { nodes: T[]; bounds: GraphBounds } {
   if (!nodes.length) return { nodes: [], bounds: { x: 0, y: 0, width: 240, height: 240 } };
@@ -49,7 +52,7 @@ export function measuredGraphBounds(nodes: readonly GraphGeometryNode[]): GraphB
   return { x: 0, y: 0, width: Math.max(1, maxX), height: Math.max(1, maxY) };
 }
 
-export function edgePathBetweenNodes(source: GraphGeometryNode, target: GraphGeometryNode): { path: string; labelX: number; labelY: number; start: GraphPoint; end: GraphPoint } {
+export function edgePathBetweenNodes(source: GraphGeometryNode, target: GraphGeometryNode, labelOptions: { labelWidth?: number; labelHeight?: number } = {}): { path: string; labelX: number; labelY: number; start: GraphPoint; end: GraphPoint } {
   const sourceCenter = nodeCenter(source);
   const targetCenter = nodeCenter(target);
   const horizontal = Math.abs(targetCenter.x - sourceCenter.x) >= Math.abs(targetCenter.y - sourceCenter.y);
@@ -64,7 +67,8 @@ export function edgePathBetweenNodes(source: GraphGeometryNode, target: GraphGeo
   const path = horizontal
     ? `M ${round(start.x)} ${round(start.y)} C ${round(start.x + Math.sign(end.x - start.x || 1) * bend)} ${round(start.y)}, ${round(end.x - Math.sign(end.x - start.x || 1) * bend)} ${round(end.y)}, ${round(end.x)} ${round(end.y)}`
     : `M ${round(start.x)} ${round(start.y)} C ${round(start.x)} ${round(start.y + Math.sign(end.y - start.y || 1) * bend)}, ${round(end.x)} ${round(end.y - Math.sign(end.y - start.y || 1) * bend)}, ${round(end.x)} ${round(end.y)}`;
-  return { path, labelX: (start.x + end.x) / 2, labelY: (start.y + end.y) / 2, start, end };
+  const label = edgeLabelPosition(source, target, start, end, horizontal, labelOptions);
+  return { path, labelX: label.x, labelY: label.y, start, end };
 }
 
 export function fitNativeGraphViewport(bounds: GraphBounds, size: GraphCanvasSize): GraphViewport {
@@ -108,6 +112,47 @@ export function clamp(value: number, min: number, max: number): number {
 
 function nodeCenter(node: GraphGeometryNode): GraphPoint {
   return { x: node.position.x + graphNodeWidth / 2, y: node.position.y + graphNodeHeight / 2 };
+}
+
+function edgeLabelPosition(source: GraphGeometryNode, target: GraphGeometryNode, start: GraphPoint, end: GraphPoint, horizontal: boolean, options: { labelWidth?: number; labelHeight?: number }): GraphPoint {
+  const width = options.labelWidth ?? defaultEdgeLabelWidth;
+  const height = options.labelHeight ?? defaultEdgeLabelHeight;
+  const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  const nodes = [source, target];
+  if (!labelOverlapsNodes(midpoint, width, height, nodes)) return midpoint;
+
+  if (horizontal) {
+    const top = Math.min(source.position.y, target.position.y);
+    const bottom = Math.max(source.position.y + graphNodeHeight, target.position.y + graphNodeHeight);
+    const above = { x: midpoint.x, y: top - height / 2 - edgeLabelGap };
+    if (!labelOverlapsNodes(above, width, height, nodes)) return above;
+    return { x: midpoint.x, y: bottom + height / 2 + edgeLabelGap };
+  }
+
+  const left = Math.min(source.position.x, target.position.x);
+  const right = Math.max(source.position.x + graphNodeWidth, target.position.x + graphNodeWidth);
+  const before = { x: left - width / 2 - edgeLabelGap, y: midpoint.y };
+  if (!labelOverlapsNodes(before, width, height, nodes)) return before;
+  return { x: right + width / 2 + edgeLabelGap, y: midpoint.y };
+}
+
+function labelOverlapsNodes(center: GraphPoint, width: number, height: number, nodes: readonly GraphGeometryNode[]): boolean {
+  const label = {
+    left: center.x - width / 2,
+    right: center.x + width / 2,
+    top: center.y - height / 2,
+    bottom: center.y + height / 2
+  };
+  return nodes.some((node) => rectsOverlap(label, {
+    left: node.position.x,
+    right: node.position.x + graphNodeWidth,
+    top: node.position.y,
+    bottom: node.position.y + graphNodeHeight
+  }));
+}
+
+function rectsOverlap(a: { left: number; right: number; top: number; bottom: number }, b: { left: number; right: number; top: number; bottom: number }): boolean {
+  return a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom;
 }
 
 function round(value: number): number {
