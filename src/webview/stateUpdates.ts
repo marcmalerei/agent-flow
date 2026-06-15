@@ -1,5 +1,6 @@
 import { AgentPipeline } from '../pipeline/types';
 import { isSuspiciousPipelineLoss } from './pipelineRefresh';
+import { mergeNodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
 
 export interface WebviewStateLike {
   pipeline: AgentPipeline;
@@ -7,6 +8,7 @@ export interface WebviewStateLike {
   risk: unknown;
   generatedFiles: unknown;
   activityEvents?: unknown;
+  nodeRuntime?: NodeRuntimeStateMap;
 }
 
 export interface RemoteStateMergeResult<TState extends WebviewStateLike> {
@@ -22,13 +24,15 @@ export function mergeRemoteStateUpdate<TState extends WebviewStateLike>(input: {
   dirty: boolean;
 }): RemoteStateMergeResult<TState> {
   if (isTransientPipelineLoss(input.currentState.pipeline, input.incomingState.pipeline)) {
+    const nodeRuntime = mergeNodeRuntimeState(input.currentState.nodeRuntime, input.incomingState.nodeRuntime, input.currentState.pipeline);
     return {
       state: {
         ...input.incomingState,
         pipeline: input.currentState.pipeline,
         findings: input.currentState.findings,
         risk: input.currentState.risk,
-        generatedFiles: input.currentState.generatedFiles
+        generatedFiles: input.currentState.generatedFiles,
+        nodeRuntime
       } as TState,
       draft: input.currentDraft,
       applyDraft: false
@@ -36,16 +40,25 @@ export function mergeRemoteStateUpdate<TState extends WebviewStateLike>(input: {
   }
 
   if (!input.dirty) {
-    return { state: input.incomingState, draft: input.incomingState.pipeline, applyDraft: true };
+    return {
+      state: {
+        ...input.incomingState,
+        nodeRuntime: mergeNodeRuntimeState(input.currentState.nodeRuntime, input.incomingState.nodeRuntime, input.incomingState.pipeline)
+      } as TState,
+      draft: input.incomingState.pipeline,
+      applyDraft: true
+    };
   }
 
+  const nodeRuntime = mergeNodeRuntimeState(input.currentState.nodeRuntime, input.incomingState.nodeRuntime, input.currentState.pipeline);
   return {
     state: {
       ...input.incomingState,
       pipeline: input.currentState.pipeline,
       findings: input.currentState.findings,
       risk: input.currentState.risk,
-      generatedFiles: input.currentState.generatedFiles
+      generatedFiles: input.currentState.generatedFiles,
+      nodeRuntime
     } as TState,
     draft: input.currentDraft,
     applyDraft: false

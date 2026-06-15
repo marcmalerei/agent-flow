@@ -48,6 +48,7 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('applyMeasuredViewportFallback');
     expect(webviewSource).toContain('preferredVisibleNodeCount');
     expect(webviewSource).toContain('minZoom={0.08}');
+    expect(webviewSource).toContain('nodeRuntime');
     expect(webviewSource).toContain('visibleFlowNodeCount');
     expect(webviewSource).toContain('flowMountRevision');
     expect(webviewSource).toContain('flowRenderKey');
@@ -93,7 +94,10 @@ describe('webview assets', () => {
 
     expect(tokenNodeSource).toContain('has-activity');
     expect(tokenNodeSource).toContain('activity-node-');
+    expect(tokenNodeSource).toContain('runtime-');
+    expect(tokenNodeSource).toContain('runtime-badge');
     expect(css).toContain('.flow-node.has-activity');
+    expect(css).toContain('.flow-node.runtime-error');
     expect(css).toContain('.activity-file');
     expect(css).toContain('.activity-artifact');
     expect(css).toContain('nodeActivityPulse');

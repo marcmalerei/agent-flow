@@ -22,7 +22,7 @@ import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges } from './graph';
-import { activeEdgeIds, recentActivityEvents, summarizeNodeActivity } from './activity';
+import { activeEdgeIds, recentActivityEvents, resolveActivityEventsForPipeline } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
 import { flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
@@ -33,6 +33,7 @@ import { optionalTextValue, referenceInstructionTextValue } from './formState';
 import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } from './components';
 import { applyNodePatch } from './nodeMarkdownSync';
 import { mergeRemoteStateUpdate } from './stateUpdates';
+import { activitySummaryFromRuntime, deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
 
 interface State {
   stateVersion: number;
@@ -43,6 +44,7 @@ interface State {
   flowLayout: FlowLayout;
   toolOptions: ToolOptionGroup[];
   activityEvents: AgentFlowActivityEvent[];
+  nodeRuntime: NodeRuntimeStateMap;
   activitySources?: ActivitySourceRuntimeState[];
   debugOverlay?: boolean;
 }
@@ -62,6 +64,8 @@ const nodeTypesConfig = {
 };
 
 function deriveState(pipeline: AgentPipeline, previous: State): State {
+  const activityEvents = resolveActivityEventsForPipeline(pipeline, previous.activityEvents ?? []);
+  const incomingRuntime = deriveNodeRuntimeState(pipeline, activityEvents);
   return {
     ...previous,
     pipeline,
@@ -69,7 +73,9 @@ function deriveState(pipeline: AgentPipeline, previous: State): State {
     risk: calculateRiskScore(pipeline),
     generatedFiles: generateFiles(pipeline).map((file) => ({ path: file.path, kind: file.kind })),
     flowLayout: previous.flowLayout,
-    toolOptions: previous.toolOptions
+    toolOptions: previous.toolOptions,
+    activityEvents,
+    nodeRuntime: mergeNodeRuntimeState(previous.nodeRuntime, incomingRuntime, pipeline)
   };
 }
 
@@ -120,7 +126,14 @@ function App() {
       if (event.data?.command === 'activityUpdated') {
         setViewportSignal((signal) => signal + 1);
         setActivityClock(Date.now());
-        setState((current) => ({ ...current, activityEvents: event.data.activityEvents ?? [] }));
+        setState((current) => {
+          const activityEvents = resolveActivityEventsForPipeline(current.pipeline, event.data.activityEvents ?? []);
+          return {
+            ...current,
+            activityEvents,
+            nodeRuntime: mergeNodeRuntimeState(current.nodeRuntime, deriveNodeRuntimeState(current.pipeline, activityEvents), current.pipeline)
+          };
+        });
       }
     };
     window.addEventListener('message', listener);
@@ -133,12 +146,15 @@ function App() {
     return () => window.clearInterval(timer);
   }, [state.activityEvents?.length]);
 
-  const commitDraft = useCallback((updater: (pipeline: AgentPipeline) => AgentPipeline, nextSelectedId?: string) => {
+  const commitDraft = useCallback((updater: (pipeline: AgentPipeline) => AgentPipeline, nextSelectedId?: string, dirtyNodeIds: string[] = []) => {
     setDraft((pipeline) => {
       const next = updater(pipeline);
       undoStack.current = [...undoStack.current.slice(-49), pipeline];
       dirtyRef.current = true;
-      setState((previous) => deriveState(next, previous));
+      setState((previous) => {
+        const derived = deriveState(next, previous);
+        return dirtyNodeIds.length ? { ...derived, nodeRuntime: markNodeRuntimeDirty(derived.nodeRuntime, dirtyNodeIds) } : derived;
+      });
       if (nextSelectedId) setSelectedId(nextSelectedId);
       return next;
     });
@@ -168,20 +184,23 @@ function App() {
   const layoutPositions = useMemo(() => layoutFlowNodes(draft, state.flowLayout), [draft, state.flowLayout]);
   const handlePositions = useMemo(() => flowHandlePositions(state.flowLayout), [state.flowLayout]);
   const visualActivity = useMemo(() => recentActivityEvents(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
-  const activityByNode = useMemo(() => summarizeNodeActivity(visualActivity), [visualActivity]);
+  const activityByNode = useMemo(() => new Map(draft.nodes.flatMap((node) => {
+    const summary = activitySummaryFromRuntime(state.nodeRuntime?.[node.id]);
+    return summary ? [[node.id, summary] as const] : [];
+  })), [activityClock, draft.nodes, state.nodeRuntime]);
   const activeEdges = useMemo(() => new Set(activeEdgeIds(draft, visualActivity)), [draft, visualActivity]);
   const nodes: Node[] = useMemo(() => draft.nodes.map((node) => ({
     id: node.id,
     position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
     draggable: false,
     type: 'tokenNode',
-    data: { label: `${risky.has(node.id) ? '! ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: typeColors[node.type] ?? 'var(--vscode-focusBorder)', activity: activityByNode.get(node.id), ...handlePositions },
+    data: { label: `${risky.has(node.id) ? '! ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: typeColors[node.type] ?? 'var(--vscode-focusBorder)', activity: activityByNode.get(node.id), runtimeStatus: state.nodeRuntime?.[node.id]?.status, dirty: state.nodeRuntime?.[node.id]?.dirty, ...handlePositions },
     style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
-  })), [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout]);
+  })), [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
   const edges: Edge[] = useMemo(() => deriveVisibleFlowEdges(draft).map((edge) => activeEdges.has(edge.id) ? { ...edge, animated: true, className: 'activity-edge', style: { ...(edge.style ?? {}), strokeWidth: 3, opacity: 1 } } : edge), [activeEdges, draft]);
 
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
-    commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? applyNodePatch(node, patch) : node) }));
+    commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? applyNodePatch(node, patch) : node) }), undefined, [nodeId]);
   };
   const connectNodes = (sourceId: string, targetId: string) => commitDraft((pipeline) => connectPipelineNodes(pipeline, sourceId, targetId));
   const deleteNodes = (nodeIds: string[]) => {
@@ -193,7 +212,7 @@ function App() {
     commitDraft((pipeline) => {
       const next = { ...pipeline, nodes: [...pipeline.nodes, node] };
       return connectFrom ? connectPipelineNodes(next, connectFrom, node.id) : next;
-    }, node.id);
+    }, node.id, [node.id]);
     setInspectorOpen(true);
   };
   return <ReactFlowProvider><FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} canUndo={undoStack.current.length > 0} undoLast={undoLast} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} /></ReactFlowProvider>;

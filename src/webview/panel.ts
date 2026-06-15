@@ -16,6 +16,7 @@ import { getCopilotDebugLogStatus } from '../activity/copilotDebugLogAdapter';
 import { activityInputsForChangedFiles } from '../activity/fileActivity';
 import { buildActivitySourceStatuses } from '../activity/sources';
 import { resolveActivityEventsForPipeline } from './activity';
+import { deriveNodeRuntimeState } from './nodeRuntimeState';
 
 export interface AgentFlowPanelSnapshot {
   open: boolean;
@@ -394,6 +395,7 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
     },
     copilotDebugLogs: await getCopilotDebugLogStatus()
   });
+  const activityEvents = resolveActivityEventsForPipeline(displayPipeline, activityStore.getEvents());
   return {
     stateVersion,
     pipeline: displayPipeline,
@@ -402,7 +404,8 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
     generatedFiles: generateFiles(displayPipeline).map((file) => ({ path: file.path, kind: file.kind })),
     flowLayout: coerceFlowLayout(vscode.workspace.getConfiguration('agentflow.flow').get('layout')),
     toolOptions,
-    activityEvents: resolveActivityEventsForPipeline(displayPipeline, activityStore.getEvents()),
+    activityEvents,
+    nodeRuntime: deriveNodeRuntimeState(displayPipeline, activityEvents),
     activitySources,
     debugOverlay: vscode.workspace.getConfiguration('agentflow.debug').get<boolean>('overlay', false)
   };
