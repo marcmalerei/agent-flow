@@ -2,7 +2,7 @@
   "name": "copilot-agent-flow-studio",
   "displayName": "Agent Flow Studio",
   "description": "Visual manager for GitHub Copilot agent pipelines.",
-  "version": "0.0.41",
+  "version": "0.0.42",
   "publisher": "marcmalerei",
   "icon": "media/icon.png",
   "license": "MIT",
@@ -42,6 +42,9 @@
     "onCommand:agentflow.exportReport",
     "onCommand:agentflow.exportActivityCsv",
     "onCommand:agentflow.checkSetup",
+    "onCommand:agentflow.importActivityLog",
+    "onCommand:agentflow.pauseActivityReplay",
+    "onCommand:agentflow.restartActivityReplay",
     "onLanguageModelTool:agentflow_select_node",
     "onLanguageModelTool:agentflow_report_activity",
     "onLanguageModelTool:agentflow_complete_node"
@@ -149,6 +152,21 @@
       {
         "command": "agentflow.checkSetup",
         "title": "Check Setup",
+        "category": "Agent Flow"
+      },
+      {
+        "command": "agentflow.importActivityLog",
+        "title": "Import Activity Log",
+        "category": "Agent Flow"
+      },
+      {
+        "command": "agentflow.pauseActivityReplay",
+        "title": "Pause Activity Replay",
+        "category": "Agent Flow"
+      },
+      {
+        "command": "agentflow.restartActivityReplay",
+        "title": "Restart Activity Replay",
         "category": "Agent Flow"
       },
       {

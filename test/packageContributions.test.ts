@@ -93,7 +93,10 @@ describe('package contributions', () => {
       'onCommand:agentflow.playDemoActivity',
       'onCommand:agentflow.exportReport',
       'onCommand:agentflow.exportActivityCsv',
-      'onCommand:agentflow.checkSetup'
+      'onCommand:agentflow.checkSetup',
+      'onCommand:agentflow.importActivityLog',
+      'onCommand:agentflow.pauseActivityReplay',
+      'onCommand:agentflow.restartActivityReplay'
     ]));
     expect(commands.get('agentflow.playDemoActivity')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
@@ -110,6 +113,18 @@ describe('package contributions', () => {
     expect(commands.get('agentflow.checkSetup')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
       title: 'Check Setup'
+    }));
+    expect(commands.get('agentflow.importActivityLog')).toEqual(expect.objectContaining({
+      category: 'Agent Flow',
+      title: 'Import Activity Log'
+    }));
+    expect(commands.get('agentflow.pauseActivityReplay')).toEqual(expect.objectContaining({
+      category: 'Agent Flow',
+      title: 'Pause Activity Replay'
+    }));
+    expect(commands.get('agentflow.restartActivityReplay')).toEqual(expect.objectContaining({
+      category: 'Agent Flow',
+      title: 'Restart Activity Replay'
     }));
   });
 
