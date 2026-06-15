@@ -14,6 +14,7 @@ import { startCopilotDebugLogAdapter } from './activity/copilotDebugLogAdapter';
 import { startCodexRolloutAdapter } from './activity/codexRolloutAdapter';
 import { activityInputForPipelineDocumentPath } from './activity/fileActivity';
 import { createSyntheticActivity } from './activity/synthetic';
+import { renderActivityCsv, renderAgentFlowReport } from './activity/exportReport';
 
 const activityStore = new ActivityStore();
 
@@ -36,6 +37,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('agentflow.validatePipeline', validatePipelineCommand),
     vscode.commands.registerCommand('agentflow.createDefaultPipeline', createDefaultPipelineCommand),
     vscode.commands.registerCommand('agentflow.playDemoActivity', playDemoActivityCommand),
+    vscode.commands.registerCommand('agentflow.exportReport', exportReportCommand),
+    vscode.commands.registerCommand('agentflow.exportActivityCsv', exportActivityCsvCommand),
     vscode.commands.registerCommand('agentflow.copyDebugSnapshot', copyDebugSnapshotCommand),
     vscode.commands.registerCommand('agentflow.toggleDebugOverlay', toggleDebugOverlayCommand),
     vscode.commands.registerCommand('agentflow.debugSnapshot', () => getLatestPipelinePanelSnapshot())
@@ -116,6 +119,30 @@ async function playDemoActivityCommand(): Promise<void> {
   const events = createSyntheticActivity(pipeline, `demo-${Date.now()}`);
   for (const event of events) activityStore.append(event);
   vscode.window.showInformationMessage(`Agent Flow emitted ${events.length} demo activity events.`);
+}
+
+async function exportReportCommand(): Promise<void> {
+  const { workspace, pipeline } = await loadWorkspacePipeline();
+  const report = renderAgentFlowReport({
+    pipeline,
+    findings: validatePipeline(pipeline),
+    risk: calculateRiskScore(pipeline, { copilotInstructionsLines: await countCopilotInstructionLines(workspace) }),
+    activityEvents: activityStore.getEvents()
+  });
+  const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: report });
+  await vscode.window.showTextDocument(doc, { preview: true });
+}
+
+async function exportActivityCsvCommand(): Promise<void> {
+  const workspace = getWorkspaceRoot();
+  const target = await vscode.window.showSaveDialog({
+    defaultUri: workspace ? vscode.Uri.file(path.join(workspace, 'agent-flow-activity.csv')) : undefined,
+    filters: { CSV: ['csv'] },
+    saveLabel: 'Export Activity CSV'
+  });
+  if (!target) return;
+  await fs.writeFile(target.fsPath, renderActivityCsv(activityStore.getEvents()), 'utf8');
+  vscode.window.showInformationMessage(`Agent Flow activity CSV exported to ${target.fsPath}.`);
 }
 
 async function generateFilesCommand(): Promise<void> {

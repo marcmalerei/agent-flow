@@ -39,6 +39,8 @@
     "onCommand:agentflow.validatePipeline",
     "onCommand:agentflow.createDefaultPipeline",
     "onCommand:agentflow.playDemoActivity",
+    "onCommand:agentflow.exportReport",
+    "onCommand:agentflow.exportActivityCsv",
     "onLanguageModelTool:agentflow_select_node",
     "onLanguageModelTool:agentflow_report_activity",
     "onLanguageModelTool:agentflow_complete_node"
@@ -131,6 +133,16 @@
       {
         "command": "agentflow.playDemoActivity",
         "title": "Play Demo Activity",
+        "category": "Agent Flow"
+      },
+      {
+        "command": "agentflow.exportReport",
+        "title": "Export Report",
+        "category": "Agent Flow"
+      },
+      {
+        "command": "agentflow.exportActivityCsv",
+        "title": "Export Activity CSV",
         "category": "Agent Flow"
       },
       {
