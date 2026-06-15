@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mergeRemoteStateUpdate } from '../src/webview/stateUpdates';
 import { AgentPipeline } from '../src/pipeline/types';
+import { deriveNodeRuntimeState } from '../src/webview/nodeRuntimeState';
 
 describe('webview state updates', () => {
   const currentPipeline: AgentPipeline = {
@@ -17,13 +18,18 @@ describe('webview state updates', () => {
   };
 
   it('does not replace the local draft when a remote state update arrives during editing', () => {
+    const currentRuntime = deriveNodeRuntimeState(currentPipeline, []);
+    const incomingRuntime = deriveNodeRuntimeState(currentPipeline, [
+      { id: 'activity-1', sessionId: 's', timestamp: '2026-06-13T18:00:00.000Z', phase: 'file', nodeId: 'agent', nodeFile: '.github/agents/agent.agent.md', summary: 'Updated file' }
+    ]);
     const result = mergeRemoteStateUpdate({
       currentState: {
         pipeline: currentPipeline,
         findings: [{ severity: 'warning', ruleId: 'local', message: 'Local finding' }],
         risk: { score: 1, reasons: ['local'] },
         generatedFiles: [{ path: '.github/agents/agent.agent.md', kind: 'agent' }],
-        activityEvents: []
+        activityEvents: [],
+        nodeRuntime: { agent: { ...currentRuntime.agent, dirty: true, status: 'stale' } }
       },
       currentDraft: currentPipeline,
       incomingState: {
@@ -31,7 +37,8 @@ describe('webview state updates', () => {
         findings: [],
         risk: { score: 0, reasons: [] },
         generatedFiles: [],
-        activityEvents: [{ id: 'activity-1', sessionId: 's', timestamp: '2026-06-13T18:00:00.000Z', phase: 'file', summary: 'Updated file' }]
+        activityEvents: [{ id: 'activity-1', sessionId: 's', timestamp: '2026-06-13T18:00:00.000Z', phase: 'file', summary: 'Updated file' }],
+        nodeRuntime: incomingRuntime
       },
       dirty: true
     });
@@ -40,6 +47,7 @@ describe('webview state updates', () => {
     expect(result.state.pipeline).toBe(currentPipeline);
     expect(result.state.findings).toEqual([{ severity: 'warning', ruleId: 'local', message: 'Local finding' }]);
     expect(result.state.activityEvents).toHaveLength(1);
+    expect(result.state.nodeRuntime?.agent).toMatchObject({ dirty: true, status: 'stale', activity: 'writing' });
   });
 
   it('applies remote state updates when the webview draft is clean', () => {
