@@ -1,7 +1,8 @@
 import type { CopilotDebugLogStatus } from './copilotDebugLogAdapter';
+import type { CodexRolloutStatus } from './codexRolloutAdapter';
 
 export type ActivitySourceState = 'disabled' | 'initializing' | 'watching' | 'degraded' | 'error';
-export type ActivitySourceId = 'filesystem' | 'vscodeDocuments' | 'agentFlowTools' | 'copilotDebugLogs' | 'readCoverage';
+export type ActivitySourceId = 'filesystem' | 'vscodeDocuments' | 'agentFlowTools' | 'copilotDebugLogs' | 'codexRollouts' | 'readCoverage';
 
 export interface ActivitySourceRuntimeState {
   id: ActivitySourceId;
@@ -26,6 +27,7 @@ export interface ActivitySourceStatusInput {
     registered: boolean;
   };
   copilotDebugLogs: CopilotDebugLogStatus;
+  codexRollouts: CodexRolloutStatus;
 }
 
 export function buildActivitySourceStatuses(input: ActivitySourceStatusInput): ActivitySourceRuntimeState[] {
@@ -33,7 +35,8 @@ export function buildActivitySourceStatuses(input: ActivitySourceStatusInput): A
     filesystemSource(input.filesystem),
     documentsSource(input.documents),
     toolsSource(input.tools),
-    copilotDebugLogSource(input.copilotDebugLogs)
+    copilotDebugLogSource(input.copilotDebugLogs),
+    codexRolloutSource(input.codexRollouts)
   ];
   return [...sources, readCoverageSource(sources)];
 }
@@ -128,6 +131,29 @@ function copilotDebugLogSource(status: CopilotDebugLogStatus): ActivitySourceRun
   };
 }
 
+function codexRolloutSource(status: CodexRolloutStatus): ActivitySourceRuntimeState {
+  if (!status.enabled) {
+    return {
+      id: 'codexRollouts',
+      label: 'Codex rollout logs',
+      state: 'disabled',
+      detail: status.detail,
+      canReportReads: false,
+      canReportWrites: false,
+      metadata: codexMetadata(status)
+    };
+  }
+  return {
+    id: 'codexRollouts',
+    label: 'Codex rollout logs',
+    state: status.state === 'watching' ? 'watching' : 'degraded',
+    detail: status.detail,
+    canReportReads: status.state === 'watching',
+    canReportWrites: status.state === 'watching',
+    metadata: codexMetadata(status)
+  };
+}
+
 function readCoverageSource(sources: ActivitySourceRuntimeState[]): ActivitySourceRuntimeState {
   const readCapable = sources.filter((source) => source.id !== 'filesystem' && source.canReportReads && source.state === 'watching');
   return readCapable.length
@@ -154,5 +180,12 @@ function copilotMetadata(status: CopilotDebugLogStatus): Record<string, unknown>
     copilotFileLoggingEnabled: status.copilotFileLoggingEnabled,
     configuredPath: status.configuredPath,
     discoveredRoots: status.discoveredRoots
+  };
+}
+
+function codexMetadata(status: CodexRolloutStatus): Record<string, unknown> {
+  return {
+    codexHome: status.codexHome,
+    discoveredFiles: status.discoveredFiles
   };
 }

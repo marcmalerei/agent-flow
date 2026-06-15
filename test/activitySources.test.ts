@@ -14,6 +14,13 @@ describe('activity source statuses', () => {
         discoveredRoots: ['/tmp/debug-logs'],
         state: 'watching',
         detail: 'Watching 1 Copilot debug log folder.'
+      },
+      codexRollouts: {
+        enabled: true,
+        codexHome: '/tmp/.codex',
+        discoveredFiles: ['/tmp/.codex/sessions/2026/06/15/rollout.jsonl'],
+        state: 'watching',
+        detail: 'Watching 1 Codex rollout file.'
       }
     });
 
@@ -22,6 +29,7 @@ describe('activity source statuses', () => {
       ['vscodeDocuments', 'disabled'],
       ['agentFlowTools', 'watching'],
       ['copilotDebugLogs', 'watching'],
+      ['codexRollouts', 'watching'],
       ['readCoverage', 'watching']
     ]);
     expect(statuses.find((source) => source.id === 'vscodeDocuments')?.detail).toContain('disabled');
@@ -39,6 +47,13 @@ describe('activity source statuses', () => {
         discoveredRoots: [],
         state: 'waiting-for-copilot-logging',
         detail: 'Enable GitHub Copilot file logging to import Copilot debug activity.'
+      },
+      codexRollouts: {
+        enabled: false,
+        codexHome: '/tmp/.codex',
+        discoveredFiles: [],
+        state: 'disabled',
+        detail: 'Codex rollout activity import is disabled.'
       }
     });
 

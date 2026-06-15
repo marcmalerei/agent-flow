@@ -2,7 +2,7 @@
   "name": "copilot-agent-flow-studio",
   "displayName": "Agent Flow Studio",
   "description": "Visual manager for GitHub Copilot agent pipelines.",
-  "version": "0.0.38",
+  "version": "0.0.39",
   "publisher": "marcmalerei",
   "icon": "media/icon.png",
   "license": "MIT",
@@ -74,6 +74,11 @@
           "type": "string",
           "default": "",
           "description": "Optional folder containing Copilot debug log JSON or JSONL files. Leave empty to auto-detect VS Code Copilot debug-log folders."
+        },
+        "agentflow.activity.codexRollouts.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable import of local Codex rollout JSONL sessions from CODEX_HOME or ~/.codex into the Agent Flow activity timeline."
         },
         "agentflow.activity.sources.filesystem": {
           "type": "boolean",
