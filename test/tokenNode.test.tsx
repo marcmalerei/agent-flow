@@ -25,4 +25,10 @@ describe('TokenNode', () => {
     expect(html).toContain('class="flow-node-label"');
     expect(html).toContain(`title="${label}"`);
   });
+
+  it('marks handoff nodes with a type class for compact styling', () => {
+    const html = renderToStaticMarkup(<TokenNode data={{ label: 'handoff to reviewer', type: 'handoff', tokenBadge: '~42 tok', tokenColor: 'var(--vscode-editorWarning-foreground)', sourcePosition: 'right', targetPosition: 'left' }} />);
+
+    expect(html).toContain('flow-node-type-handoff');
+  });
 });

@@ -6,6 +6,8 @@ export interface GraphPoint {
 export interface GraphGeometryNode {
   id: string;
   position: GraphPoint;
+  width?: number;
+  height?: number;
 }
 
 export interface GraphViewport {
@@ -28,6 +30,8 @@ export interface GraphCanvasSize {
 
 export const graphNodeWidth = 190;
 export const graphNodeHeight = 96;
+export const handoffNodeWidth = 158;
+export const handoffNodeHeight = 72;
 export const nativeGraphMinZoom = 0.08;
 export const nativeGraphMaxZoom = 1.4;
 const graphPadding = 120;
@@ -47,8 +51,8 @@ export function normalizeGraphNodePositions<T extends GraphGeometryNode>(nodes: 
 
 export function measuredGraphBounds(nodes: readonly GraphGeometryNode[]): GraphBounds {
   if (!nodes.length) return { x: 0, y: 0, width: 240, height: 240 };
-  const maxX = Math.max(...nodes.map((node) => node.position.x + graphNodeWidth)) + graphPadding;
-  const maxY = Math.max(...nodes.map((node) => node.position.y + graphNodeHeight)) + graphPadding;
+  const maxX = Math.max(...nodes.map((node) => node.position.x + nodeWidth(node))) + graphPadding;
+  const maxY = Math.max(...nodes.map((node) => node.position.y + nodeHeight(node))) + graphPadding;
   return { x: 0, y: 0, width: Math.max(1, maxX), height: Math.max(1, maxY) };
 }
 
@@ -57,11 +61,11 @@ export function edgePathBetweenNodes(source: GraphGeometryNode, target: GraphGeo
   const targetCenter = nodeCenter(target);
   const horizontal = Math.abs(targetCenter.x - sourceCenter.x) >= Math.abs(targetCenter.y - sourceCenter.y);
   const start = horizontal
-    ? { x: sourceCenter.x <= targetCenter.x ? source.position.x + graphNodeWidth : source.position.x, y: sourceCenter.y }
-    : { x: sourceCenter.x, y: sourceCenter.y <= targetCenter.y ? source.position.y + graphNodeHeight : source.position.y };
+    ? { x: sourceCenter.x <= targetCenter.x ? source.position.x + nodeWidth(source) : source.position.x, y: sourceCenter.y }
+    : { x: sourceCenter.x, y: sourceCenter.y <= targetCenter.y ? source.position.y + nodeHeight(source) : source.position.y };
   const end = horizontal
-    ? { x: sourceCenter.x <= targetCenter.x ? target.position.x : target.position.x + graphNodeWidth, y: targetCenter.y }
-    : { x: targetCenter.x, y: sourceCenter.y <= targetCenter.y ? target.position.y : target.position.y + graphNodeHeight };
+    ? { x: sourceCenter.x <= targetCenter.x ? target.position.x : target.position.x + nodeWidth(target), y: targetCenter.y }
+    : { x: targetCenter.x, y: sourceCenter.y <= targetCenter.y ? target.position.y : target.position.y + nodeHeight(target) };
   const distance = horizontal ? Math.abs(end.x - start.x) : Math.abs(end.y - start.y);
   const bend = Math.max(56, distance * 0.42);
   const path = horizontal
@@ -106,12 +110,18 @@ export function graphTransform(viewport: GraphViewport): string {
   return `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
 }
 
+export function graphNodeSizeForType(type: string): { width: number; height: number } {
+  return type === 'handoff'
+    ? { width: handoffNodeWidth, height: handoffNodeHeight }
+    : { width: graphNodeWidth, height: graphNodeHeight };
+}
+
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
 function nodeCenter(node: GraphGeometryNode): GraphPoint {
-  return { x: node.position.x + graphNodeWidth / 2, y: node.position.y + graphNodeHeight / 2 };
+  return { x: node.position.x + nodeWidth(node) / 2, y: node.position.y + nodeHeight(node) / 2 };
 }
 
 function edgeLabelPosition(source: GraphGeometryNode, target: GraphGeometryNode, start: GraphPoint, end: GraphPoint, horizontal: boolean, options: { labelWidth?: number; labelHeight?: number }): GraphPoint {
@@ -123,14 +133,14 @@ function edgeLabelPosition(source: GraphGeometryNode, target: GraphGeometryNode,
 
   if (horizontal) {
     const top = Math.min(source.position.y, target.position.y);
-    const bottom = Math.max(source.position.y + graphNodeHeight, target.position.y + graphNodeHeight);
+    const bottom = Math.max(source.position.y + nodeHeight(source), target.position.y + nodeHeight(target));
     const above = { x: midpoint.x, y: top - height / 2 - edgeLabelGap };
     if (!labelOverlapsNodes(above, width, height, nodes)) return above;
     return { x: midpoint.x, y: bottom + height / 2 + edgeLabelGap };
   }
 
   const left = Math.min(source.position.x, target.position.x);
-  const right = Math.max(source.position.x + graphNodeWidth, target.position.x + graphNodeWidth);
+  const right = Math.max(source.position.x + nodeWidth(source), target.position.x + nodeWidth(target));
   const before = { x: left - width / 2 - edgeLabelGap, y: midpoint.y };
   if (!labelOverlapsNodes(before, width, height, nodes)) return before;
   return { x: right + width / 2 + edgeLabelGap, y: midpoint.y };
@@ -145,10 +155,18 @@ function labelOverlapsNodes(center: GraphPoint, width: number, height: number, n
   };
   return nodes.some((node) => rectsOverlap(label, {
     left: node.position.x,
-    right: node.position.x + graphNodeWidth,
+    right: node.position.x + nodeWidth(node),
     top: node.position.y,
-    bottom: node.position.y + graphNodeHeight
+    bottom: node.position.y + nodeHeight(node)
   }));
+}
+
+function nodeWidth(node: GraphGeometryNode): number {
+  return node.width ?? graphNodeWidth;
+}
+
+function nodeHeight(node: GraphGeometryNode): number {
+  return node.height ?? graphNodeHeight;
 }
 
 function rectsOverlap(a: { left: number; right: number; top: number; bottom: number }, b: { left: number; right: number; top: number; bottom: number }): boolean {
