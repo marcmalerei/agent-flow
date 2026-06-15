@@ -41,7 +41,7 @@ describe('Codex rollout activity parser', () => {
     expect(result.events).toContainEqual(expect.objectContaining({ sessionId: 'session-1', phase: 'artifact', nodeId: 'writer', artifactPath: '.github/artifacts/plan.md', toolName: 'apply_patch' }));
     expect(result.events).toContainEqual(expect.objectContaining({ phase: 'tool', toolName: 'exec_command', summary: 'Ran shell command `npm test`.' }));
     expect(result.events).toContainEqual(expect.objectContaining({ phase: 'thinking', summary: 'Inspecting the pipeline files.' }));
-    expect(result.events).toContainEqual(expect.objectContaining({ phase: 'thinking', tokenEstimate: 1234, summary: 'Codex context contains 1234 tokens.' }));
+    expect(result.events).toContainEqual(expect.objectContaining({ phase: 'thinking', tokenEstimate: 1333, inputTokens: 1234, outputTokens: 99, summary: 'Codex token usage: 1234 input / 99 output tokens.' }));
   });
 
   it('skips rollout records for unrelated workspaces', () => {

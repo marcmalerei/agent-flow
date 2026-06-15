@@ -23,6 +23,8 @@ export interface ReportActivityInput {
   artifactPath?: string;
   durationMs?: number;
   tokenEstimate?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   severity?: 'info' | 'warning' | 'error';
   prompt?: string;
 }
@@ -57,6 +59,8 @@ export function reportActivity(input: ReportActivityInput, context: ActivityTool
     artifactPath: input.artifactPath,
     durationMs: input.durationMs,
     tokenEstimate: input.tokenEstimate,
+    inputTokens: input.inputTokens,
+    outputTokens: input.outputTokens,
     severity: input.severity
   }));
   return { event };

@@ -50,6 +50,8 @@ export function parseCopilotDebugRow(row: any, sourceFile: string, nextId?: () =
       summary: 'Copilot language model request recorded.',
       aiCredits: nanoAiu / 1_000_000_000,
       tokenEstimate: promptTokens + completionTokens || undefined,
+      inputTokens: promptTokens || undefined,
+      outputTokens: completionTokens || undefined,
       model: stringValue(attrs.model ?? row.model),
       sourceFile
     }, nextId);

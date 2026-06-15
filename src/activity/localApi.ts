@@ -60,6 +60,8 @@ function redactedActivityEvent(event: AgentFlowActivityEvent): Record<string, un
     artifactPath: event.artifactPath,
     durationMs: event.durationMs,
     tokenEstimate: event.tokenEstimate,
+    inputTokens: event.inputTokens,
+    outputTokens: event.outputTokens,
     aiCredits: event.aiCredits,
     model: event.model,
     severity: event.severity

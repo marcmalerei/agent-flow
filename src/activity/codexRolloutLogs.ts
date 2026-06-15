@@ -108,8 +108,10 @@ function parseEventMessage(payload: Record<string, unknown>, row: any, state: Co
   if (type === 'token_count') {
     const info = objectValue(payload.info);
     const last = objectValue(info.last_token_usage);
-    const tokenEstimate = numberValue(last.input_tokens) ?? numberValue(info.input_tokens);
-    return tokenEstimate ? [event({ phase: 'thinking', tokenEstimate, summary: `Codex context contains ${tokenEstimate} tokens.` }, row, state, options)] : [];
+    const inputTokens = numberValue(last.input_tokens) ?? numberValue(info.input_tokens);
+    const outputTokens = numberValue(last.output_tokens) ?? numberValue(info.output_tokens);
+    const tokenEstimate = (inputTokens ?? 0) + (outputTokens ?? 0);
+    return tokenEstimate ? [event({ phase: 'thinking', tokenEstimate, inputTokens, outputTokens, summary: `Codex token usage: ${inputTokens ?? 0} input / ${outputTokens ?? 0} output tokens.` }, row, state, options)] : [];
   }
   return [];
 }

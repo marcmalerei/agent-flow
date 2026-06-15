@@ -73,6 +73,8 @@ export function normalizeActivityInput(input: AgentFlowActivityInput, nextId: ()
     artifactPath: clean(input.artifactPath),
     durationMs: nonNegative(input.durationMs),
     tokenEstimate: nonNegative(input.tokenEstimate),
+    inputTokens: nonNegative(input.inputTokens),
+    outputTokens: nonNegative(input.outputTokens),
     aiCredits: nonNegative(input.aiCredits),
     model: clean(input.model),
     sourceFile: clean(input.sourceFile),
