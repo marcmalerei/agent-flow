@@ -302,6 +302,14 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .metrics-file-main span, .metrics-file-row small { flex: 0 0 auto; color: var(--vscode-descriptionForeground); font-size: 11px; }
 .metrics-bar { height: 4px; overflow: hidden; border-radius: 999px; background: var(--vscode-progressBar-background, var(--vscode-editor-background)); }
 .metrics-bar span { display: block; height: 100%; border-radius: inherit; background: var(--vscode-charts-blue, var(--vscode-focusBorder)); }
+.file-attention-list { display: grid; gap: 7px; max-width: 980px; }
+.file-attention-row { display: grid; justify-content: stretch; gap: 5px; width: 100%; padding: 8px 10px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); text-align: left; }
+.file-attention-row:hover { background: var(--vscode-list-hoverBackground); }
+.file-attention-title { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.file-attention-title .codicon { color: var(--vscode-charts-blue, var(--vscode-focusBorder)); }
+.file-attention-title code { overflow: hidden; color: var(--vscode-foreground); text-overflow: ellipsis; white-space: nowrap; }
+.file-attention-title span { min-width: 34px; padding: 1px 6px; border-radius: 999px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
+.file-attention-row small { color: var(--vscode-descriptionForeground); }
 .diagnostic-card { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: flex-start; padding: 7px 9px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
 .diagnostic-card > .codicon { margin-top: 1px; }
 .diagnostic-card.error > .codicon { color: var(--vscode-errorForeground, #fca5a5); }
