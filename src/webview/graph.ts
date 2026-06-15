@@ -137,6 +137,7 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
     for (const handoff of node.handoffs ?? []) {
       const target = resolveAgentReference(handoff.agent, normalized.nodes);
       if (!target || !nodeIds.has(target)) continue;
+      if (hasMaterializedHandoffNode(normalized.nodes, node.id, target, handoff.label)) continue;
       addPreviewEdge(visible, explicitPairs, {
         id: `ref:agent:${node.id}:handoff:${target}:${slugPart(handoff.label)}`,
         source: node.id,
@@ -187,6 +188,14 @@ export function deriveVisibleFlowEdges(pipeline: AgentPipeline): VisibleFlowEdge
   }
 
   return visible;
+}
+
+function hasMaterializedHandoffNode(nodes: PipelineNode[], sourceAgent: string, targetAgent: string, label: string | undefined): boolean {
+  const labelSlug = slugPart(label);
+  return nodes.some((node) => node.type === 'handoff'
+    && node.sourceAgent === sourceAgent
+    && resolveAgentReference(node.targetAgent ?? '', nodes) === targetAgent
+    && slugPart(node.label) === labelSlug);
 }
 
 function addPreviewEdge(
@@ -368,7 +377,10 @@ function isStoredEdgeVisible(source: string, target: string, nodesById: Map<stri
   const sourceNode = nodesById.get(source);
   const targetNode = nodesById.get(target);
   const nodes = [...nodesById.values()];
-  if (sourceNode?.type === 'agent' && targetNode?.type === 'agent' && kind === 'handoff') return (sourceNode.handoffs ?? []).some((handoff) => resolveAgentReference(handoff.agent, nodes) === target);
+  if (sourceNode?.type === 'agent' && targetNode?.type === 'agent' && kind === 'handoff') {
+    if (nodes.some((node) => node.type === 'handoff' && node.sourceAgent === source && resolveAgentReference(node.targetAgent ?? '', nodes) === target)) return false;
+    return (sourceNode.handoffs ?? []).some((handoff) => resolveAgentReference(handoff.agent, nodes) === target);
+  }
   if (sourceNode?.type === 'agent' && targetNode?.type === 'handoff' && kind === 'handoff') return targetNode.sourceAgent === source;
   if (sourceNode?.type === 'handoff' && targetNode?.type === 'agent' && kind === 'handoff') return resolveAgentReference(sourceNode.targetAgent ?? '', nodes) === target;
   if (sourceNode?.type === 'agent' && targetNode?.type === 'agent') return (sourceNode.calls ?? []).includes(target);

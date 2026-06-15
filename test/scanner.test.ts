@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { stringifyPipeline } from '../src/pipeline/parser';
 import { loadOrInferPipeline, inferPipelineFromWorkspace } from '../src/pipeline/scanner';
 import { deriveVisibleFlowEdges } from '../src/webview/graph';
+import { estimateNodeTokenCount } from '../src/webview/tokenCounts';
 
 describe('workspace scanner', () => {
   it('parses role files and role references from agent markdown', async () => {
@@ -31,7 +32,7 @@ Read \`.github/roles/frontend-developer.md\` before implementing UI changes.
 
     expect(pipeline.nodes.find((node) => node.id === 'frontend-developer' && node.type === 'role')).toMatchObject({
       roleFile: '.github/roles/frontend-developer.md',
-      label: 'Frontend-Developer',
+      label: 'frontend-developer',
       description: 'Frontend developer role'
     });
     expect(pipeline.nodes.find((node) => node.id === 'frontend' && node.type === 'agent')).toMatchObject({
@@ -43,6 +44,55 @@ Read \`.github/roles/frontend-developer.md\` before implementing UI changes.
       'role',
       'agent.roleRefs'
     ]);
+  });
+
+  it('normalizes inferred frontmatter names to lower-case node labels', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-lower-labels-'));
+    await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/prompts'), { recursive: true });
+    await fs.mkdir(path.join(workspace, '.github/instructions'), { recursive: true });
+    await fs.writeFile(path.join(workspace, '.github/agents/security-reviewer.agent.md'), `---
+name: "Security Reviewer"
+---
+
+# Security Reviewer
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/prompts/release-notes.prompt.md'), `---
+name: "Release Notes"
+---
+
+# Release Notes
+`, 'utf8');
+    await fs.writeFile(path.join(workspace, '.github/instructions/docs-scope.instructions.md'), `---
+name: "Docs Scope"
+---
+
+# Docs Scope
+`, 'utf8');
+
+    const pipeline = await inferPipelineFromWorkspace(workspace);
+
+    expect(pipeline.nodes.find((node) => node.id === 'security-reviewer')).toMatchObject({ label: 'security reviewer' });
+    expect(pipeline.nodes.find((node) => node.id === 'release-notes')).toMatchObject({ label: 'release notes' });
+    expect(pipeline.nodes.find((node) => node.id === 'docs-scope')).toMatchObject({ label: 'docs scope' });
+  });
+
+  it('uses current artifact file content for live token estimates', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-artifact-tokens-'));
+    await fs.mkdir(path.join(workspace, '.github/artifacts'), { recursive: true });
+    await fs.writeFile(path.join(workspace, '.github/artifacts/ticket.md'), 'initial ticket content', 'utf8');
+
+    const initial = await inferPipelineFromWorkspace(workspace);
+    const artifact = initial.nodes.find((node) => node.type === 'artifact' && node.path === '.github/artifacts/ticket.md');
+    expect(artifact?.markdown).toBe('initial ticket content');
+    const initialTokens = artifact ? estimateNodeTokenCount(initial, artifact) : 0;
+
+    await fs.writeFile(path.join(workspace, '.github/artifacts/ticket.md'), `${'updated '.repeat(80)}ticket content`, 'utf8');
+    const updated = await inferPipelineFromWorkspace(workspace);
+    const updatedArtifact = updated.nodes.find((node) => node.type === 'artifact' && node.path === '.github/artifacts/ticket.md');
+
+    expect(updatedArtifact?.markdown).toContain('updated updated');
+    expect(updatedArtifact ? estimateNodeTokenCount(updated, updatedArtifact) : 0).toBeGreaterThan(initialTokens);
   });
 
   it('parses agent handoffs from frontmatter object lists', async () => {
@@ -198,7 +248,7 @@ Renamed file body.
 
     expect(agent?.type).toBe('agent');
     expect(agent).toMatchObject({
-      label: 'Review Router',
+      label: 'review router',
       agentFile: '.github/agents/review-router.agent.md',
       tools: ['read']
     });
@@ -283,11 +333,11 @@ Review pull requests.
     const pipeline = await loadOrInferPipeline(workspace);
 
     expect(pipeline.name).toBe('Inferred Agent Pipeline');
-    expect(pipeline.nodes.find((node) => node.id === 'router' && node.type === 'agent')).toMatchObject({ label: 'Router', calls: ['worker'] });
-    expect(pipeline.nodes.find((node) => node.id === 'worker' && node.type === 'agent')).toMatchObject({ label: 'Worker' });
-    expect(pipeline.nodes.find((node) => node.id === 'release-notes' && node.type === 'prompt')).toMatchObject({ label: 'Release Notes', startAgent: 'router', tools: ['search'] });
-    expect(pipeline.nodes.find((node) => node.id === 'docs-policy' && node.type === 'instruction')).toMatchObject({ label: 'Documentation Policy', description: 'Use the docs voice.', applyTo: '**/*.md' });
-    expect(pipeline.nodes.find((node) => node.id === 'review-pr' && node.type === 'skill')).toMatchObject({ label: 'Review PR' });
+    expect(pipeline.nodes.find((node) => node.id === 'router' && node.type === 'agent')).toMatchObject({ label: 'router', calls: ['worker'] });
+    expect(pipeline.nodes.find((node) => node.id === 'worker' && node.type === 'agent')).toMatchObject({ label: 'worker' });
+    expect(pipeline.nodes.find((node) => node.id === 'release-notes' && node.type === 'prompt')).toMatchObject({ label: 'release notes', startAgent: 'router', tools: ['search'] });
+    expect(pipeline.nodes.find((node) => node.id === 'docs-policy' && node.type === 'instruction')).toMatchObject({ label: 'documentation policy', description: 'Use the docs voice.', applyTo: '**/*.md' });
+    expect(pipeline.nodes.find((node) => node.id === 'review-pr' && node.type === 'skill')).toMatchObject({ label: 'review pr' });
     expect(pipeline.edges).toContainEqual({ id: 'router-calls-worker', from: 'router', to: 'worker', kind: 'flow' });
     expect(pipeline.edges).toContainEqual({ id: 'release-notes-starts-router', from: 'release-notes', to: 'router', kind: 'prompt' });
   });

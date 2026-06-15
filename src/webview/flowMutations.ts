@@ -1,5 +1,6 @@
 import { AgentPipeline, ArtifactAction, ArtifactUsage, PipelineEdge, PipelineNode, ReferenceInstruction, ReferenceRole } from '../pipeline/types';
 import { deriveVisibleFlowEdges } from './graph';
+import { normalizeNodeLabel } from '../pipeline/labels';
 
 export function connectPipelineNodes(pipeline: AgentPipeline, sourceId: string, targetId: string): AgentPipeline {
   const source = pipeline.nodes.find((node) => node.id === sourceId);
@@ -15,26 +16,27 @@ export function connectPipelineNodes(pipeline: AgentPipeline, sourceId: string, 
 }
 
 export function renameNodeLabel(node: PipelineNode, label: string): PipelineNode {
+  const normalizedLabel = normalizeNodeLabel(label, node.id);
   if (node.type === 'agent') {
-    return { ...node, label, agentFile: managedPath(node.agentFile, '.github/agents/', '.agent.md') ? `.github/agents/${slugFileStem(label, node.id)}.agent.md` : node.agentFile };
+    return { ...node, label: normalizedLabel, agentFile: managedPath(node.agentFile, '.github/agents/', '.agent.md') ? `.github/agents/${slugFileStem(normalizedLabel, node.id)}.agent.md` : node.agentFile };
   }
   if (node.type === 'prompt') {
-    return { ...node, label, promptFile: managedPath(node.promptFile, '.github/prompts/', '.prompt.md') ? `.github/prompts/${slugFileStem(label, node.id)}.prompt.md` : node.promptFile };
+    return { ...node, label: normalizedLabel, promptFile: managedPath(node.promptFile, '.github/prompts/', '.prompt.md') ? `.github/prompts/${slugFileStem(normalizedLabel, node.id)}.prompt.md` : node.promptFile };
   }
   if (node.type === 'instruction') {
-    return { ...node, label, instructionFile: managedPath(node.instructionFile, '.github/instructions/', '.instructions.md') ? `.github/instructions/${slugFileStem(label, node.id)}.instructions.md` : node.instructionFile };
+    return { ...node, label: normalizedLabel, instructionFile: managedPath(node.instructionFile, '.github/instructions/', '.instructions.md') ? `.github/instructions/${slugFileStem(normalizedLabel, node.id)}.instructions.md` : node.instructionFile };
   }
   if (node.type === 'skill') {
-    return { ...node, label, skillFile: managedSkillPath(node.skillFile) ? `.github/skills/${slugFileStem(label, node.id)}/SKILL.md` : node.skillFile };
+    return { ...node, label: normalizedLabel, skillFile: managedSkillPath(node.skillFile) ? `.github/skills/${slugFileStem(normalizedLabel, node.id)}/SKILL.md` : node.skillFile };
   }
   if (node.type === 'role') {
-    return { ...node, label, roleFile: managedPath(node.roleFile, '.github/roles/', '.md') ? `.github/roles/${slugFileStem(label, node.id)}.md` : node.roleFile };
+    return { ...node, label: normalizedLabel, roleFile: managedPath(node.roleFile, '.github/roles/', '.md') ? `.github/roles/${slugFileStem(normalizedLabel, node.id)}.md` : node.roleFile };
   }
   if (node.type === 'artifact') {
     const extension = fileExtension(node.path) || '.md';
-    return { ...node, label, path: managedPath(node.path, '.github/artifacts/', extension) ? `.github/artifacts/${slugFileStem(label, node.id)}${extension}` : node.path };
+    return { ...node, label: normalizedLabel, path: managedPath(node.path, '.github/artifacts/', extension) ? `.github/artifacts/${slugFileStem(normalizedLabel, node.id)}${extension}` : node.path };
   }
-  return { ...node, label } as PipelineNode;
+  return { ...node, label: normalizedLabel } as PipelineNode;
 }
 
 function edgeForConnection(source: PipelineNode, target: PipelineNode): PipelineEdge {

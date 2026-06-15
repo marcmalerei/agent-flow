@@ -1,4 +1,5 @@
 import { RoleNode } from '../types';
+import { normalizeNodeLabel } from '../labels';
 import { appendGeneratedMarker, mergeMarkdownWithFrontmatter, nodeFileStem, yamlString, yamlStringLine } from './shared';
 
 export function roleFilePath(node: RoleNode): string {
@@ -8,18 +9,20 @@ export function roleFilePath(node: RoleNode): string {
 
 export function generateRoleMarkdown(node: RoleNode): string {
   const frontmatter = roleFrontmatter(node);
+  const label = normalizeNodeLabel(node.label, node.id);
   if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(node.markdown, frontmatter);
 
   return appendGeneratedMarker(`${frontmatter}
 
-# ${node.label}
+# ${label}
 
 ${node.description ?? 'Describe this reusable role.'}
 `);
 }
 
 function roleFrontmatter(node: RoleNode): string {
+  const label = normalizeNodeLabel(node.label, node.id);
   return `---
-name: ${yamlString(node.label)}
+name: ${yamlString(label)}
 ${yamlStringLine('description', node.description)}---`;
 }

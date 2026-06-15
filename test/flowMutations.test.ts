@@ -65,16 +65,16 @@ describe('flow mutations', () => {
   });
 
   it('syncs node label changes into managed file names', () => {
-    expect(renameNodeLabel({ id: 'new-agent-1', type: 'agent', label: 'New agent', agentFile: '.github/agents/new-agent-1.agent.md', tools: [], calls: [], outputs: [] }, 'Security Reviewer')).toMatchObject({ label: 'Security Reviewer', agentFile: '.github/agents/security-reviewer.agent.md' });
-    expect(renameNodeLabel({ id: 'new-prompt-1', type: 'prompt', label: 'New prompt', promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: [] }, 'Release Notes')).toMatchObject({ label: 'Release Notes', promptFile: '.github/prompts/release-notes.prompt.md' });
-    expect(renameNodeLabel({ id: 'new-instruction-1', type: 'instruction', label: 'New instruction', instructionFile: '.github/instructions/new-instruction-1.instructions.md', applyTo: '**/*' }, 'Docs Scope')).toMatchObject({ label: 'Docs Scope', instructionFile: '.github/instructions/docs-scope.instructions.md' });
-    expect(renameNodeLabel({ id: 'new-skill-1', type: 'skill', label: 'New skill', skillFile: '.github/skills/new-skill-1/SKILL.md' }, 'Review PR')).toMatchObject({ label: 'Review PR', skillFile: '.github/skills/review-pr/SKILL.md' });
-    expect(renameNodeLabel({ id: 'new-artifact-1', type: 'artifact', label: 'New artifact', path: '.github/artifacts/new-artifact-1.md' }, 'Review Result')).toMatchObject({ label: 'Review Result', path: '.github/artifacts/review-result.md' });
+    expect(renameNodeLabel({ id: 'new-agent-1', type: 'agent', label: 'new agent', agentFile: '.github/agents/new-agent-1.agent.md', tools: [], calls: [], outputs: [] }, 'Security Reviewer')).toMatchObject({ label: 'security reviewer', agentFile: '.github/agents/security-reviewer.agent.md' });
+    expect(renameNodeLabel({ id: 'new-prompt-1', type: 'prompt', label: 'new prompt', promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: [] }, 'Release Notes')).toMatchObject({ label: 'release notes', promptFile: '.github/prompts/release-notes.prompt.md' });
+    expect(renameNodeLabel({ id: 'new-instruction-1', type: 'instruction', label: 'new instruction', instructionFile: '.github/instructions/new-instruction-1.instructions.md', applyTo: '**/*' }, 'Docs Scope')).toMatchObject({ label: 'docs scope', instructionFile: '.github/instructions/docs-scope.instructions.md' });
+    expect(renameNodeLabel({ id: 'new-skill-1', type: 'skill', label: 'new skill', skillFile: '.github/skills/new-skill-1/SKILL.md' }, 'Review PR')).toMatchObject({ label: 'review pr', skillFile: '.github/skills/review-pr/SKILL.md' });
+    expect(renameNodeLabel({ id: 'new-artifact-1', type: 'artifact', label: 'new artifact', path: '.github/artifacts/new-artifact-1.md' }, 'Review Result')).toMatchObject({ label: 'review result', path: '.github/artifacts/review-result.md' });
   });
 
   it('keeps manually customized file paths when renaming nodes', () => {
-    expect(renameNodeLabel({ id: 'router', type: 'agent', label: 'Router', agentFile: 'custom/router.md', tools: [], calls: [], outputs: [] }, 'Security Reviewer')).toMatchObject({ label: 'Security Reviewer', agentFile: 'custom/router.md' });
-    expect(renameNodeLabel({ id: 'artifact', type: 'artifact', label: 'Artifact', path: 'reports/result.md' }, 'Review Result')).toMatchObject({ label: 'Review Result', path: 'reports/result.md' });
+    expect(renameNodeLabel({ id: 'router', type: 'agent', label: 'router', agentFile: 'custom/router.md', tools: [], calls: [], outputs: [] }, 'Security Reviewer')).toMatchObject({ label: 'security reviewer', agentFile: 'custom/router.md' });
+    expect(renameNodeLabel({ id: 'artifact', type: 'artifact', label: 'artifact', path: 'reports/result.md' }, 'Review Result')).toMatchObject({ label: 'review result', path: 'reports/result.md' });
   });
 
   it('syncs instruction canvas connections into referencing node instruction refs', () => {

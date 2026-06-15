@@ -1,5 +1,6 @@
 import { AgentNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
+import { normalizeNodeLabel } from '../labels';
 import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, replaceMarkdownSection, yamlBooleanLine, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function agentFilePath(node: AgentNode): string {
@@ -9,6 +10,7 @@ export function agentFilePath(node: AgentNode): string {
 
 export function generateAgentMarkdown(node: AgentNode): string {
   const frontmatter = agentFrontmatter(node);
+  const label = normalizeNodeLabel(node.label, node.id);
   if (node.markdown?.trim()) {
     const body = replaceMarkdownSection(
       replaceMarkdownSection(markdownBody(node.markdown), 'Artifact work', artifactUsageList(node.artifactUsages)),
@@ -22,7 +24,7 @@ export function generateAgentMarkdown(node: AgentNode): string {
 
 # Role
 
-${node.description ?? `You are responsible for ${node.label}.`}
+${node.description ?? `You are responsible for ${label}.`}
 
 # Required input
 
@@ -72,8 +74,9 @@ ${list((node.outputs ?? []).map((output) => `Write \`${output}\`.`))}
 }
 
 function agentFrontmatter(node: AgentNode): string {
+  const label = normalizeNodeLabel(node.label, node.id);
   return `---
-name: ${yamlString(node.label)}
+name: ${yamlString(label)}
 ${yamlStringLine('description', node.description)}
 ${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('model', node.model)}${yamlStringLine('target', node.target)}${yamlBooleanLine('user-invocable', node.userInvocable)}${yamlBooleanLine('disable-model-invocation', node.disableModelInvocation)}${yamlAgentHandoffs(node.handoffs)}${yamlAgentHooks(node.hooks)}${yamlMcpServers(node.mcpServers)}
 ${yamlOptionalList('tools', normalizeToolsForVsCode(node.tools))}${yamlOptionalList('agents', node.calls)}

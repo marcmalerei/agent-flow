@@ -5,6 +5,7 @@ import { generateInstructionMarkdown, instructionFilePath } from './instructionG
 import { generateSkillMarkdown, skillFilePath } from './skillGenerator';
 import { generateRoleMarkdown, roleFilePath } from './roleGenerator';
 import { appendGeneratedMarker } from './shared';
+import { normalizeNodeLabel } from '../labels';
 
 export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
   const files: GeneratedFile[] = [];
@@ -14,7 +15,7 @@ export function generateFiles(pipeline: AgentPipeline): GeneratedFile[] {
     if (node.type === 'instruction') files.push({ path: instructionFilePath(node), content: generateInstructionMarkdown(node), kind: 'instruction' });
     if (node.type === 'skill') files.push({ path: skillFilePath(node), content: generateSkillMarkdown(node), kind: 'skill' });
     if (node.type === 'role') files.push({ path: roleFilePath(node), content: generateRoleMarkdown(node), kind: 'role' });
-    if (node.type === 'artifact') files.push({ path: node.path, content: appendGeneratedMarker(`# ${node.label}\n\n${node.template ?? 'Artifact content will be written by agents.'}`), kind: 'artifact' });
+    if (node.type === 'artifact') files.push({ path: node.path, content: appendGeneratedMarker(`# ${normalizeNodeLabel(node.label, node.id)}\n\n${node.template ?? 'Artifact content will be written by agents.'}`), kind: 'artifact' });
   }
   return files.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 }

@@ -1,4 +1,5 @@
 import { InstructionNode } from '../types';
+import { normalizeNodeLabel } from '../labels';
 import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, replaceMarkdownSection, yamlString, yamlStringLine } from './shared';
 
 export function instructionFilePath(node: InstructionNode): string {
@@ -8,6 +9,7 @@ export function instructionFilePath(node: InstructionNode): string {
 
 export function generateInstructionMarkdown(node: InstructionNode): string {
   const frontmatter = instructionFrontmatter(node);
+  const label = normalizeNodeLabel(node.label, node.id);
   if (node.markdown?.trim()) {
     const body = replaceMarkdownSection(
       replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
@@ -19,7 +21,7 @@ export function generateInstructionMarkdown(node: InstructionNode): string {
 
   return appendGeneratedMarker(`${frontmatter}
 
-# ${node.label}
+# ${label}
 
 ${node.description ?? ''}
 
@@ -38,8 +40,9 @@ ${list(node.rules)}
 }
 
 function instructionFrontmatter(node: InstructionNode): string {
+  const label = normalizeNodeLabel(node.label, node.id);
   return `---
-name: ${yamlString(node.label)}
+name: ${yamlString(label)}
 ${yamlStringLine('description', node.description)}${yamlStringLine('applyTo', node.applyTo)}
 ${yamlStringLine('excludeAgent', node.excludeAgent)}---`;
 }

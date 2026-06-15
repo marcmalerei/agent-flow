@@ -8,6 +8,7 @@ export function estimateTokenCount(content: string): number {
 }
 
 export function estimateNodeTokenCount(pipeline: AgentPipeline, node: PipelineNode): number {
+  if (node.type === 'artifact' && node.markdown !== undefined) return estimateTokenCount(node.markdown);
   const generated = generateFileForNode(pipeline, node.id);
   return estimateTokenCount(generated?.content ?? JSON.stringify(node));
 }
