@@ -1015,7 +1015,7 @@ function FileAttentionDiagnostics({ entries }: { entries: ReturnType<typeof aggr
   return <div className="file-attention-list">{entries.map((entry) => <button type="button" key={entry.path} className="file-attention-row" onClick={() => vscode?.postMessage({ command: 'openWorkspaceFile', path: entry.path })}>
     <div className="file-attention-title"><Codicon name={entry.writes ? 'edit' : 'eye'} /><code>{entry.path}</code><span>{Math.round(entry.heat * 100)}%</span></div>
     <div className="metrics-bar"><span style={{ width: `${Math.max(5, Math.round(entry.heat * 100))}%` }} /></div>
-    <small>{entry.reads} reads · {entry.writes} writes · {entry.events} events · {entry.tokens} tok · {entry.nodeIds.join(', ') || 'No mapped node'}</small>
+    <small>{entry.reads} reads · {entry.writes} writes · {entry.events} events · {entry.tokens} tok ({entry.inputTokens} in / {entry.outputTokens} out) · {entry.nodeIds.join(', ') || 'No mapped node'}</small>
   </button>)}</div>;
 }
 
@@ -1029,17 +1029,19 @@ function MetricsDiagnostics({ metrics, onSelectNode }: { metrics: ReturnType<typ
     ['Reads', metrics.summary.fileReads],
     ['Writes', metrics.summary.fileWrites],
     ['Artifacts', metrics.summary.artifactsTouched],
-    ['Tokens', metrics.summary.tokenEstimate]
+    ['Total tokens', metrics.summary.tokenEstimate],
+    ['Input tokens', metrics.summary.inputTokens],
+    ['Output tokens', metrics.summary.outputTokens]
   ];
   const maxFileEvents = Math.max(1, ...metrics.files.map((file) => file.events));
   return <div className="metrics-panel">
     <div className="metrics-cards">{cards.map(([label, value]) => <div className="metrics-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
     <section className="metrics-section"><h4>Node activity</h4><div className="diagnostic-list">{metrics.nodes.slice(0, 12).map((node) => <button key={node.nodeId} type="button" className={`diagnostic-card activity-card ${node.failedCount ? 'error' : 'neutral'}`} onClick={() => onSelectNode(node.nodeId)}>
       <Codicon name={node.failedCount ? 'error' : 'pulse'} />
-      <div><div className="diagnostic-card-title"><span>{node.label}</span><code>{node.eventCount} events</code>{node.tokenEstimate > 0 && <code>{node.tokenEstimate} tok</code>}</div><p>{node.completedCount} completed · {node.failedCount} failed</p><small>{node.lastActivity ? new Date(node.lastActivity).toLocaleString() : 'No activity timestamp'}</small></div>
+      <div><div className="diagnostic-card-title"><span>{node.label}</span><code>{node.eventCount} events</code>{node.tokenEstimate > 0 && <code>{node.tokenEstimate} tok</code>}</div><p>{node.completedCount} completed · {node.failedCount} failed</p><small>{node.inputTokens} input · {node.outputTokens} output · {node.lastActivity ? new Date(node.lastActivity).toLocaleString() : 'No activity timestamp'}</small></div>
     </button>)}</div></section>
     <section className="metrics-section"><h4>Top files and artifacts</h4><div className="metrics-files">{metrics.files.slice(0, 12).map((file) => <div key={file.path} className="metrics-file-row">
-      <div className="metrics-file-main"><code>{file.path}</code><span>{file.reads} reads · {file.writes} writes · {file.events} events · {file.tokens} tok</span></div>
+      <div className="metrics-file-main"><code>{file.path}</code><span>{file.reads} reads · {file.writes} writes · {file.events} events · {file.tokens} tok ({file.inputTokens} in / {file.outputTokens} out)</span></div>
       <div className="metrics-bar"><span style={{ width: `${Math.max(5, Math.round((file.events / maxFileEvents) * 100))}%` }} /></div>
       <small>{file.nodeIds.join(', ') || 'No node mapped'}</small>
     </div>)}</div></section>

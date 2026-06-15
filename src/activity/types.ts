@@ -14,6 +14,8 @@ export interface AgentFlowActivityEvent {
   artifactPath?: string;
   durationMs?: number;
   tokenEstimate?: number;
+  inputTokens?: number;
+  outputTokens?: number;
   aiCredits?: number;
   model?: string;
   sourceFile?: string;

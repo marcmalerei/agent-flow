@@ -47,10 +47,10 @@ describe('Agent Flow export report', () => {
 
   it('exports activity CSV with safe escaping and stable headers', () => {
     expect(renderActivityCsv(events)).toBe([
-      'timestamp,session,node,phase,summary,tool,path,severity,tokens',
-      '2026-06-15T10:00:00.000Z,s1,router,tool,Read routing file.,read/readFile,,,',
-      '2026-06-15T10:00:01.000Z,s1,router,artifact,"Updated plan, with comma.",,.github/artifacts/plan.md,,42',
-      '2026-06-15T10:00:02.000Z,s1,worker,failed,"Failed ""quoted"" step.",,,error,'
+      'timestamp,session,node,phase,summary,tool,path,severity,tokens,inputTokens,outputTokens',
+      '2026-06-15T10:00:00.000Z,s1,router,tool,Read routing file.,read/readFile,,,,,',
+      '2026-06-15T10:00:01.000Z,s1,router,artifact,"Updated plan, with comma.",,.github/artifacts/plan.md,,42,,',
+      '2026-06-15T10:00:02.000Z,s1,worker,failed,"Failed ""quoted"" step.",,,error,,,'
     ].join('\n'));
   });
 });

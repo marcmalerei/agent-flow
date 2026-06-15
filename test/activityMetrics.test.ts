@@ -16,8 +16,8 @@ describe('activity metrics', () => {
   it('aggregates sessions, node counts, phases, file attention, and tokens', () => {
     const metrics = aggregateActivityMetrics(pipeline, [
       { id: '1', timestamp: '2026-06-15T10:00:00.000Z', sessionId: 's1', phase: 'started', nodeId: 'router', summary: 'Start.' },
-      { id: '2', timestamp: '2026-06-15T10:00:01.000Z', sessionId: 's1', phase: 'tool', nodeId: 'router', toolName: 'read/readFile', nodeFile: '.github/agents/router.agent.md', summary: 'Read router.', tokenEstimate: 10 },
-      { id: '3', timestamp: '2026-06-15T10:00:02.000Z', sessionId: 's1', phase: 'artifact', nodeId: 'writer', artifactPath: '.github/artifacts/plan.md', toolName: 'edit/editFiles', summary: 'Write plan.', tokenEstimate: 25 },
+      { id: '2', timestamp: '2026-06-15T10:00:01.000Z', sessionId: 's1', phase: 'tool', nodeId: 'router', toolName: 'read/readFile', nodeFile: '.github/agents/router.agent.md', summary: 'Read router.', tokenEstimate: 10, inputTokens: 8, outputTokens: 2 },
+      { id: '3', timestamp: '2026-06-15T10:00:02.000Z', sessionId: 's1', phase: 'artifact', nodeId: 'writer', artifactPath: '.github/artifacts/plan.md', toolName: 'edit/editFiles', summary: 'Write plan.', tokenEstimate: 25, inputTokens: 5, outputTokens: 20 },
       { id: '4', timestamp: '2026-06-15T10:00:03.000Z', sessionId: 's2', phase: 'failed', nodeId: 'writer', summary: 'Failed.', severity: 'error' }
     ]);
 
@@ -29,7 +29,9 @@ describe('activity metrics', () => {
       fileReads: 1,
       fileWrites: 1,
       artifactsTouched: 1,
-      tokenEstimate: 35
+      tokenEstimate: 35,
+      inputTokens: 13,
+      outputTokens: 22
     });
     expect(metrics.nodes).toEqual([
       expect.objectContaining({ nodeId: 'writer', eventCount: 2, failedCount: 1, tokenEstimate: 25 }),

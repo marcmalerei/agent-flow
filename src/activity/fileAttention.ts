@@ -6,6 +6,8 @@ export interface FileAttentionEntry {
   writes: number;
   events: number;
   tokens: number;
+  inputTokens: number;
+  outputTokens: number;
   latestTimestamp?: string;
   nodeIds: string[];
   heat: number;
@@ -21,10 +23,12 @@ export function aggregateFileAttention(events: readonly AgentFlowActivityEvent[]
   for (const event of events) {
     const file = event.artifactPath ?? event.nodeFile;
     if (!file) continue;
-    const entry = entries.get(file) ?? { path: file, reads: 0, writes: 0, events: 0, tokens: 0, latestTimestamp: undefined, nodeIds: new Set<string>() };
+    const entry = entries.get(file) ?? { path: file, reads: 0, writes: 0, events: 0, tokens: 0, inputTokens: 0, outputTokens: 0, latestTimestamp: undefined, nodeIds: new Set<string>() };
     const action = fileAction(event);
     entry.events += 1;
-    entry.tokens += event.tokenEstimate ?? 0;
+    entry.tokens += event.tokenEstimate ?? ((event.inputTokens ?? 0) + (event.outputTokens ?? 0));
+    entry.inputTokens += event.inputTokens ?? 0;
+    entry.outputTokens += event.outputTokens ?? 0;
     entry.latestTimestamp = later(entry.latestTimestamp, event.timestamp);
     if (event.nodeId) entry.nodeIds.add(event.nodeId);
     if (action === 'read') entry.reads += 1;
@@ -47,7 +51,8 @@ export function fileAttentionDecoration(entries: readonly FileAttentionEntry[], 
   const reads = `${entry.reads} read${entry.reads === 1 ? '' : 's'}`;
   const writes = `${entry.writes} write${entry.writes === 1 ? '' : 's'}`;
   const events = `${entry.events} event${entry.events === 1 ? '' : 's'}`;
-  const tokens = `${entry.tokens} estimated token${entry.tokens === 1 ? '' : 's'}`;
+  const tokenBreakdown = entry.inputTokens || entry.outputTokens ? ` (${entry.inputTokens} in / ${entry.outputTokens} out)` : '';
+  const tokens = `${entry.tokens} estimated token${entry.tokens === 1 ? '' : 's'}${tokenBreakdown}`;
   return {
     badge: 'AI',
     tooltip: `Agent Flow: ${reads}, ${writes}, ${events}, ${tokens}`
@@ -60,6 +65,8 @@ interface MutableFileAttentionEntry {
   writes: number;
   events: number;
   tokens: number;
+  inputTokens: number;
+  outputTokens: number;
   latestTimestamp?: string;
   nodeIds: Set<string>;
 }

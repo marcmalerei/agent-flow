@@ -51,7 +51,7 @@ export function renderAgentFlowReport(input: AgentFlowReportInput): string {
 
 export function renderActivityCsv(events: AgentFlowActivityEvent[]): string {
   const rows = [
-    ['timestamp', 'session', 'node', 'phase', 'summary', 'tool', 'path', 'severity', 'tokens'],
+    ['timestamp', 'session', 'node', 'phase', 'summary', 'tool', 'path', 'severity', 'tokens', 'inputTokens', 'outputTokens'],
     ...events.map((event) => [
       event.timestamp,
       event.sessionId,
@@ -61,7 +61,9 @@ export function renderActivityCsv(events: AgentFlowActivityEvent[]): string {
       event.toolName ?? '',
       event.artifactPath ?? event.nodeFile ?? '',
       event.severity ?? '',
-      event.tokenEstimate === undefined ? '' : String(event.tokenEstimate)
+      event.tokenEstimate === undefined ? '' : String(event.tokenEstimate),
+      event.inputTokens === undefined ? '' : String(event.inputTokens),
+      event.outputTokens === undefined ? '' : String(event.outputTokens)
     ])
   ];
   return rows.map((row) => row.map(csvCell).join(',')).join('\n');

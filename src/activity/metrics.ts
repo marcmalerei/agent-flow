@@ -10,6 +10,8 @@ export interface ActivityMetricsSummary {
   fileWrites: number;
   artifactsTouched: number;
   tokenEstimate: number;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 export interface NodeActivityMetric {
@@ -19,6 +21,8 @@ export interface NodeActivityMetric {
   completedCount: number;
   failedCount: number;
   tokenEstimate: number;
+  inputTokens: number;
+  outputTokens: number;
   lastActivity?: string;
 }
 
@@ -28,6 +32,8 @@ export interface FileActivityMetric {
   writes: number;
   events: number;
   tokens: number;
+  inputTokens: number;
+  outputTokens: number;
   latestTimestamp?: string;
   nodeIds: string[];
 }
@@ -49,11 +55,16 @@ export function aggregateActivityMetrics(pipeline: AgentPipeline, events: readon
   let fileReads = 0;
   let fileWrites = 0;
   let tokenEstimate = 0;
+  let inputTokens = 0;
+  let outputTokens = 0;
   const labels = new Map(pipeline.nodes.map((node) => [node.id, node.label]));
 
   for (const event of events) {
     sessions.add(event.sessionId);
-    tokenEstimate += event.tokenEstimate ?? 0;
+    const tokens = eventTokenTotal(event);
+    tokenEstimate += tokens;
+    inputTokens += event.inputTokens ?? 0;
+    outputTokens += event.outputTokens ?? 0;
     if (event.phase === 'completed') completed += 1;
     if (event.phase === 'failed' || event.severity === 'error') failed += 1;
 
@@ -66,10 +77,14 @@ export function aggregateActivityMetrics(pipeline: AgentPipeline, events: readon
         completedCount: 0,
         failedCount: 0,
         tokenEstimate: 0,
+        inputTokens: 0,
+        outputTokens: 0,
         lastActivity: undefined
       };
       node.eventCount += 1;
-      node.tokenEstimate += event.tokenEstimate ?? 0;
+      node.tokenEstimate += tokens;
+      node.inputTokens += event.inputTokens ?? 0;
+      node.outputTokens += event.outputTokens ?? 0;
       if (event.phase === 'completed') node.completedCount += 1;
       if (event.phase === 'failed' || event.severity === 'error') node.failedCount += 1;
       node.lastActivity = later(node.lastActivity, event.timestamp);
@@ -82,9 +97,11 @@ export function aggregateActivityMetrics(pipeline: AgentPipeline, events: readon
     const action = eventAction(event);
     if (action === 'read') fileReads += 1;
     if (action === 'write') fileWrites += 1;
-    const file = fileMetrics.get(filePath) ?? { path: filePath, reads: 0, writes: 0, events: 0, tokens: 0, latestTimestamp: undefined, nodeIds: new Set<string>() };
+    const file = fileMetrics.get(filePath) ?? { path: filePath, reads: 0, writes: 0, events: 0, tokens: 0, inputTokens: 0, outputTokens: 0, latestTimestamp: undefined, nodeIds: new Set<string>() };
     file.events += 1;
-    file.tokens += event.tokenEstimate ?? 0;
+    file.tokens += tokens;
+    file.inputTokens += event.inputTokens ?? 0;
+    file.outputTokens += event.outputTokens ?? 0;
     file.latestTimestamp = later(file.latestTimestamp, event.timestamp);
     if (event.nodeId) file.nodeIds.add(event.nodeId);
     if (action === 'read') file.reads += 1;
@@ -101,7 +118,9 @@ export function aggregateActivityMetrics(pipeline: AgentPipeline, events: readon
       fileReads,
       fileWrites,
       artifactsTouched: artifactsTouched.size,
-      tokenEstimate
+      tokenEstimate,
+      inputTokens,
+      outputTokens
     },
     nodes: [...nodeMetrics.values()].sort((left, right) => right.eventCount - left.eventCount || Date.parse(right.lastActivity ?? '') - Date.parse(left.lastActivity ?? '') || left.label.localeCompare(right.label)),
     files: [...fileMetrics.values()]
@@ -116,8 +135,14 @@ interface MutableFileActivityMetric {
   writes: number;
   events: number;
   tokens: number;
+  inputTokens: number;
+  outputTokens: number;
   latestTimestamp?: string;
   nodeIds: Set<string>;
+}
+
+function eventTokenTotal(event: AgentFlowActivityEvent): number {
+  return event.tokenEstimate ?? ((event.inputTokens ?? 0) + (event.outputTokens ?? 0));
 }
 
 function eventAction(event: AgentFlowActivityEvent): 'read' | 'write' | undefined {
