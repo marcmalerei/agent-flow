@@ -5,7 +5,7 @@ export type FlowLayout = 'vertical' | 'horizontal' | 'typeColumns' | 'compact';
 
 const nodeWidth = 260;
 const nodeHeight = 170;
-const compactNodeWidth = 245;
+const compactNodeWidth = 285;
 const compactNodeHeight = 150;
 const compactMaxColumns = 8;
 const typeOrder = ['prompt', 'agent', 'role', 'gate', 'handoff', 'instruction', 'skill', 'artifact', 'hook', 'mcp-server'];
@@ -62,27 +62,13 @@ function layoutWrappedComponent(pipeline: AgentPipeline, component: PipelineNode
 
   const result = new Map<string, Position>();
   const orderedLevels = [...levelGroups.keys()].sort((a, b) => a - b);
-  const bandRows = new Map<number, number>();
-  orderedLevels.forEach((level, index) => {
-    const band = Math.floor(index / compactMaxColumns);
-    bandRows.set(band, Math.max(bandRows.get(band) ?? 1, levelGroups.get(level)?.length ?? 1));
-  });
-
-  const bandY = new Map<number, number>();
-  let y = 0;
-  for (const band of [...bandRows.keys()].sort((a, b) => a - b)) {
-    bandY.set(band, y);
-    y += (bandRows.get(band) ?? 1) * compactNodeHeight + compactNodeHeight * 0.85;
-  }
-
-  orderedLevels.forEach((level, index) => {
-    const band = Math.floor(index / compactMaxColumns);
-    const column = index % compactMaxColumns;
+  orderedLevels.forEach((level, column) => {
     const rowNodes = sortNodesForOverview(levelGroups.get(level) ?? [], pipeline);
+    const rowOffset = -Math.max(0, rowNodes.length - 1) * compactNodeHeight * 0.5;
     rowNodes.forEach((node, row) => {
       result.set(node.id, {
         x: column * compactNodeWidth,
-        y: (bandY.get(band) ?? 0) + row * compactNodeHeight
+        y: rowOffset + row * compactNodeHeight
       });
     });
   });
@@ -137,34 +123,45 @@ function layoutLayered(pipeline: AgentPipeline, layout: 'vertical' | 'horizontal
 
 function graphLevels(pipeline: AgentPipeline): Map<string, number> {
   const nodeIds = new Set(pipeline.nodes.map((node) => node.id));
-  const incoming = new Map(pipeline.nodes.map((node) => [node.id, 0]));
   const outgoing = new Map<string, string[]>();
   for (const edge of deriveVisibleFlowEdges(pipeline)) {
     if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target) || edge.source === edge.target) continue;
     outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge.target]);
-    incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
   }
 
-  const levels = new Map(pipeline.nodes.map((node) => [node.id, 0]));
-  const queue = pipeline.nodes.filter((node) => (incoming.get(node.id) ?? 0) === 0).map((node) => node.id);
-  if (queue.length === 0) queue.push(...pipeline.nodes.slice(0, 1).map((node) => node.id));
-  const visited = new Set<string>();
-
-  while (queue.length) {
-    const current = queue.shift()!;
-    if (visited.has(current)) continue;
-    visited.add(current);
-    for (const target of outgoing.get(current) ?? []) {
-      levels.set(target, Math.max(levels.get(target) ?? 0, (levels.get(current) ?? 0) + 1));
-      incoming.set(target, Math.max(0, (incoming.get(target) ?? 0) - 1));
-      if ((incoming.get(target) ?? 0) === 0) queue.push(target);
-    }
+  const incoming = new Map(pipeline.nodes.map((node) => [node.id, 0]));
+  for (const targets of outgoing.values()) {
+    for (const target of targets) incoming.set(target, (incoming.get(target) ?? 0) + 1);
   }
 
+  const levels = new Map<string, number>();
+  const preferredRoots = pipeline.nodes
+    .filter((node) => node.type === 'prompt' || (incoming.get(node.id) ?? 0) === 0)
+    .map((node) => node.id);
+  const roots = preferredRoots.length ? preferredRoots : pipeline.nodes.slice(0, 1).map((node) => node.id);
+
+  for (const root of roots) assignShortestLevels(root, 0, outgoing, levels);
   for (const node of pipeline.nodes) {
-    if (!visited.has(node.id)) levels.set(node.id, Math.min(levels.get(node.id) ?? 0, Math.max(0, pipeline.nodes.length - 1)));
+    if (!levels.has(node.id)) assignShortestLevels(node.id, 0, outgoing, levels);
   }
   return levels;
+}
+
+function assignShortestLevels(root: string, rootLevel: number, outgoing: Map<string, string[]>, levels: Map<string, number>): void {
+  const queue: Array<{ id: string; level: number }> = [{ id: root, level: rootLevel }];
+  while (queue.length) {
+    const current = queue.shift()!;
+    const existing = levels.get(current.id);
+    if (existing !== undefined && existing <= current.level) continue;
+    levels.set(current.id, current.level);
+    for (const target of outgoing.get(current.id) ?? []) {
+      const nextLevel = current.level + 1;
+      const targetLevel = levels.get(target);
+      if (targetLevel === undefined || nextLevel < targetLevel) {
+        queue.push({ id: target, level: nextLevel });
+      }
+    }
+  }
 }
 
 function connectedComponents(pipeline: AgentPipeline): PipelineNode[][] {

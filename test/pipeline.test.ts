@@ -562,30 +562,41 @@ describe('webview graph projection', () => {
 
     expect(positions).toHaveLength(nodes.length);
     expect(occupied.size).toBe(nodes.length);
-    expect(Math.max(...positions.map((position) => position.x))).toBeLessThan(245 * 8);
+    expect(Math.max(...positions.map((position) => position.y))).toBeLessThan(150 * 6);
   });
 
-  it('wraps long directed compact layouts instead of drawing one endless row', () => {
-    const nodes: AgentPipeline['nodes'] = Array.from({ length: 18 }, (_, index) => ({
-      id: `step-${index}`,
-      type: index % 2 === 0 ? 'agent' : 'artifact',
-      label: `Step ${index}`,
-      ...(index % 2 === 1 ? { path: `.github/artifacts/step-${index}.md` } : {})
-    } as AgentPipeline['nodes'][number]));
+  it('keeps long directed compact layouts in a readable left-to-right flow', () => {
+    const nodes: AgentPipeline['nodes'] = Array.from({ length: 18 }, (_, index) => {
+      if (index % 2 === 1) {
+        return {
+          id: `step-${index}`,
+          type: 'artifact',
+          label: `Step ${index}`,
+          path: `.github/artifacts/step-${index}.md`
+        } as AgentPipeline['nodes'][number];
+      }
+      return {
+        id: `step-${index}`,
+        type: 'agent',
+        label: `Step ${index}`,
+        inputs: index > 0 ? [`.github/artifacts/step-${index - 1}.md`] : [],
+        outputs: index < 17 ? [`.github/artifacts/step-${index + 1}.md`] : []
+      } as AgentPipeline['nodes'][number];
+    });
     const pipeline: AgentPipeline = {
       version: 1,
       name: 'Long flow',
       nodes,
-      edges: nodes.slice(1).map((node, index) => ({ id: `edge-${index}`, from: nodes[index].id, to: node.id, kind: index % 2 === 0 ? 'artifact' : 'flow' }))
+      edges: []
     };
 
     const positions = layoutFlowNodes(pipeline, 'compact');
     const maxX = Math.max(...[...positions.values()].map((position) => position.x));
     const maxY = Math.max(...[...positions.values()].map((position) => position.y));
 
-    expect(maxX).toBeLessThan(245 * 8);
-    expect(maxY).toBeGreaterThan(150);
-    expect((positions.get('step-9')?.y ?? 0)).toBeGreaterThan(positions.get('step-7')?.y ?? 0);
+    expect(maxX).toBeGreaterThan(285 * 8);
+    expect(maxY).toBeLessThanOrEqual(150);
+    expect((positions.get('step-9')?.x ?? 0)).toBeGreaterThan(positions.get('step-7')?.x ?? 0);
   });
 
   it('keeps the default compact layout bounded and collision-free', () => {
@@ -597,14 +608,14 @@ describe('webview graph projection', () => {
 
     expect(positions.size).toBe(pipeline.nodes.length);
     expect(occupied.size).toBe(pipeline.nodes.length);
-    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(245 * 7);
-    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(150);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(285 * 7);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(150 * 10);
     for (const edge of deriveVisibleFlowEdges(pipeline).filter((edge) => edge.data.derivedFrom.includes('artifact'))) {
       const source = positions.get(edge.source);
       const target = positions.get(edge.target);
       expect(source).toBeDefined();
       expect(target).toBeDefined();
-      expect(Math.abs((source?.x ?? 0) - (target?.x ?? 0))).toBeLessThanOrEqual(245 * 3);
+      expect(Math.abs((source?.x ?? 0) - (target?.x ?? 0))).toBeLessThanOrEqual(285 * 3);
     }
   });
 

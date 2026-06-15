@@ -46,8 +46,13 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('NativeGraph');
     expect(webviewSource).toContain('graph-viewport');
     expect(webviewSource).toContain('agentflow-node');
+    expect(webviewSource).toContain('activeNodeIds');
     expect(webviewSource).toContain('graph-edge-path');
+    expect(webviewSource).toContain('edgePathBetweenNodes');
     expect(webviewSource).toContain('fitNativeGraphViewport');
+    expect(webviewSource).toContain('focusViewportOnNode');
+    expect(webviewSource).toContain('normalizeGraphNodePositions');
+    expect(webviewSource).toContain('shouldAutoFitGraph');
     expect(webviewSource).toContain('postFlowRenderStatus');
     expect(webviewSource).toContain('renderedNativeNodeIds');
     expect(webviewSource).toContain('webviewBootId');
@@ -66,7 +71,9 @@ describe('webview assets', () => {
     expect(css).toContain('.debug-overlay');
     expect(css).toContain('.native-graph');
     expect(css).toContain('.graph-edge-path');
+    expect(css).toContain('.graph-edge.activity-edge');
     expect(css).toContain('.agentflow-node');
+    expect(css).toContain('.agentflow-node.active');
     expect(css).not.toContain('react-flow__');
     expect(panelSource).toContain('onDidChangeViewState');
     expect(panelSource).toContain('retainContextWhenHidden: true');
