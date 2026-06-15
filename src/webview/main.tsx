@@ -20,7 +20,7 @@ import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges, type VisibleFlowEdge } from './graph';
-import { clamp, edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, graphNodeHeight, graphNodeWidth, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
+import { clamp, edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
 import { activeEdgeIds, recentActivityEvents, recentNodeActivitySummaries, resolveActivityEventsForPipeline } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
@@ -63,6 +63,8 @@ const nodeTypeIcons: Record<PipelineNodeType, string> = { agent: 'hubot', prompt
 interface RenderedNode {
   id: string;
   position: { x: number; y: number };
+  width: number;
+  height: number;
   data: React.ComponentProps<typeof TokenNode>['data'];
   style: React.CSSProperties;
 }
@@ -192,12 +194,17 @@ function App() {
   const visualActivity = useMemo(() => recentActivityEvents(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
   const activityByNode = useMemo(() => recentNodeActivitySummaries(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
   const activeEdges = useMemo(() => new Set(activeEdgeIds(draft, visualActivity)), [draft, visualActivity]);
-  const nodes: RenderedNode[] = useMemo(() => normalizeGraphNodePositions(draft.nodes.map((node) => ({
-    id: node.id,
-    position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
-    data: { label: `${risky.has(node.id) ? '! ' : ''}${graphNodeDisplayLabel(node)}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: nodeTypeColor(node.type), activity: activityByNode.get(node.id), runtimeStatus: state.nodeRuntime?.[node.id]?.status, dirty: state.nodeRuntime?.[node.id]?.dirty, ...handlePositions },
-    style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
-  }))).nodes, [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
+  const nodes: RenderedNode[] = useMemo(() => normalizeGraphNodePositions(draft.nodes.map((node) => {
+    const size = graphNodeSizeForType(node.type);
+    return {
+      id: node.id,
+      position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
+      width: size.width,
+      height: size.height,
+      data: { label: `${risky.has(node.id) ? '! ' : ''}${graphNodeDisplayLabel(node)}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: nodeTypeColor(node.type), activity: activityByNode.get(node.id), runtimeStatus: state.nodeRuntime?.[node.id]?.status, dirty: state.nodeRuntime?.[node.id]?.dirty, ...handlePositions },
+      style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: size.width }
+    };
+  })).nodes, [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
   const activeNodeIds = useMemo(() => [...activityByNode.keys()], [activityByNode]);
   const edges: RenderedEdge[] = useMemo(() => deriveVisibleFlowEdges(draft).map((edge) => activeEdges.has(edge.id) ? { ...edge, animated: true, className: 'activity-edge', style: { ...(edge.style ?? {}), strokeWidth: 3, opacity: 1 } } : edge), [activeEdges, draft]);
 
@@ -406,7 +413,7 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, viewp
         {edges.map((edge) => <GraphEdge key={edge.id} edge={edge} nodesById={nodesById} />)}
       </svg>
       <div className="graph-node-layer">
-        {nodes.map((node) => <button type="button" key={node.id} className={`agentflow-node${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}`} data-node-id={node.id} style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: graphNodeHeight }} onClick={(event) => { event.stopPropagation(); onNodeClick(node.id); }}>
+        {nodes.map((node) => <button type="button" key={node.id} className={`agentflow-node${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}`} data-node-id={node.id} style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: node.height }} onClick={(event) => { event.stopPropagation(); onNodeClick(node.id); }}>
           <TokenNode data={node.data} />
         </button>)}
       </div>

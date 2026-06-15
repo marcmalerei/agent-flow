@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, measuredGraphBounds, normalizeGraphNodePositions, shouldAutoFitGraph, type GraphGeometryNode, type GraphViewport } from '../src/webview/graphGeometry';
+import { edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, graphNodeHeight, graphNodeSizeForType, graphNodeWidth, measuredGraphBounds, normalizeGraphNodePositions, shouldAutoFitGraph, type GraphGeometryNode, type GraphViewport } from '../src/webview/graphGeometry';
 
 const source: GraphGeometryNode = { id: 'source', position: { x: 0, y: 40 } };
 const target: GraphGeometryNode = { id: 'target', position: { x: 320, y: 40 } };
@@ -22,6 +22,20 @@ describe('native graph geometry', () => {
     expect(labelIntersectsNode(edge, closeSource, 132, 22)).toBe(false);
     expect(labelIntersectsNode(edge, closeTarget, 132, 22)).toBe(false);
     expect(edge.labelY).toBeLessThan(closeSource.position.y);
+  });
+
+  it('uses compact handoff node dimensions for bounds and edge anchors', () => {
+    const handoffSize = graphNodeSizeForType('handoff');
+    expect(handoffSize.width).toBeLessThan(graphNodeWidth);
+    expect(handoffSize.height).toBeLessThan(graphNodeHeight);
+
+    const handoff: GraphGeometryNode = { id: 'handoff', position: { x: 0, y: 40 }, ...handoffSize };
+    const targetAgent: GraphGeometryNode = { id: 'agent', position: { x: 320, y: 40 } };
+    const edge = edgePathBetweenNodes(handoff, targetAgent);
+
+    expect(edge.start).toEqual({ x: handoffSize.width, y: 40 + handoffSize.height / 2 });
+    expect(edge.end).toEqual({ x: 320, y: 40 + graphNodeHeight / 2 });
+    expect(measuredGraphBounds([handoff])).toEqual({ x: 0, y: 0, width: handoffSize.width + 120, height: 40 + handoffSize.height + 120 });
   });
 
   it('normalizes nodes and bounds so SVG paths and DOM nodes share the same origin', () => {
