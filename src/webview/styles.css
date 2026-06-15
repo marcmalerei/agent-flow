@@ -24,6 +24,8 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .agentflow-node { position: absolute; box-sizing: border-box; display: block; min-width: 0; padding: 0; text-align: initial; transform-origin: 0 0; cursor: pointer; }
 .agentflow-node:hover { background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-list-hoverBackground, transparent)); }
 .agentflow-node.selected { box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
+.agentflow-node.active { z-index: 3; }
+.agentflow-node.active .flow-node { box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 86%, transparent), 0 0 0 4px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 20%, transparent), 0 0 28px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 48%, transparent); }
 .flow-node { position: relative; display: grid; min-height: 72px; min-width: 0; place-items: center; padding: 24px 18px 12px; text-align: center; white-space: normal; overflow: hidden; }
 .flow-node.has-activity { animation: nodeActivityPulse 1.15s ease-in-out infinite; box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 72%, transparent), 0 0 18px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 38%, transparent); }
 .flow-node.activity-node-file, .flow-node.activity-node-artifact { animation-duration: .9s; }
@@ -44,10 +46,12 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .native-controls button:last-child { border-bottom: 0; }
 .native-controls button:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); }
 .graph-edge-path { fill: none; stroke-linecap: round; }
-.graph-edge.animated .graph-edge-path { stroke-dasharray: 8 4; animation: activityDash 900ms linear infinite; }
+.graph-edge.animated .graph-edge-path { stroke-dasharray: 10 5; animation: activityDash 760ms linear infinite; filter: drop-shadow(0 0 4px currentColor); }
+.graph-edge.activity-edge .graph-edge-path { opacity: 1; }
 .graph-edge-label { pointer-events: none; }
 .graph-edge-label rect { fill: var(--vscode-editorWidget-background); opacity: .95; }
 .graph-edge-label text { fill: var(--vscode-editorWidget-foreground); font-size: 11px; font-family: var(--vscode-font-family, system-ui); }
+.graph-edge.activity-edge .graph-edge-label rect { stroke: currentColor; stroke-width: .8; opacity: .98; }
 .activity-started, .activity-thinking, .activity-tool, .activity-file, .activity-artifact { animation: activityPulse 1.2s ease-in-out infinite; }
 .activity-failed { border-color: var(--vscode-errorForeground, #f14c4c); color: var(--vscode-errorForeground, #f14c4c); }
 .debug-overlay { position: fixed; right: 12px; bottom: 52px; z-index: 30; box-sizing: border-box; width: min(360px, calc(100vw - 24px)); max-height: min(460px, calc(100vh - 80px)); overflow: auto; padding: 10px 12px; border: 1px solid var(--vscode-editorWidget-border, var(--agentflow-border)); border-radius: var(--agentflow-control-radius); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 94%, transparent); color: var(--vscode-editorWidget-foreground, var(--vscode-foreground)); box-shadow: 0 6px 18px var(--vscode-widget-shadow, rgba(0,0,0,.35)); font: 11px/1.35 var(--vscode-editor-font-family, ui-monospace, Menlo, monospace); pointer-events: none; }
@@ -279,7 +283,7 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .error { color: var(--vscode-errorForeground, #fca5a5); } .warning { color: var(--vscode-editorWarning-foreground, #fde68a); } .risk { color: var(--vscode-editorInfo-foreground, #fdba74); } .info { color: var(--vscode-editorInfo-foreground, #bfdbfe); }
 @keyframes activityPulse { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
 @keyframes nodeActivityPulse { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.28); } }
-@keyframes activityDash { to { stroke-dashoffset: -12; } }
+@keyframes activityDash { to { stroke-dashoffset: -15; } }
 @media (prefers-reduced-motion: reduce) {
   .flow-node.has-activity, .activity-started, .activity-thinking, .activity-tool, .activity-file, .activity-artifact, .graph-edge.animated .graph-edge-path { animation: none; }
 }

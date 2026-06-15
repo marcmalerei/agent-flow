@@ -20,6 +20,7 @@ import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges, type VisibleFlowEdge } from './graph';
+import { clamp, edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, graphNodeHeight, graphNodeWidth, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
 import { activeEdgeIds, recentActivityEvents, resolveActivityEventsForPipeline } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
@@ -57,10 +58,6 @@ const webviewBootId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const typeColors: Record<string, string> = { agent: 'var(--vscode-charts-blue)', prompt: 'var(--vscode-charts-purple)', instruction: 'var(--vscode-charts-orange)', skill: 'var(--vscode-testing-iconPassed, #2ea043)', role: 'var(--vscode-charts-cyan, #00b7c3)', artifact: 'var(--vscode-charts-green)', gate: 'var(--vscode-charts-yellow)', hook: 'var(--vscode-charts-red)', handoff: 'var(--vscode-editorWarning-foreground, #cca700)', 'mcp-server': 'var(--vscode-charts-cyan, #00b7c3)' };
 const nodeTypes: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'skill', 'role', 'artifact', 'gate', 'hook', 'handoff', 'mcp-server'];
 const nodeTypeIcons: Record<PipelineNodeType, string> = { agent: 'hubot', prompt: 'comment-discussion', instruction: 'list-tree', skill: 'tools', role: 'person', artifact: 'file', gate: 'pass', hook: 'debug-disconnect', handoff: 'arrow-swap', 'mcp-server': 'server-process' };
-const graphNodeWidth = 190;
-const graphNodeHeight = 96;
-const nativeGraphMinZoom = 0.08;
-const nativeGraphMaxZoom = 1.4;
 
 interface RenderedNode {
   id: string;
@@ -70,19 +67,6 @@ interface RenderedNode {
 }
 
 type RenderedEdge = VisibleFlowEdge & { className?: string };
-
-interface GraphViewport {
-  x: number;
-  y: number;
-  zoom: number;
-}
-
-interface GraphBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
 
 function deriveState(pipeline: AgentPipeline, previous: State): State {
   const activityEvents = resolveActivityEventsForPipeline(pipeline, previous.activityEvents ?? []);
@@ -210,12 +194,13 @@ function App() {
     return summary ? [[node.id, summary] as const] : [];
   })), [activityClock, draft.nodes, state.nodeRuntime]);
   const activeEdges = useMemo(() => new Set(activeEdgeIds(draft, visualActivity)), [draft, visualActivity]);
-  const nodes: RenderedNode[] = useMemo(() => draft.nodes.map((node) => ({
+  const nodes: RenderedNode[] = useMemo(() => normalizeGraphNodePositions(draft.nodes.map((node) => ({
     id: node.id,
     position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
     data: { label: `${risky.has(node.id) ? '! ' : ''}${node.label}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: typeColors[node.type] ?? 'var(--vscode-focusBorder)', activity: activityByNode.get(node.id), runtimeStatus: state.nodeRuntime?.[node.id]?.status, dirty: state.nodeRuntime?.[node.id]?.dirty, ...handlePositions },
     style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: 190 }
-  })), [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
+  }))).nodes, [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
+  const activeNodeIds = useMemo(() => [...activityByNode.keys()], [activityByNode]);
   const edges: RenderedEdge[] = useMemo(() => deriveVisibleFlowEdges(draft).map((edge) => activeEdges.has(edge.id) ? { ...edge, animated: true, className: 'activity-edge', style: { ...(edge.style ?? {}), strokeWidth: 3, opacity: 1 } } : edge), [activeEdges, draft]);
 
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
@@ -234,18 +219,26 @@ function App() {
     }, node.id, [node.id]);
     setInspectorOpen(true);
   };
-  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} canUndo={undoStack.current.length > 0} undoLast={undoLast} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} />;
+  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} canUndo={undoStack.current.length > 0} undoLast={undoLast} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} />;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, bottomOpen, inspectorOpen, viewportSignal, canUndo, undoLast, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, deleteNodes, addNode }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; viewportSignal: number; canUndo: boolean; undoLast: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activeTab, bottomOpen, inspectorOpen, viewportSignal, canUndo, undoLast, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, deleteNodes, addNode }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; viewportSignal: number; canUndo: boolean; undoLast: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void }) {
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
   const [viewport, setViewport] = useState<GraphViewport>({ x: 0, y: 0, zoom: 1 });
   const viewportRef = useRef(viewport);
+  const userViewportInteracted = useRef(false);
+  const lastFitSignature = useRef<string | undefined>(undefined);
+  const lastFocusedActivityNode = useRef<string | undefined>(undefined);
   const [renderStatus, setRenderStatus] = useState<FlowRenderStatus | undefined>(undefined);
-  const flowNodeSignature = useMemo(() => nodes.map((node) => node.id).join('|'), [nodes]);
+  const flowNodeSignature = useMemo(() => nodes.map((node) => `${node.id}@${Math.round(node.position.x)},${Math.round(node.position.y)}`).join('|'), [nodes]);
   const graphBounds = useMemo(() => measuredGraphBounds(nodes), [nodes]);
+  const setGraphViewport = useCallback((next: GraphViewport, userInteracted = false) => {
+    if (userInteracted) userViewportInteracted.current = true;
+    viewportRef.current = next;
+    setViewport(next);
+  }, []);
   useEffect(() => {
     viewportRef.current = viewport;
   }, [viewport]);
@@ -280,8 +273,11 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
   const fitViewport = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect || rect.width < 20 || rect.height < 20 || !nodes.length) return;
-    setViewport(fitNativeGraphViewport(graphBounds, rect));
-  }, [graphBounds, nodes.length]);
+    const next = fitNativeGraphViewport(graphBounds, rect);
+    lastFitSignature.current = flowNodeSignature;
+    userViewportInteracted.current = false;
+    setGraphViewport(next);
+  }, [flowNodeSignature, graphBounds, nodes.length, setGraphViewport]);
 
   useEffect(() => {
     const report = (reason: string) => {
@@ -293,29 +289,46 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
       report('empty-pipeline');
       return;
     }
-    fitViewport();
+    if (shouldAutoFitGraph({ previousSignature: lastFitSignature.current, nextSignature: flowNodeSignature, userInteracted: userViewportInteracted.current, reason: 'structure' })) {
+      fitViewport();
+    }
     const renderStatusTimers = [0, 120, 500, 1200, 2400].map((delay) => window.setTimeout(() => report(`render-check-${delay}`), delay));
-    const observer = typeof ResizeObserver !== 'undefined' && canvasRef.current ? new ResizeObserver(fitViewport) : undefined;
+    const observer = typeof ResizeObserver !== 'undefined' && canvasRef.current ? new ResizeObserver(() => {
+      if (shouldAutoFitGraph({ previousSignature: lastFitSignature.current, nextSignature: flowNodeSignature, userInteracted: userViewportInteracted.current, reason: 'resize' })) fitViewport();
+    }) : undefined;
     if (observer && canvasRef.current) observer.observe(canvasRef.current);
     const onVisibility = () => {
       if (!document.hidden) {
-        fitViewport();
+        if (!userViewportInteracted.current) fitViewport();
         window.setTimeout(() => report('visibilitychange'), 120);
       }
     };
-    window.addEventListener('resize', fitViewport);
-    window.addEventListener('focus', fitViewport);
-    window.addEventListener('pageshow', fitViewport);
+    const onResize = () => {
+      if (shouldAutoFitGraph({ previousSignature: lastFitSignature.current, nextSignature: flowNodeSignature, userInteracted: userViewportInteracted.current, reason: 'resize' })) fitViewport();
+    };
+    window.addEventListener('resize', onResize);
+    window.addEventListener('focus', onResize);
+    window.addEventListener('pageshow', onResize);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       renderStatusTimers.forEach((timer) => window.clearTimeout(timer));
       observer?.disconnect();
-      window.removeEventListener('resize', fitViewport);
-      window.removeEventListener('focus', fitViewport);
-      window.removeEventListener('pageshow', fitViewport);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('focus', onResize);
+      window.removeEventListener('pageshow', onResize);
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [bottomOpen, edges.length, fitViewport, flowNodeSignature, graphBounds, inspectorOpen, nodes, state.flowLayout, state.stateVersion, viewportSignal]);
+
+  useEffect(() => {
+    const activeNodeId = activeNodeIds[0];
+    if (!activeNodeId || lastFocusedActivityNode.current === activeNodeId) return;
+    const node = nodes.find((item) => item.id === activeNodeId);
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!node || !rect || rect.width < 20 || rect.height < 20) return;
+    lastFocusedActivityNode.current = activeNodeId;
+    setGraphViewport(focusViewportOnNode(node, viewportRef.current, rect));
+  }, [activeNodeIds, nodes, setGraphViewport]);
 
   const addNodeAtCenter = (type: PipelineNodeType) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -327,16 +340,17 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeTab, 
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeTypes.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</div>}</div></header>
-    <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} viewport={viewport} graphBounds={graphBounds} onViewportChange={setViewport} onFit={fitViewport} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
+    <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} viewport={viewport} graphBounds={graphBounds} onViewportChange={setGraphViewport} onFit={fitViewport} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
 }
 
-function NativeGraph({ canvasRef, nodes, edges, selectedId, viewport, graphBounds, onViewportChange, onFit, onNodeClick, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; viewport: GraphViewport; graphBounds: GraphBounds; onViewportChange: (viewport: GraphViewport) => void; onFit: () => void; onNodeClick: (nodeId: string) => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
+function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, viewport, graphBounds, onViewportChange, onFit, onNodeClick, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; activeNodeIds: string[]; viewport: GraphViewport; graphBounds: GraphBounds; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onNodeClick: (nodeId: string) => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
   const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+  const activeNodeSet = useMemo(() => new Set(activeNodeIds), [activeNodeIds]);
 
   const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
@@ -349,7 +363,7 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, viewport, graphBound
   const onPointerMove = (event: React.PointerEvent<HTMLElement>) => {
     const start = panStart.current;
     if (!start || start.pointerId !== event.pointerId) return;
-    onViewportChange({ ...start.viewport, x: start.viewport.x + event.clientX - start.x, y: start.viewport.y + event.clientY - start.y });
+    onViewportChange({ ...start.viewport, x: start.viewport.x + event.clientX - start.x, y: start.viewport.y + event.clientY - start.y }, true);
   };
   const endPan = (event: React.PointerEvent<HTMLElement>) => {
     if (panStart.current?.pointerId === event.pointerId) panStart.current = undefined;
@@ -364,7 +378,7 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, viewport, graphBound
       x: event.clientX - rect.left - graphPoint.x * nextZoom,
       y: event.clientY - rect.top - graphPoint.y * nextZoom,
       zoom: nextZoom
-    });
+    }, true);
   };
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     const target = event.target as HTMLElement | null;
@@ -377,7 +391,7 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, viewport, graphBound
 
   return <main className="canvas native-graph" ref={canvasRef} tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endPan} onPointerCancel={endPan} onWheel={onWheel} onKeyDown={onKeyDown}>
     <div className="graph-viewport" style={{ transform: graphTransform(viewport), width: graphBounds.width, height: graphBounds.height }}>
-      <svg className="graph-edge-layer" width={graphBounds.width} height={graphBounds.height} viewBox={`${graphBounds.x} ${graphBounds.y} ${graphBounds.width} ${graphBounds.height}`} aria-hidden="true">
+      <svg className="graph-edge-layer" width={graphBounds.width} height={graphBounds.height} viewBox={`0 0 ${graphBounds.width} ${graphBounds.height}`} aria-hidden="true">
         <defs>{edges.map((edge) => {
           const color = edgeStroke(edge);
           return <marker id={edgeMarkerId(edge.id)} key={edge.id} markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 9 4.5 L 0 9 z" fill={color} /></marker>;
@@ -385,14 +399,14 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, viewport, graphBound
         {edges.map((edge) => <GraphEdge key={edge.id} edge={edge} nodesById={nodesById} />)}
       </svg>
       <div className="graph-node-layer">
-        {nodes.map((node) => <button type="button" key={node.id} className={`agentflow-node${node.id === selectedId ? ' selected' : ''}`} data-node-id={node.id} style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: graphNodeHeight }} onClick={(event) => { event.stopPropagation(); onNodeClick(node.id); }}>
+        {nodes.map((node) => <button type="button" key={node.id} className={`agentflow-node${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}`} data-node-id={node.id} style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: graphNodeHeight }} onClick={(event) => { event.stopPropagation(); onNodeClick(node.id); }}>
           <TokenNode data={node.data} />
         </button>)}
       </div>
     </div>
     <div className="native-controls" aria-label="Graph controls">
-      <button type="button" title="Zoom in" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom * 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) })}><Codicon name="add" /></button>
-      <button type="button" title="Zoom out" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom / 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) })}><Codicon name="dash" /></button>
+      <button type="button" title="Zoom in" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom * 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) }, true)}><Codicon name="add" /></button>
+      <button type="button" title="Zoom out" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom / 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) }, true)}><Codicon name="dash" /></button>
       <button type="button" title="Fit graph" onClick={onFit}><Codicon name="screen-full" /></button>
     </div>
   </main>;
@@ -402,11 +416,11 @@ function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<str
   const source = nodesById.get(edge.source);
   const target = nodesById.get(edge.target);
   if (!source || !target) return null;
-  const points = edgePoints(source, target);
+  const points = edgePathBetweenNodes(source, target);
   const color = edgeStroke(edge);
   const opacity = typeof edge.style?.opacity === 'number' ? edge.style.opacity : 0.82;
   const strokeWidth = typeof edge.style?.strokeWidth === 'number' ? edge.style.strokeWidth : 1.8;
-  return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}`} data-edge-id={edge.id}>
+  return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}`} data-edge-id={edge.id} style={{ color }}>
     <path className="graph-edge-path" d={points.path} stroke={color} strokeWidth={strokeWidth} strokeDasharray={typeof edge.style?.strokeDasharray === 'string' ? edge.style.strokeDasharray : undefined} opacity={opacity} markerEnd={`url(#${edgeMarkerId(edge.id)})`} />
     {edge.label && <g className="graph-edge-label" transform={`translate(${points.labelX} ${points.labelY})`}>
       <rect x="-28" y="-10" width="56" height="20" rx="2" />
@@ -415,56 +429,12 @@ function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<str
   </g>;
 }
 
-function edgePoints(source: RenderedNode, target: RenderedNode): { path: string; labelX: number; labelY: number } {
-  const sx = source.position.x + graphNodeWidth;
-  const sy = source.position.y + graphNodeHeight / 2;
-  const tx = target.position.x;
-  const ty = target.position.y + graphNodeHeight / 2;
-  const dx = Math.max(72, Math.abs(tx - sx) * 0.45);
-  const path = `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`;
-  return { path, labelX: (sx + tx) / 2, labelY: (sy + ty) / 2 };
-}
-
 function edgeStroke(edge: RenderedEdge): string {
   return typeof edge.style?.stroke === 'string' ? edge.style.stroke : 'var(--vscode-editor-foreground)';
 }
 
 function edgeMarkerId(edgeId: string): string {
   return `agentflow-arrow-${edgeId.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
-}
-
-function measuredGraphBounds(nodes: readonly RenderedNode[]): GraphBounds {
-  if (!nodes.length) return { x: -100, y: -100, width: 200, height: 200 };
-  const padding = 120;
-  const minX = Math.min(...nodes.map((node) => node.position.x)) - padding;
-  const minY = Math.min(...nodes.map((node) => node.position.y)) - padding;
-  const maxX = Math.max(...nodes.map((node) => node.position.x + graphNodeWidth)) + padding;
-  const maxY = Math.max(...nodes.map((node) => node.position.y + graphNodeHeight)) + padding;
-  return { x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY) };
-}
-
-function fitNativeGraphViewport(bounds: GraphBounds, rect: DOMRect): GraphViewport {
-  const padding = 56;
-  const availableWidth = Math.max(40, rect.width - padding * 2);
-  const availableHeight = Math.max(40, rect.height - padding * 2);
-  const zoom = clamp(Math.min(1, availableWidth / bounds.width, availableHeight / bounds.height), nativeGraphMinZoom, 1);
-  return {
-    x: (rect.width - bounds.width * zoom) / 2 - bounds.x * zoom,
-    y: (rect.height - bounds.height * zoom) / 2 - bounds.y * zoom,
-    zoom
-  };
-}
-
-function screenToGraphPosition(point: { x: number; y: number }, rect: DOMRect, viewport: GraphViewport): { x: number; y: number } {
-  return { x: (point.x - rect.left - viewport.x) / viewport.zoom, y: (point.y - rect.top - viewport.y) / viewport.zoom };
-}
-
-function graphTransform(viewport: GraphViewport): string {
-  return `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }
 
 interface FlowRenderStatus {
