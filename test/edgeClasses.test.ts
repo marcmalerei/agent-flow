@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeEdgeClass, edgeTooltip } from '../src/webview/edgeClasses';
+import { activeEdgeClass, edgeLabelVisibilityClass, edgeTooltip, isSupportEdge } from '../src/webview/edgeClasses';
 
 describe('edge visual classes', () => {
   it('classifies active read, write, and handoff edges for targeted animation', () => {
@@ -30,5 +30,16 @@ describe('edge visual classes', () => {
       label: 'calls',
       data: { derivedFrom: 'pipeline.edges', kind: 'flow' }
     }, 'router agent', 'worker agent')).toContain('Source: pipeline.edges.');
+  });
+
+  it('uses one helper for edge label visibility across support, selected, and active states', () => {
+    const supportEdge = { label: 'reads', data: { derivedFrom: 'agent.inputs', kind: 'reference', artifact: '.github/artifacts/plan.md' } };
+    const handoffEdge = { label: 'handoff', data: { derivedFrom: 'handoff.targetAgent', kind: 'handoff' } };
+
+    expect(isSupportEdge(supportEdge)).toBe(true);
+    expect(edgeLabelVisibilityClass(supportEdge, { active: false, selected: false })).toBe('edge-label-interactive');
+    expect(edgeLabelVisibilityClass(supportEdge, { active: false, selected: true })).toBe('edge-label-visible');
+    expect(edgeLabelVisibilityClass(supportEdge, { active: true, selected: false })).toBe('edge-label-visible');
+    expect(edgeLabelVisibilityClass(handoffEdge, { active: false, selected: false })).toBe('edge-label-subtle');
   });
 });

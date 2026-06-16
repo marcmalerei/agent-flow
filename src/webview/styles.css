@@ -156,9 +156,10 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .graph-edge.loop-edge .graph-edge-path { stroke-dasharray: 2 6; filter: drop-shadow(0 0 3px currentColor); }
 .graph-edge.error-edge .graph-edge-path { filter: drop-shadow(0 0 5px var(--vscode-errorForeground, #f14c4c)); }
 .graph-edge-tracer { opacity: .95; filter: drop-shadow(0 0 6px currentColor); }
-.graph-edge-label { opacity: .52; pointer-events: none; transition: opacity 120ms ease; }
-.graph-edge.support-edge:not(.activity-edge):not(.focus-edge) .graph-edge-label { opacity: 0; }
-.graph-edge:hover .graph-edge-label, .graph-edge.focus-edge .graph-edge-label, .graph-edge.activity-edge .graph-edge-label { opacity: 1; }
+.graph-edge-label { pointer-events: none; transition: opacity 120ms ease; }
+.graph-edge.edge-label-subtle .graph-edge-label { opacity: .52; }
+.graph-edge.edge-label-interactive .graph-edge-label { opacity: 0; }
+.graph-edge.edge-label-interactive:hover .graph-edge-label, .graph-edge.edge-label-visible .graph-edge-label { opacity: 1; }
 .graph-edge.active-read .graph-edge-tracer, .graph-edge.active-write .graph-edge-tracer, .graph-edge.active-handoff .graph-edge-tracer { opacity: 1; }
 .graph-edge-label rect { fill: var(--vscode-editorWidget-background); opacity: .95; }
 .graph-edge-label text { fill: var(--vscode-editorWidget-foreground); font-size: 11px; font-family: var(--vscode-font-family, system-ui); }

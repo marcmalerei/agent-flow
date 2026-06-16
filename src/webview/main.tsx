@@ -41,7 +41,7 @@ import { edgeGradientId, edgeMarkerColor, graphNodeDisplayLabel, graphNodeFullLa
 import { deriveFlowEmptyState, type EmptyStateAction, type FlowEmptyState, type WorkspaceFileSummary } from './emptyState';
 import { spatialNeighborNodeId, type SpatialArrowKey } from './keyboardNavigation';
 import { deriveGraphRecoveryState, type GraphRecoveryState } from './graphRecoveryState';
-import { activeEdgeClass, edgeTooltip } from './edgeClasses';
+import { activeEdgeClass, edgeLabelVisibilityClass, edgeTooltip, isSupportEdge } from './edgeClasses';
 import { shouldFocusLiveActivity } from './activityFocus';
 import { deriveInspectorSyncStatus, type InspectorSyncStatus } from './inspectorStatus';
 import { graphModePanelTarget, graphModes, type GraphMode } from './graphModes';
@@ -1048,7 +1048,8 @@ function GraphEdge({ edge, nodesById, selectedId }: { edge: RenderedEdge; nodesB
   const strokeWidth = typeof edge.style?.strokeWidth === 'number' ? edge.style.strokeWidth : 1.8;
   const selectedEdge = Boolean(selectedId && (edge.source === selectedId || edge.target === selectedId));
   const title = edgeTooltip(edge, source.data.fullLabel ?? source.data.label, target.data.fullLabel ?? target.data.label);
-  return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}${isSupportEdge(edge) ? ' support-edge' : ''}${selectedId && !selectedEdge ? ' focus-muted' : ''}${selectedEdge ? ' focus-edge' : ''}`} data-edge-id={edge.id} style={{ color }}>
+  const labelVisibility = edgeLabelVisibilityClass(edge, { active: Boolean(edge.animated || edge.className?.includes('activity-edge')), selected: selectedEdge });
+  return <g className={`graph-edge ${labelVisibility}${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}${isSupportEdge(edge) ? ' support-edge' : ''}${selectedId && !selectedEdge ? ' focus-muted' : ''}${selectedEdge ? ' focus-edge' : ''}`} data-edge-id={edge.id} style={{ color }}>
     <title>{title}</title>
     <path className="graph-edge-path" d={points.path} stroke={color} strokeWidth={strokeWidth} strokeDasharray={typeof edge.style?.strokeDasharray === 'string' ? edge.style.strokeDasharray : undefined} opacity={opacity} markerEnd={`url(#${edgeMarkerId(edge.id)})`} />
     {edge.animated && <circle className="graph-edge-tracer" r="4" fill={color}>
@@ -1060,14 +1061,6 @@ function GraphEdge({ edge, nodesById, selectedId }: { edge: RenderedEdge; nodesB
       <text textAnchor="middle" dominantBaseline="central">{label}</text>
     </g>}
   </g>;
-}
-
-function isSupportEdge(edge: RenderedEdge): boolean {
-  return edge.data.derivedFrom.includes('artifact')
-    || edge.data.derivedFrom.includes('instruction')
-    || edge.data.derivedFrom.includes('role')
-    || edge.data.derivedFrom.includes('skill')
-    || edge.data.kind === 'reference';
 }
 
 function compactEdgeLabel(label: string): string {

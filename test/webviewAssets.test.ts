@@ -92,6 +92,7 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('animateMotion');
     expect(webviewSource).toContain('edgeTooltip(edge');
     expect(webviewSource).toContain('activeEdgeClass(edge)');
+    expect(webviewSource).toContain('edgeLabelVisibilityClass(edge');
     expect(webviewSource).toContain('fitNativeGraphViewport');
     expect(webviewSource).toContain('focusViewportOnNode');
     expect(webviewSource).toContain('normalizeGraphNodePositions');
@@ -119,8 +120,8 @@ describe('webview assets', () => {
     expect(css).toContain('.graph-edge.active-write');
     expect(css).toContain('.graph-edge.active-handoff');
     expect(css).toContain('.graph-edge.support-edge');
-    expect(css).toContain('.graph-edge.support-edge:not(.activity-edge):not(.focus-edge) .graph-edge-label');
-    expect(css).toContain('.graph-edge:hover .graph-edge-label');
+    expect(css).toContain('.graph-edge.edge-label-interactive .graph-edge-label');
+    expect(css).toContain('.graph-edge.edge-label-visible .graph-edge-label');
     expect(css).toContain('.graph-edge.focus-muted');
     expect(css).toContain('.agentflow-node.focus-muted');
     expect(css).toContain('.graph-edge.loop-edge');
@@ -504,5 +505,17 @@ describe('webview assets', () => {
     expect(css).toContain('.token-badge { position: static;');
     expect(css).toContain('-webkit-line-clamp: 2');
     expect(css).toContain('.node-status-slot');
+  });
+
+  test('documents graph visual grammar for nodes, edges, activity, and debug states', () => {
+    const docs = readFileSync('docs/graph-visual-grammar.md', 'utf8');
+
+    expect(docs).toContain('Type Color');
+    expect(docs).toContain('Reserved Regions');
+    expect(docs).toContain('Edge Label Visibility');
+    expect(docs).toContain('Activity States');
+    expect(docs).toContain('Debug And Recovery');
+    expect(docs).toContain('handoff');
+    expect(docs).toContain('contrast');
   });
 });
