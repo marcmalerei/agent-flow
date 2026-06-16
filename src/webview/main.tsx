@@ -24,7 +24,7 @@ import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges, type VisibleFlowEdge } from './graph';
 import { clamp, edgePathBetweenNodes, fitGraphNodesViewport, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphOverviewMetrics, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
-import { activeEdgeIds, deriveActivityHudState, freshActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, type ActivityHudState, type ActivityTrailItem } from './activity';
+import { activeEdgeIds, deriveActivityHudState, deriveActivityPlaybackState, freshActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, type ActivityHudState, type ActivityTrailItem } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
 import { filterToolOptionGroups, flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionGroupSelectionSummary, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
@@ -199,6 +199,8 @@ function App() {
   const [graphMode, setGraphMode] = useState<GraphMode>('edit');
   const [graphReadingLevel, setGraphReadingLevel] = useState<GraphReadingLevel>(initialGraphReadingLevel());
   const [activityClock, setActivityClock] = useState(Date.now());
+  const [activityPaused, setActivityPaused] = useState(false);
+  const [replayEventId, setReplayEventId] = useState<string | undefined>(undefined);
   const [viewportSignal, setViewportSignal] = useState(0);
   const dirtyRef = useRef(false);
   const draftRef = useRef(draft);
@@ -250,6 +252,7 @@ function App() {
       if (event.data?.command === 'activityUpdated') {
         setViewportSignal((signal) => signal + 1);
         setActivityClock(Date.now());
+        setReplayEventId(undefined);
         setState((current) => {
           const activityEvents = resolveActivityEventsForPipeline(current.pipeline, event.data.activityEvents ?? []);
           return {
@@ -266,9 +269,10 @@ function App() {
 
   useEffect(() => {
     if (!state.activityEvents?.length) return;
+    if (activityPaused) return;
     const timer = window.setInterval(() => setActivityClock(Date.now()), 2000);
     return () => window.clearInterval(timer);
-  }, [state.activityEvents?.length]);
+  }, [activityPaused, state.activityEvents?.length]);
 
   useEffect(() => {
     window.sessionStorage?.setItem(graphReadingLevelStorageKey, graphReadingLevel);
@@ -347,8 +351,26 @@ function App() {
   const risky = new Set(state.findings.filter((finding) => finding.nodeId).map((finding) => finding.nodeId));
   const layoutPositions = useMemo(() => layoutFlowNodes(draft, state.flowLayout), [draft, state.flowLayout]);
   const handlePositions = useMemo(() => flowHandlePositions(state.flowLayout), [state.flowLayout]);
-  const freshActivity = useMemo(() => freshActivityEvents(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
-  const activityByNode = useMemo(() => recentNodeActivitySummaries(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
+  const activityPlayback = useMemo(() => deriveActivityPlaybackState(state.activityEvents ?? [], { now: activityClock, paused: activityPaused, replayEventId }), [activityClock, activityPaused, replayEventId, state.activityEvents]);
+  const freshActivity = activityPlayback.activeEvents;
+  const activityByNode = useMemo(() => {
+    const summaries = recentNodeActivitySummaries(state.activityEvents ?? [], activityClock);
+    for (const event of activityPlayback.activeEvents) {
+      if (!event.nodeId) continue;
+      summaries.set(event.nodeId, {
+        nodeId: event.nodeId,
+        phase: event.phase,
+        summary: event.summary,
+        count: activityPlayback.coalescedNodes.find((item) => item.nodeId === event.nodeId)?.count ?? 1,
+        updatedAt: event.timestamp,
+        toolName: event.toolName,
+        artifactPath: event.artifactPath,
+        severity: event.severity,
+        freshness: 'fresh'
+      });
+    }
+    return summaries;
+  }, [activityClock, activityPlayback.activeEvents, activityPlayback.coalescedNodes, state.activityEvents]);
   const activityHud = useMemo(() => deriveActivityHudState(state.activityEvents ?? [], state.activitySources ?? [], activityClock), [activityClock, state.activityEvents, state.activitySources]);
   const activityTrail = useMemo(() => recentActivityTrail(state.activityEvents ?? [], activityClock, 6), [activityClock, state.activityEvents]);
   const activeEdges = useMemo(() => new Set(activeEdgeIds(draft, freshActivity)), [draft, freshActivity]);
@@ -363,7 +385,7 @@ function App() {
       style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: size.width }
     };
   })).nodes, [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
-  const activeNodeIds = useMemo(() => [...activityByNode.values()].filter((activity) => activity.freshness === 'fresh').map((activity) => activity.nodeId), [activityByNode]);
+  const activeNodeIds = useMemo(() => [...new Set(activityPlayback.activeEvents.flatMap((event) => [event.nodeId, event.targetNodeId].filter(Boolean) as string[]))], [activityPlayback.activeEvents]);
   const visibleEdges = useMemo(() => deriveVisibleFlowEdges(draft), [draft]);
   const loopEdgeIds = useMemo(() => {
     const loopIds = new Set<string>();
@@ -382,6 +404,7 @@ function App() {
     const edgeSelected = Boolean(selectedId && (edge.source === selectedId || edge.target === selectedId));
     const classNames = [
       edgeActive ? 'activity-edge' : undefined,
+      edgeActive ? 'activity-edge-tracer' : undefined,
       edgeActive ? activeEdgeClass(edge) : undefined,
       edgeReadingLevelClass(edge, graphReadingLevel, { active: edgeActive, selected: edgeSelected }),
       loopEdgeIds.has(edge.id) ? 'loop-edge' : undefined,
@@ -445,10 +468,10 @@ function App() {
   const cancelLocalEdit = useCallback(() => {
     if (editingConflict) applyConflictPipeline(editingConflict.incomingPipeline, editingConflict.nodeId);
   }, [applyConflictPipeline, editingConflict]);
-  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} graphReadingLevel={graphReadingLevel} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} editingConflict={editingConflict} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setGraphReadingLevel={setGraphReadingLevel} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} onApplyExternalChanges={applyExternalChanges} onKeepLocalEdit={keepLocalEdit} onOpenConflictDiff={openConflictDiff} onCancelLocalEdit={cancelLocalEdit} onApplyValidationQuickFix={applyValidationQuickFix} />;
+  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activityPlayback={activityPlayback} activityPaused={activityPaused} replayEventId={replayEventId} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} graphReadingLevel={graphReadingLevel} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} editingConflict={editingConflict} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActivityPaused={setActivityPaused} setReplayEventId={setReplayEventId} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setGraphReadingLevel={setGraphReadingLevel} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} onApplyExternalChanges={applyExternalChanges} onKeepLocalEdit={keepLocalEdit} onOpenConflictDiff={openConflictDiff} onCancelLocalEdit={cancelLocalEdit} onApplyValidationQuickFix={applyValidationQuickFix} />;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, graphMode, graphReadingLevel, inspectorOpen, viewportSignal, editingConflict, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setGraphMode, setGraphReadingLevel, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit, onApplyValidationQuickFix }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; graphReadingLevel: GraphReadingLevel; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setGraphReadingLevel: (level: GraphReadingLevel) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (node: PipelineNode, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void; onApplyValidationQuickFix: (action: ValidationAction | undefined) => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activityPlayback, activityPaused, replayEventId, activeTab, bottomOpen, graphMode, graphReadingLevel, inspectorOpen, viewportSignal, editingConflict, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActivityPaused, setReplayEventId, setActiveTab, setBottomOpen, setGraphMode, setGraphReadingLevel, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit, onApplyValidationQuickFix }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activityPlayback: ReturnType<typeof deriveActivityPlaybackState>; activityPaused: boolean; replayEventId?: string; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; graphReadingLevel: GraphReadingLevel; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActivityPaused: React.Dispatch<React.SetStateAction<boolean>>; setReplayEventId: React.Dispatch<React.SetStateAction<string | undefined>>; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setGraphReadingLevel: (level: GraphReadingLevel) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (node: PipelineNode, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void; onApplyValidationQuickFix: (action: ValidationAction | undefined) => void }) {
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
@@ -741,6 +764,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       <span>{draft.name}</span>
       <GraphModeSwitch mode={graphMode} onChange={changeGraphMode} />
       <ActivityHud state={activityHud} onOpen={() => openActivityForNode()} />
+      <ActivityPlaybackControls paused={activityPaused} mode={activityPlayback.mode} replayEventId={activityPlayback.replayEventId} latestEventId={activityTrail[0]?.id} onClear={() => { setReplayEventId(undefined); vscode?.postMessage({ command: 'clearActivity' }); }} onPauseToggle={() => setActivityPaused((paused) => !paused)} onReplayLatest={() => activityTrail[0] && setReplayEventId(activityTrail[0].id)} onStopReplay={() => setReplayEventId(undefined)} />
       <VSCodeButton className={`compact follow-live-toggle${followLiveActivity ? ' active' : ''}`} icon="target" aria-pressed={followLiveActivity} onClick={() => setFollowLiveActivity((enabled) => { if (!enabled) userViewportInteracted.current = false; return !enabled; })} title="Follow live activity without changing zoom">Follow live</VSCodeButton>
       <VSCodeButton className="compact" icon="question" aria-keyshortcuts="?" onClick={() => setShortcutsOpen((open) => !open)} title="Keyboard shortcuts">Shortcuts</VSCodeButton>
       <VSCodeButton className="compact" icon="discard" aria-keyshortcuts="Control+Z Meta+Z" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton>
@@ -752,7 +776,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       <div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => { setAddNodeMenuOpen((open) => !open); setPendingNodeConnection(undefined); }}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeCreationDraft && nodeCreationPreview ? <NodeCreationForm draft={nodeCreationDraft} preview={nodeCreationPreview} connectFromLabel={nodeCreationDraft.connectFrom ? draft.nodes.find((node) => node.id === nodeCreationDraft.connectFrom)?.label : undefined} onCancel={() => setNodeCreationDraft(undefined)} onChange={setNodeCreationDraft} onCreate={confirmNodeCreation} /> : <>{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => beginNodeCreation(type)}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => beginNodeCreation(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.targetNode); setCreationFeedback(`Created ${nodeFileSummary(pendingNodeConnection.targetNode)}`); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.targetNode, pendingNodeConnection.sourceId, kind); setCreationFeedback(`Created ${nodeFileSummary(pendingNodeConnection.targetNode)}`); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</>}</div>}</div>
     </header>
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
-    <NativeGraph graphMode={graphMode} graphReadingLevel={graphReadingLevel} onGraphReadingLevelChange={setGraphReadingLevel} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
+    <NativeGraph graphMode={graphMode} graphReadingLevel={graphReadingLevel} onGraphReadingLevelChange={setGraphReadingLevel} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} replayEventId={replayEventId} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => { setReplayEventId(item.id); openActivityForNode(item.nodeId ?? item.targetNodeId); }} onViewportChange={setGraphViewport} onFit={fitViewport} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} conflict={editingConflict} onChange={updateNode} onConnect={applyConnection} onApplyExternalChanges={onApplyExternalChanges} onKeepLocalEdit={onKeepLocalEdit} onOpenConflictDiff={onOpenConflictDiff} onCancelLocalEdit={onCancelLocalEdit} /></aside>}
@@ -797,6 +821,15 @@ function ActivityHud({ onOpen, state }: { onOpen: () => void; state: ActivityHud
       <small>{state.now.detail} · {new Date(state.now.timestamp).toLocaleTimeString()}</small>
     </span>}
   </button>;
+}
+
+function ActivityPlaybackControls({ latestEventId, mode, onClear, onPauseToggle, onReplayLatest, onStopReplay, paused, replayEventId }: { latestEventId?: string; mode: string; onClear: () => void; onPauseToggle: () => void; onReplayLatest: () => void; onStopReplay: () => void; paused: boolean; replayEventId?: string }) {
+  return <div className={`activity-playback-controls activity-playback-${mode}`} role="group" aria-label="Activity playback controls">
+    <VSCodeIconButton type="button" icon={paused ? 'play' : 'debug-pause'} title={paused ? 'Resume activity playback' : 'Pause activity playback'} aria-label={paused ? 'Resume activity playback' : 'Pause activity playback'} onClick={onPauseToggle} />
+    <VSCodeIconButton type="button" icon="debug-restart" title="Replay latest activity" aria-label="Replay latest activity" disabled={!latestEventId} onClick={onReplayLatest} />
+    {replayEventId && <VSCodeIconButton type="button" icon="close" title="Stop activity replay" aria-label="Stop activity replay" onClick={onStopReplay} />}
+    <VSCodeIconButton type="button" icon="clear-all" title="Clear activity" aria-label="Clear activity" onClick={onClear} />
+  </div>;
 }
 
 function GraphModeSwitch({ mode, onChange }: { mode: GraphMode; onChange: (mode: GraphMode) => void }) {
@@ -897,6 +930,7 @@ function RelationshipList({ label, nodes, onSelectNode }: { label: string; nodes
 interface NativeGraphProps {
   activeNodeIds: string[];
   activityTrail: ActivityTrailItem[];
+  replayEventId?: string;
   artifactSummary?: ArtifactRelationshipSummaryModel;
   canvasRef: React.RefObject<HTMLElement>;
   edges: RenderedEdge[];
@@ -938,7 +972,7 @@ interface NativeGraphProps {
   onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void;
 }
 
-function NativeGraph({ canvasRef, graphMode, graphReadingLevel, nodes, edges, selectedId, selectedNode, activeNodeIds, problemNodeIds, activityTrail, viewport, graphBounds, emptyState, recoveryState, searchQuery, searchMatches, searchIndex, typeFilterOptions, selectedGraphTypes, graphFilterEmpty, artifactSummary, onActivitySelect, onViewportChange, onFit, onFitSelectedNeighborhood, onGraphReadingLevelChange, onJumpActive, onJumpProblem, onJumpSelected, onJumpStart, onOpenDiagnostics, onNodeClick, onSelectNode, onClearFocus, onTypeFilterChange, onOpenSelected, onCanvasClick, onDeleteSelected, onSearchChange, onSearchClear, onSearchStep }: NativeGraphProps) {
+function NativeGraph({ canvasRef, graphMode, graphReadingLevel, nodes, edges, selectedId, selectedNode, activeNodeIds, problemNodeIds, activityTrail, replayEventId, viewport, graphBounds, emptyState, recoveryState, searchQuery, searchMatches, searchIndex, typeFilterOptions, selectedGraphTypes, graphFilterEmpty, artifactSummary, onActivitySelect, onViewportChange, onFit, onFitSelectedNeighborhood, onGraphReadingLevelChange, onJumpActive, onJumpProblem, onJumpSelected, onJumpStart, onOpenDiagnostics, onNodeClick, onSelectNode, onClearFocus, onTypeFilterChange, onOpenSelected, onCanvasClick, onDeleteSelected, onSearchChange, onSearchClear, onSearchStep }: NativeGraphProps) {
   const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const activeNodeSet = useMemo(() => new Set(activeNodeIds), [activeNodeIds]);
@@ -1054,7 +1088,7 @@ function NativeGraph({ canvasRef, graphMode, graphReadingLevel, nodes, edges, se
     {emptyState.kind !== 'none' && <FlowEmptyStateView state={emptyState} />}
     {emptyState.kind === 'none' && recoveryState.kind !== 'none' && <FlowRecoveryStateView state={recoveryState} onRetry={onFit} onOpenDiagnostics={onOpenDiagnostics} />}
     {activityTrail.length > 0 && <div className="activity-trail" aria-label="Recent activity trail">
-      {activityTrail.map((item) => <button type="button" key={item.id} title={item.summary} onClick={() => onActivitySelect(item)}>
+      {activityTrail.map((item) => <button type="button" key={item.id} className={item.id === replayEventId ? 'active' : undefined} aria-pressed={item.id === replayEventId} title={item.summary} onClick={() => onActivitySelect(item)}>
         <Codicon name={item.label === 'handoff' ? 'arrow-swap' : item.artifactPath ? 'file' : 'pulse'} />
         <span>{item.label}</span>
       </button>)}

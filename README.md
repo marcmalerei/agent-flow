@@ -14,7 +14,7 @@ The extension does not execute pipelines, call Copilot agents, read private Copi
 - Edit node metadata, tools, handoffs, artifacts, intent-card references, and Markdown from a VS Code themed inspector.
 - Auto-save webview edits directly back to the relevant Markdown files.
 - Keep graph edges synchronized with Markdown references, handoffs, and artifact usage.
-- Show live node and edge activity from Agent Flow language model tools and sanitized GitHub Copilot debug logs when Copilot file logging is enabled.
+- Show short-lived live node and edge activity, replay recent events, and import sanitized GitHub Copilot debug logs when Copilot file logging is enabled.
 - Choose language model tools from VS Code's registered tool list.
 - Show token estimates per node and diagnostics for validation, files, tools, and context risk.
 - Create starter agents, prompts, instructions, skills, roles, artifacts, gates, hooks, and MCP server nodes.

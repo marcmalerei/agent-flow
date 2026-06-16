@@ -422,6 +422,22 @@ describe('webview assets', () => {
     expect(css).toContain('nodeActivityPulse');
   });
 
+  test('wires activity playback controls and active edge tracers', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('deriveActivityPlaybackState');
+    expect(webviewSource).toContain('ActivityPlaybackControls');
+    expect(webviewSource).toContain('Replay latest activity');
+    expect(webviewSource).toContain('Pause activity playback');
+    expect(webviewSource).toContain('Resume activity playback');
+    expect(webviewSource).toContain('activity-edge-tracer');
+    expect(webviewSource).toContain('replayEventId');
+    expect(css).toContain('.activity-playback-controls');
+    expect(css).toContain('.graph-edge.activity-edge-tracer');
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
   test('organizes inspector as task-oriented editing flow', () => {
     const source = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');

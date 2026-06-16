@@ -32,6 +32,9 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .activity-hud-live { border-color: var(--vscode-charts-green); color: var(--vscode-charts-green); box-shadow: inset 2px 0 0 var(--vscode-charts-green); }
 .activity-hud-recent { border-color: var(--vscode-charts-blue); color: var(--vscode-charts-blue); }
 .activity-hud-degraded { border-color: var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-editorWarning-foreground, #cca700); }
+.activity-playback-controls { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, transparent); }
+.activity-playback-controls.activity-playback-replay { border-color: var(--vscode-charts-green); box-shadow: inset 2px 0 0 var(--vscode-charts-green); }
+.activity-playback-controls.activity-playback-paused { border-color: var(--vscode-charts-yellow); }
 .follow-live-toggle.active { border-color: var(--vscode-focusBorder); background: color-mix(in srgb, var(--vscode-button-secondaryBackground, transparent) 72%, var(--vscode-focusBorder)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
 .graph-mode-switch { display: inline-flex; flex: 0 0 auto; align-items: center; padding: 2px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, transparent); }
 .graph-mode-switch button { min-height: 26px; padding: 2px 7px; border: 0; border-radius: var(--agentflow-control-radius); background: transparent; color: var(--vscode-descriptionForeground); font-size: 12px; }
@@ -151,6 +154,7 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .activity-trail { position: absolute; left: 52px; bottom: 12px; z-index: 5; display: flex; max-width: min(560px, calc(100% - 100px)); gap: 4px; overflow: hidden; pointer-events: auto; }
 .activity-trail button { max-width: 132px; min-height: 28px; padding: 3px 7px; border-color: var(--agentflow-border); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 92%, transparent); color: var(--vscode-foreground); }
 .activity-trail button:first-child { border-color: var(--vscode-charts-green); box-shadow: inset 2px 0 0 var(--vscode-charts-green); }
+.activity-trail button.active { border-color: var(--vscode-focusBorder, var(--vscode-charts-green)); background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); }
 .activity-trail span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shortcut-help { position: fixed; top: 64px; right: 14px; z-index: 24; box-sizing: border-box; width: min(340px, calc(100vw - 28px)); padding: 10px; border: 1px solid var(--vscode-editorWidget-border, var(--agentflow-border)); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); color: var(--vscode-editorWidget-foreground, var(--vscode-foreground)); box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0,0,0,.35)); }
 .keyboard-shortcuts-popover { max-height: calc(100vh - 88px); overflow: auto; }
@@ -171,6 +175,7 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .graph-edge.focus-edge .graph-edge-label rect { stroke: currentColor; stroke-width: .8; }
 .graph-edge.animated .graph-edge-path { stroke-dasharray: 10 5; animation: activityDash 760ms linear infinite; filter: drop-shadow(0 0 4px currentColor); }
 .graph-edge.activity-edge .graph-edge-path { opacity: 1; }
+.graph-edge.activity-edge-tracer .graph-edge-path { stroke-dasharray: 10 12; animation: activityEdgeTracer 1.1s linear infinite; }
 .graph-edge-path { pointer-events: stroke; }
 .graph-edge.loop-edge .graph-edge-path { stroke-dasharray: 2 6; filter: drop-shadow(0 0 3px currentColor); }
 .graph-edge.error-edge .graph-edge-path { filter: drop-shadow(0 0 5px var(--vscode-errorForeground, #f14c4c)); }
@@ -183,11 +188,12 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .graph-edge-label rect { fill: var(--vscode-editorWidget-background); opacity: .95; }
 .graph-edge-label text { fill: var(--vscode-editorWidget-foreground); font-size: 11px; font-family: var(--vscode-font-family, system-ui); }
 .graph-edge.activity-edge .graph-edge-label rect { stroke: currentColor; stroke-width: .8; opacity: .98; }
+@keyframes activityEdgeTracer { to { stroke-dashoffset: -22; } }
 .activity-badge.activity-freshness-fresh.activity-started, .activity-badge.activity-freshness-fresh.activity-thinking, .activity-badge.activity-freshness-fresh.activity-tool, .activity-badge.activity-freshness-fresh.activity-file, .activity-badge.activity-freshness-fresh.activity-artifact { animation: activityPulse 1.2s ease-in-out infinite; }
 .activity-failed { border-color: var(--vscode-errorForeground, #f14c4c); color: var(--vscode-errorForeground, #f14c4c); }
 @media (prefers-reduced-motion: reduce) {
   .flow-node.has-activity, .activity-badge.activity-freshness-fresh.activity-started, .activity-badge.activity-freshness-fresh.activity-thinking, .activity-badge.activity-freshness-fresh.activity-tool, .activity-badge.activity-freshness-fresh.activity-file, .activity-badge.activity-freshness-fresh.activity-artifact { animation: none; }
-  .graph-edge.animated .graph-edge-path { animation: none; }
+  .graph-edge.animated .graph-edge-path, .graph-edge.activity-edge-tracer .graph-edge-path { animation: none; stroke-dasharray: none; }
   .graph-edge-tracer { display: none; }
 }
 @media (forced-colors: active) {
