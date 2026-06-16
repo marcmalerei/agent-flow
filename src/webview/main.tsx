@@ -30,7 +30,7 @@ import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmat
 import { flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 import { TokenNode, flowHandlePositions } from './TokenNode';
-import { applyConnectionIntent, buildConnectionIntentOptions, connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renamePipelineNodeLabel, type ConnectionIntentKind } from './flowMutations';
+import { applyConnectionIntent, buildConnectionIntentOptions, connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, deriveRenamePreview, renamePipelineNodeLabel, type ConnectionIntentKind, type RenamePreview as RenamePreviewModel } from './flowMutations';
 import { duplicatePipelineSelection } from './builderMutations';
 import { optionalTextValue, referenceInstructionTextValue } from './formState';
 import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } from './components';
@@ -1020,6 +1020,38 @@ function nodeFileSummary(node: PipelineNode): string {
 }
 
 function Inspector({ node, pipeline, toolOptions, runtime, findings, onChange, onConnect }: { node?: PipelineNode; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[]; runtime?: NodeRuntimeState; findings: ValidationFinding[]; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void; onConnect: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void }) {
+  const [labelDraft, setLabelDraft] = useState(node?.label ?? '');
+  const [renameSummary, setRenameSummary] = useState<RenamePreviewModel | undefined>(undefined);
+  const nodeId = node?.id ?? '';
+  const nodeLabel = node?.label ?? '';
+  const renamePreview = useMemo(() => nodeId && labelDraft !== nodeLabel ? deriveRenamePreview(pipeline, nodeId, labelDraft) : undefined, [labelDraft, nodeId, nodeLabel, pipeline]);
+  const commitLabelDraft = useCallback(() => {
+    if (!nodeId) return;
+    if (!renamePreview) {
+      setLabelDraft(nodeLabel);
+      return;
+    }
+    setRenameSummary(renamePreview);
+    onChange(nodeId, { label: labelDraft } as Partial<PipelineNode>);
+  }, [labelDraft, nodeId, nodeLabel, onChange, renamePreview]);
+  const resetLabelDraft = useCallback(() => {
+    setLabelDraft(nodeLabel);
+    setRenameSummary(undefined);
+  }, [nodeLabel]);
+  const onLabelKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      commitLabelDraft();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      resetLabelDraft();
+    }
+  }, [commitLabelDraft, resetLabelDraft]);
+  useEffect(() => {
+    setLabelDraft(nodeLabel);
+    setRenameSummary(undefined);
+  }, [nodeId, nodeLabel]);
   if (!node) return <p>Select a node.</p>;
   const agents = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'agent' }> => item.type === 'agent' && item.id !== node.id);
   const branchTargets = pipeline.nodes.filter((item) => item.id !== node.id && (item.type === 'agent' || item.type === 'prompt' || item.type === 'gate' || item.type === 'handoff'));
@@ -1059,7 +1091,8 @@ function Inspector({ node, pipeline, toolOptions, runtime, findings, onChange, o
   return <div className="config"><InspectorHeader node={node} filePath={filePath} syncStatus={syncStatus} />
     <InspectorQuickActions node={node} hasArtifact={Boolean(firstArtifact)} hasInstruction={Boolean(firstInstruction)} hasAgent={agents.length > 0} onAddInput={() => firstArtifact && toggleArtifact(node.type === 'agent' ? 'inputs' : 'requiredArtifacts', firstArtifact.path, true, 'read')} onAddOutput={() => firstArtifact && node.type === 'agent' && toggleArtifact('outputs', firstArtifact.path, true, 'write')} onAddInstruction={() => firstInstruction && toggleInstructionRef(instructionReferenceTarget(firstInstruction), true)} onAddHandoff={() => setHandoffs([...(node.type === 'agent' ? node.handoffs ?? [] : []), { label: 'New handoff', agent: agents[0]?.id ?? '', send: false }])} />
     <InspectorSection id="identity" title="Identity" summary={filePath} defaultOpen>
-      <VSCodeInput label="Label" value={node.label} onChange={(event: any) => onChange(node.id, { label: event.target.value } as Partial<PipelineNode>)} />
+      <VSCodeInput label="Label" value={labelDraft} onChange={(event: any) => { setLabelDraft(event.target.value); setRenameSummary(undefined); }} onBlur={commitLabelDraft} onKeyDown={onLabelKeyDown} />
+      <RenamePreview preview={renamePreview} summary={renameSummary} />
       <VSCodeTextarea label="Description" value={node.description ?? ''} onChange={(event: any) => setOptionalString('description', event.target.value)} />
     </InspectorSection>
     <InspectorSection id="connections" title="Connections" summary="guided edge creation"><GuidedConnectionPanel node={node} pipeline={pipeline} onConnect={onConnect} /></InspectorSection>
@@ -1081,6 +1114,27 @@ function Inspector({ node, pipeline, toolOptions, runtime, findings, onChange, o
     {node.type === 'mcp-server' && <InspectorSection id="run" title="Run behavior" summary={node.command || 'no command'} defaultOpen><label>Command<input value={node.command ?? ''} onChange={(event: any) => setOptionalString('command', event.target.value)} /></label><label>Args<input value={Array.isArray(node.args) ? node.args.join(' ') : node.args ?? ''} onChange={(event: any) => setOptionalString('args', event.target.value)} /></label></InspectorSection>}
     <InspectorSection id="markdown" title="Content" summary={node.markdown ? 'custom body' : 'empty'}><TiptapMarkdownEditor value={node.markdown ?? ''} references={references} onChange={(value) => onChange(node.id, { markdown: value } as Partial<PipelineNode>)} /></InspectorSection>
     <InspectorSection id="findings" title="Health" summary={findings.length ? `${findings.length} finding${findings.length === 1 ? '' : 's'}` : 'no findings'} defaultOpen={findings.length > 0}>{findings.length ? findings.map((finding) => <p key={`${finding.ruleId}-${finding.message}`} className={`inspector-finding ${finding.severity}`}><strong>{finding.severity}</strong>{finding.message}<small>{finding.ruleId}</small></p>) : <p>No node findings.</p>}</InspectorSection>
+  </div>;
+}
+
+function RenamePreview({ preview, summary }: { preview?: RenamePreviewModel; summary?: RenamePreviewModel }) {
+  const activePreview = preview ?? summary;
+  if (!activePreview) return null;
+  const isSummary = !preview && Boolean(summary);
+  return <div className={`rename-preview${isSummary ? ' rename-preview-success' : ''}`} role="status">
+    <div className="rename-preview-heading">
+      <strong>{isSummary ? 'Rename saved' : 'Rename preview'}</strong>
+      {activePreview.normalized && <span>Normalized to lower-case</span>}
+    </div>
+    <dl className="rename-preview-grid">
+      <dt>Label</dt><dd>{activePreview.currentLabel} -&gt; {activePreview.nextLabel}</dd>
+      <dt>File</dt><dd>{activePreview.currentFile} -&gt; {activePreview.nextFile}</dd>
+      <dt>References to update</dt><dd>{activePreview.rewrittenReferenceCount}</dd>
+    </dl>
+    {activePreview.updatedFiles.length > 0 && <div className="rename-preview-files">
+      <span>{isSummary ? 'Updated files' : 'Files to update'}</span>
+      {activePreview.updatedFiles.map((file) => <code key={file}>{file}</code>)}
+    </div>}
   </div>;
 }
 

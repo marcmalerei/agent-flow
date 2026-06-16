@@ -31,6 +31,16 @@ export interface ConnectionIntentOption {
   };
 }
 
+export interface RenamePreview {
+  currentFile: string;
+  currentLabel: string;
+  nextFile: string;
+  nextLabel: string;
+  normalized: boolean;
+  rewrittenReferenceCount: number;
+  updatedFiles: string[];
+}
+
 export function connectPipelineNodes(pipeline: AgentPipeline, sourceId: string, targetId: string): AgentPipeline {
   const source = pipeline.nodes.find((node) => node.id === sourceId);
   const target = pipeline.nodes.find((node) => node.id === targetId);
@@ -273,6 +283,50 @@ export function renamePipelineNodeLabel(pipeline: AgentPipeline, nodeId: string,
   return { ...pipeline, nodes, edges };
 }
 
+export function deriveRenamePreview(pipeline: AgentPipeline, nodeId: string, label: string): RenamePreview | undefined {
+  const previousNode = pipeline.nodes.find((node) => node.id === nodeId);
+  if (!previousNode) return undefined;
+
+  const renamedPipeline = renamePipelineNodeLabel(pipeline, nodeId, label);
+  const renamedNode = renamedPipeline.nodes.find((node) => node.id === nodeId);
+  if (!renamedNode) return undefined;
+
+  const currentFile = nodeFileTarget(previousNode) ?? previousNode.id;
+  const nextFile = nodeFileTarget(renamedNode) ?? renamedNode.id;
+  const changedFileEntries = pipeline.nodes
+    .map((previous) => {
+      if (previous.id === nodeId) return undefined;
+      const next = renamedPipeline.nodes.find((node) => node.id === previous.id);
+      if (!next) return undefined;
+      const rewrittenReferences = countRewrittenReferences(previous, next);
+      if (!rewrittenReferences) return undefined;
+      return {
+        file: nodeFileTarget(next) ?? next.id,
+        isAgentFile: next.type === 'agent',
+        rewrittenReferences
+      };
+    })
+    .filter((entry): entry is { file: string; isAgentFile: boolean; rewrittenReferences: number } => Boolean(entry));
+  const rewrittenReferenceCount = changedFileEntries.reduce((total, entry) => total + entry.rewrittenReferences, 0);
+  const updatedFiles = uniqueStrings([
+    ...changedFileEntries.filter((entry) => entry.isAgentFile).map((entry) => entry.file),
+    nextFile,
+    ...changedFileEntries.filter((entry) => !entry.isAgentFile).map((entry) => entry.file)
+  ]);
+
+  if (previousNode.label === renamedNode.label && currentFile === nextFile && rewrittenReferenceCount === 0) return undefined;
+
+  return {
+    currentFile,
+    currentLabel: previousNode.label,
+    nextFile,
+    nextLabel: renamedNode.label,
+    normalized: label.trim() !== renamedNode.label,
+    rewrittenReferenceCount,
+    updatedFiles
+  };
+}
+
 function edgeForConnection(source: PipelineNode, target: PipelineNode): PipelineEdge {
   const instructionEdge = instructionConnectionEdge(source, target);
   if (instructionEdge) return instructionEdge;
@@ -407,6 +461,51 @@ function renameArtifactUsages(usages: ArtifactUsage[] | undefined, previousPath:
 
 function referenceAliases(id: string, label: string, file: string | undefined): Set<string> {
   return new Set([id, label, file].filter((value): value is string => Boolean(value)).map(stripYamlQuotes));
+}
+
+function countRewrittenReferences(previous: PipelineNode, next: PipelineNode): number {
+  let count = 0;
+  count += countStringListChanges((previous as any).calls, (next as any).calls);
+  count += countStringListChanges((previous as any).inputs, (next as any).inputs);
+  count += countStringListChanges((previous as any).outputs, (next as any).outputs);
+  count += countStringListChanges((previous as any).requiredArtifacts, (next as any).requiredArtifacts);
+  count += countStringValueChange((previous as any).startAgent, (next as any).startAgent);
+  count += countStringValueChange((previous as any).targetAgent, (next as any).targetAgent);
+  count += countObjectFieldChanges((previous as any).handoffs, (next as any).handoffs, 'agent');
+  count += countObjectFieldChanges((previous as any).artifactUsages, (next as any).artifactUsages, 'path');
+  count += countObjectFieldChanges((previous as any).instructionRefs, (next as any).instructionRefs, 'target');
+  count += countObjectFieldChanges((previous as any).roleRefs, (next as any).roleRefs, 'target');
+  return count;
+}
+
+function countStringValueChange(previous: string | undefined, next: string | undefined): number {
+  return previous !== next ? 1 : 0;
+}
+
+function countStringListChanges(previous: string[] | undefined, next: string[] | undefined): number {
+  const before = previous ?? [];
+  const after = next ?? [];
+  const length = Math.max(before.length, after.length);
+  let count = 0;
+  for (let index = 0; index < length; index += 1) {
+    if (before[index] !== after[index]) count += 1;
+  }
+  return count;
+}
+
+function countObjectFieldChanges(previous: Array<Record<string, unknown>> | undefined, next: Array<Record<string, unknown>> | undefined, field: string): number {
+  const before = previous ?? [];
+  const after = next ?? [];
+  const length = Math.max(before.length, after.length);
+  let count = 0;
+  for (let index = 0; index < length; index += 1) {
+    if (before[index]?.[field] !== after[index]?.[field]) count += 1;
+  }
+  return count;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
 }
 
 function addUnique(values: string[] | undefined, value: string): string[] {

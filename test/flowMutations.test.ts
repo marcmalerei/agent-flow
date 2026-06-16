@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateAgentMarkdown, generatePromptMarkdown } from '../src/pipeline/generators';
 import { AgentPipeline } from '../src/pipeline/types';
-import { applyConnectionIntent, buildConnectionIntentOptions, connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renameNodeLabel, renamePipelineNodeLabel } from '../src/webview/flowMutations';
+import { applyConnectionIntent, buildConnectionIntentOptions, connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, deriveRenamePreview, renameNodeLabel, renamePipelineNodeLabel } from '../src/webview/flowMutations';
 import { deriveVisibleFlowEdges } from '../src/webview/graph';
 
 function basePipeline(): AgentPipeline {
@@ -170,6 +170,29 @@ describe('flow mutations', () => {
     expect(handoff?.targetAgent).toBe('.github/agents/qa-reviewer.agent.md');
     expect(generateAgentMarkdown(router!)).toContain('agent: ".github/agents/qa-reviewer.agent.md"');
     expect(generatePromptMarkdown(prompt!)).toContain('agent: ".github/agents/qa-reviewer.agent.md"');
+  });
+
+  it('previews rename file and reference impact before committing the label change', () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Rename preview',
+      nodes: [
+        { id: 'router', type: 'agent', label: 'router', agentFile: '.github/agents/router.agent.md', calls: ['Worker Agent'], outputs: [], handoffs: [{ label: 'Review', agent: '.github/agents/worker-agent.agent.md', send: false }] },
+        { id: 'prompt', type: 'prompt', label: 'prompt', promptFile: '.github/prompts/prompt.prompt.md', startAgent: '.github/agents/worker-agent.agent.md' },
+        { id: 'worker-agent', type: 'agent', label: 'Worker Agent', agentFile: '.github/agents/worker-agent.agent.md', calls: [], outputs: [] }
+      ],
+      edges: []
+    };
+
+    expect(deriveRenamePreview(pipeline, 'worker-agent', 'QA Reviewer')).toMatchObject({
+      currentFile: '.github/agents/worker-agent.agent.md',
+      currentLabel: 'Worker Agent',
+      nextFile: '.github/agents/qa-reviewer.agent.md',
+      nextLabel: 'qa reviewer',
+      normalized: true,
+      rewrittenReferenceCount: 3,
+      updatedFiles: ['.github/agents/router.agent.md', '.github/agents/qa-reviewer.agent.md', '.github/prompts/prompt.prompt.md']
+    });
   });
 
   it('syncs renamed file-backed reference nodes into markdown references and artifact usages', () => {
