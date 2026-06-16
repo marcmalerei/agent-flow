@@ -31,6 +31,9 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .agentflow-node:hover { background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-list-hoverBackground, transparent)); }
 .agentflow-node.selected { box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
 .agentflow-node.active { z-index: 3; }
+.agentflow-node.focus-related { z-index: 2; }
+.agentflow-node.focus-muted { opacity: .34; }
+.agentflow-node.focus-muted:hover { opacity: .72; }
 .agentflow-node.active .flow-node { box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 86%, transparent), 0 0 0 4px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 20%, transparent), 0 0 28px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 48%, transparent); }
 .flow-node { position: relative; box-sizing: border-box; display: grid; grid-template-rows: minmax(0, auto) auto; align-content: center; justify-items: center; row-gap: 8px; height: 100%; min-height: 72px; min-width: 0; padding: 38px 18px 14px; text-align: center; white-space: normal; overflow: hidden; }
 .flow-node.has-activity { animation: nodeActivityPulse 1.15s ease-in-out infinite; background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--agentflow-token-color, var(--vscode-focusBorder))); box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 90%, transparent), 0 0 0 4px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 18%, transparent), 0 0 28px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 52%, transparent); }
@@ -58,6 +61,10 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .native-controls button:last-child { border-bottom: 0; }
 .native-controls button:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); }
 .graph-edge-path { fill: none; stroke-linecap: round; }
+.graph-edge.support-edge .graph-edge-path { opacity: .5; }
+.graph-edge.focus-muted .graph-edge-path, .graph-edge.focus-muted .graph-edge-label { opacity: .18; }
+.graph-edge.focus-edge .graph-edge-path { opacity: 1; stroke-width: 2.8px; filter: drop-shadow(0 0 4px currentColor); }
+.graph-edge.focus-edge .graph-edge-label rect { stroke: currentColor; stroke-width: .8; }
 .graph-edge.animated .graph-edge-path { stroke-dasharray: 10 5; animation: activityDash 760ms linear infinite; filter: drop-shadow(0 0 4px currentColor); }
 .graph-edge.activity-edge .graph-edge-path { opacity: 1; }
 .graph-edge.loop-edge .graph-edge-path { stroke-dasharray: 2 6; filter: drop-shadow(0 0 3px currentColor); }

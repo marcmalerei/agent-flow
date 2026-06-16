@@ -8,7 +8,10 @@ const nodeHeight = 170;
 const compactNodeWidth = 285;
 const compactNodeHeight = 150;
 const compactMaxColumns = 8;
+const compactLaneGap = 44;
 const typeOrder = ['prompt', 'agent', 'role', 'gate', 'handoff', 'instruction', 'skill', 'artifact', 'hook', 'mcp-server'];
+const laneOrder = ['entry', 'workflow', 'control', 'artifact', 'context', 'integration'] as const;
+export type FlowLayoutLane = typeof laneOrder[number];
 
 export function coerceFlowLayout(value: unknown): FlowLayout {
   return value === 'vertical' || value === 'horizontal' || value === 'typeColumns' || value === 'compact' ? value : 'compact';
@@ -40,38 +43,52 @@ function layoutByType(pipeline: AgentPipeline): Map<string, Position> {
 function layoutCompactGrid(pipeline: AgentPipeline): Map<string, Position> {
   const components = connectedComponents(pipeline);
   const result = new Map<string, Position>();
+  let offsetX = 0;
   let offsetY = 0;
-  for (const component of components) {
+  let shelfHeight = 0;
+  const maxShelfWidth = compactNodeWidth * 18;
+  for (const [index, component] of components.entries()) {
     const componentPositions = layoutWrappedComponent(pipeline, component);
     const bounds = positionBounds(componentPositions);
-    for (const [nodeId, position] of componentPositions) result.set(nodeId, { x: position.x, y: position.y + offsetY });
-    offsetY += bounds.height + compactNodeHeight * 0.9;
+    if (index > 0 && offsetX > 0 && offsetX + bounds.width > maxShelfWidth) {
+      offsetX = 0;
+      offsetY += shelfHeight + compactNodeHeight * 0.9;
+      shelfHeight = 0;
+    }
+    for (const [nodeId, position] of componentPositions) result.set(nodeId, { x: position.x + offsetX, y: position.y + offsetY });
+    offsetX += bounds.width + compactNodeWidth * 0.45;
+    shelfHeight = Math.max(shelfHeight, bounds.height);
   }
   return result;
 }
 
 function layoutWrappedComponent(pipeline: AgentPipeline, component: PipelineNode[]): Map<string, Position> {
   const levels = graphLevels(pipeline);
-  const levelGroups = new Map<number, PipelineNode[]>();
+  const levelGroups = new Map<string, PipelineNode[]>();
   for (const node of component) {
     const level = levels.get(node.id) ?? 0;
-    levelGroups.set(level, [...(levelGroups.get(level) ?? []), node]);
+    const key = `${level}:${flowLayoutLane(node.type)}`;
+    levelGroups.set(key, [...(levelGroups.get(key) ?? []), node]);
   }
 
   if (levelGroups.size <= 1 && component.length > 1) return layoutComponentGrid(component, pipeline);
 
   const result = new Map<string, Position>();
-  const orderedLevels = [...levelGroups.keys()].sort((a, b) => a - b);
-  orderedLevels.forEach((level, column) => {
-    const rowNodes = sortNodesForOverview(levelGroups.get(level) ?? [], pipeline);
-    const rowOffset = -Math.max(0, rowNodes.length - 1) * compactNodeHeight * 0.5;
+  const orderedGroups = [...levelGroups.entries()]
+    .map(([key, nodes]) => {
+      const [level, lane] = key.split(':') as [string, FlowLayoutLane];
+      return { level: Number(level), lane, nodes };
+    })
+    .sort((a, b) => a.level - b.level || laneRank(a.lane) - laneRank(b.lane));
+  for (const group of orderedGroups) {
+    const rowNodes = sortNodesForOverview(group.nodes, pipeline);
     rowNodes.forEach((node, row) => {
       result.set(node.id, {
-        x: column * compactNodeWidth,
-        y: rowOffset + row * compactNodeHeight
+        x: group.level * compactNodeWidth,
+        y: laneRank(group.lane) * (compactNodeHeight + compactLaneGap) + row * compactNodeHeight
       });
     });
-  });
+  }
 
   return result;
 }
@@ -135,10 +152,9 @@ function graphLevels(pipeline: AgentPipeline): Map<string, number> {
   }
 
   const levels = new Map<string, number>();
-  const preferredRoots = pipeline.nodes
-    .filter((node) => node.type === 'prompt' || (incoming.get(node.id) ?? 0) === 0)
-    .map((node) => node.id);
-  const roots = preferredRoots.length ? preferredRoots : pipeline.nodes.slice(0, 1).map((node) => node.id);
+  const rootCandidates = pipeline.nodes.filter((node) => (incoming.get(node.id) ?? 0) === 0);
+  const preferredRoots = rootCandidates.filter((node) => node.type === 'prompt').map((node) => node.id);
+  const roots = preferredRoots.length ? preferredRoots : rootCandidates.length ? rootCandidates.map((node) => node.id) : pipeline.nodes.slice(0, 1).map((node) => node.id);
 
   for (const root of roots) assignShortestLevels(root, 0, outgoing, levels);
   for (const node of pipeline.nodes) {
@@ -227,4 +243,18 @@ function nodeDegrees(pipeline: AgentPipeline): Map<string, number> {
 function typeRank(type: string): number {
   const index = typeOrder.indexOf(type);
   return index === -1 ? typeOrder.length : index;
+}
+
+export function flowLayoutLane(type: string): FlowLayoutLane {
+  if (type === 'prompt') return 'entry';
+  if (type === 'agent' || type === 'handoff') return 'workflow';
+  if (type === 'gate') return 'control';
+  if (type === 'artifact') return 'artifact';
+  if (type === 'instruction' || type === 'skill' || type === 'role') return 'context';
+  return 'integration';
+}
+
+function laneRank(lane: FlowLayoutLane): number {
+  const index = laneOrder.indexOf(lane);
+  return index === -1 ? laneOrder.length : index;
 }

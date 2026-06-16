@@ -85,6 +85,9 @@ describe('webview assets', () => {
     expect(css).toContain('.native-graph');
     expect(css).toContain('.graph-edge-path');
     expect(css).toContain('.graph-edge.activity-edge');
+    expect(css).toContain('.graph-edge.support-edge');
+    expect(css).toContain('.graph-edge.focus-muted');
+    expect(css).toContain('.agentflow-node.focus-muted');
     expect(css).toContain('.graph-edge.loop-edge');
     expect(css).toContain('.graph-edge.error-edge');
     expect(css).toContain('.graph-edge-tracer');
@@ -103,6 +106,16 @@ describe('webview assets', () => {
     expect(panelSource).toContain("message?.command === 'webviewRenderStatus'");
     expect(panelSource).toContain("message?.command === 'webviewReady'");
     expect(panelSource).toContain("command: 'stateUpdated'");
+  });
+
+  test('adds selected-node focus classes to mute unrelated graph content', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+
+    expect(webviewSource).toContain('focusNodeSet');
+    expect(webviewSource).toContain('focus-related');
+    expect(webviewSource).toContain('focus-muted');
+    expect(webviewSource).toContain('support-edge');
+    expect(webviewSource).toContain('isSupportEdge');
   });
 
   test('surfaces webview bundle load and runtime failures instead of a blank panel', () => {

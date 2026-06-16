@@ -444,6 +444,15 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, viewp
   const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const activeNodeSet = useMemo(() => new Set(activeNodeIds), [activeNodeIds]);
+  const focusNodeSet = useMemo(() => {
+    if (!selectedId) return new Set<string>();
+    const related = new Set([selectedId]);
+    for (const edge of edges) {
+      if (edge.source === selectedId) related.add(edge.target);
+      if (edge.target === selectedId) related.add(edge.source);
+    }
+    return related;
+  }, [edges, selectedId]);
 
   const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
@@ -498,10 +507,10 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, viewp
             <marker id={edgeMarkerId(edge.id)} markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 9 4.5 L 0 9 z" fill={edgeMarkerColor(target ? { id: target.id, type: target.data.type, label: target.data.label } as PipelineNode : undefined)} /></marker>
           </React.Fragment>;
         })}</defs>
-        {edges.map((edge) => <GraphEdge key={edge.id} edge={edge} nodesById={nodesById} />)}
+        {edges.map((edge) => <GraphEdge key={edge.id} edge={edge} nodesById={nodesById} selectedId={selectedId} />)}
       </svg>
       <div className="graph-node-layer">
-        {nodes.map((node) => <button type="button" key={node.id} className={`agentflow-node${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}`} data-node-id={node.id} style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: node.height }} onClick={(event) => { event.stopPropagation(); onNodeClick(node.id); }}>
+        {nodes.map((node) => <button type="button" key={node.id} className={`agentflow-node${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}${selectedId && !focusNodeSet.has(node.id) ? ' focus-muted' : ''}${selectedId && focusNodeSet.has(node.id) && node.id !== selectedId ? ' focus-related' : ''}`} data-node-id={node.id} style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: node.height }} onClick={(event) => { event.stopPropagation(); onNodeClick(node.id); }}>
           <TokenNode data={node.data} />
         </button>)}
       </div>
@@ -534,7 +543,7 @@ function FlowEmptyStateView({ state }: { state: FlowEmptyState }) {
   </section>;
 }
 
-function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<string, RenderedNode> }) {
+function GraphEdge({ edge, nodesById, selectedId }: { edge: RenderedEdge; nodesById: Map<string, RenderedNode>; selectedId: string }) {
   const source = nodesById.get(edge.source);
   const target = nodesById.get(edge.target);
   if (!source || !target) return null;
@@ -545,7 +554,8 @@ function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<str
   const color = `url(#${edgeGradientId(edge.id)})`;
   const opacity = typeof edge.style?.opacity === 'number' ? edge.style.opacity : 0.82;
   const strokeWidth = typeof edge.style?.strokeWidth === 'number' ? edge.style.strokeWidth : 1.8;
-  return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}`} data-edge-id={edge.id} style={{ color }}>
+  const selectedEdge = Boolean(selectedId && (edge.source === selectedId || edge.target === selectedId));
+  return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}${isSupportEdge(edge) ? ' support-edge' : ''}${selectedId && !selectedEdge ? ' focus-muted' : ''}${selectedEdge ? ' focus-edge' : ''}`} data-edge-id={edge.id} style={{ color }}>
     <path className="graph-edge-path" d={points.path} stroke={color} strokeWidth={strokeWidth} strokeDasharray={typeof edge.style?.strokeDasharray === 'string' ? edge.style.strokeDasharray : undefined} opacity={opacity} markerEnd={`url(#${edgeMarkerId(edge.id)})`} />
     {edge.animated && <circle className="graph-edge-tracer" r="4" fill={color}>
       <animateMotion dur="1.15s" repeatCount="indefinite" path={points.path} />
@@ -556,6 +566,14 @@ function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<str
       <text textAnchor="middle" dominantBaseline="central">{label}</text>
     </g>}
   </g>;
+}
+
+function isSupportEdge(edge: RenderedEdge): boolean {
+  return edge.data.derivedFrom.includes('artifact')
+    || edge.data.derivedFrom.includes('instruction')
+    || edge.data.derivedFrom.includes('role')
+    || edge.data.derivedFrom.includes('skill')
+    || edge.data.kind === 'reference';
 }
 
 function compactEdgeLabel(label: string): string {
