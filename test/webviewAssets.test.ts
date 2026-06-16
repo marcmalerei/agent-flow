@@ -146,12 +146,12 @@ describe('webview assets', () => {
   test('keeps graph arrowheads compact when edge strokes get wider', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 
-    expect(webviewSource).toContain('markerWidth="7"');
-    expect(webviewSource).toContain('markerHeight="7"');
-    expect(webviewSource).toContain('refX="6.4"');
-    expect(webviewSource).toContain('refY="3.5"');
+    expect(webviewSource).toContain('markerWidth="5"');
+    expect(webviewSource).toContain('markerHeight="5"');
+    expect(webviewSource).toContain('refX="4.6"');
+    expect(webviewSource).toContain('refY="2.5"');
     expect(webviewSource).toContain('markerUnits="userSpaceOnUse"');
-    expect(webviewSource).toContain('M 0 0 L 7 3.5 L 0 7 z');
+    expect(webviewSource).toContain('M 0 0 L 5 2.5 L 0 5 z');
   });
 
   test('adds graph overview and navigation landmarks for large canvases', () => {
