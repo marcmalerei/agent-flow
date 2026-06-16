@@ -252,7 +252,7 @@ function htmlAttributeValue(value: string): string {
   return value.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
 }
 
-function referenceInstructionFromBlock(source: string, path: string, placeholder: '$artifact' | '$instruction'): string | undefined {
+function referenceInstructionFromBlock(source: string, path: string, placeholder: '$artifact' | '$instruction' | '$role'): string | undefined {
   const body = source.trim();
   if (!body) return undefined;
   const escaped = escapeRegExp(path);
@@ -278,10 +278,30 @@ function mergeInstructionRefs(...groups: Array<ReferenceInstruction[] | undefine
 }
 
 function parseRoleRefs(source: string): ReferenceRole[] | undefined {
+  const magicRefs = parseMagicRoleRefs(source);
   const refs = parseCustomizationRefs(source)
     .filter((ref) => ref.kind === 'role')
     .map((ref) => ({ target: ref.path }));
-  return refs.length ? [...new Map(refs.map((ref) => [ref.target, ref])).values()] : undefined;
+  return mergeRoleRefs(magicRefs, refs);
+}
+
+function parseMagicRoleRefs(source: string): ReferenceRole[] | undefined {
+  const refs: ReferenceRole[] = [];
+  const pattern = /<!--agent-flow:begin\s+role-ref\s+([^>]*)-->([\s\S]*?)<!--agent-flow:end\s+role-ref-->/gi;
+  for (const match of source.matchAll(pattern)) {
+    const target = parseReferenceAttributes(match[1]).target;
+    if (!target) continue;
+    refs.push({ target, instruction: referenceInstructionFromBlock(match[2], target, '$role') });
+  }
+  return refs.length ? refs : undefined;
+}
+
+function mergeRoleRefs(...groups: Array<ReferenceRole[] | undefined>): ReferenceRole[] | undefined {
+  const byTarget = new Map<string, ReferenceRole>();
+  for (const ref of groups.flatMap((group) => group ?? [])) {
+    byTarget.set(ref.target, { ...ref, instruction: byTarget.get(ref.target)?.instruction ?? ref.instruction });
+  }
+  return byTarget.size ? [...byTarget.values()] : undefined;
 }
 
 function markdownSection(source: string, heading: string): string | undefined {

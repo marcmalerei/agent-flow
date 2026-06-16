@@ -11,7 +11,7 @@ The extension does not execute pipelines, call Copilot agents, read private Copi
 ## Features
 
 - Open a live graph inferred from `.github` Markdown and YAML files.
-- Edit node metadata, tools, handoffs, artifacts, references, and Markdown from a VS Code themed inspector.
+- Edit node metadata, tools, handoffs, artifacts, intent-card references, and Markdown from a VS Code themed inspector.
 - Auto-save webview edits directly back to the relevant Markdown files.
 - Keep graph edges synchronized with Markdown references, handoffs, and artifact usage.
 - Show live node and edge activity from Agent Flow language model tools and sanitized GitHub Copilot debug logs when Copilot file logging is enabled.

@@ -60,6 +60,25 @@ describe('webview assets', () => {
     expect(webviewSource).not.toContain('placeholder={`How should this node apply');
   });
 
+  test('renders reference editors as full-width intent cards', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('ReferenceIntentCard');
+    expect(webviewSource).toContain('RoleReferenceSelector');
+    expect(webviewSource).toContain('Open referenced file');
+    expect(webviewSource).toContain('writes Markdown block');
+    expect(webviewSource).toContain('parsed from Markdown');
+    expect(webviewSource).toContain('needs repair');
+    expect(webviewSource).toContain('Generated Markdown');
+    expect(webviewSource).toContain("command: 'openWorkspaceFile'");
+    expect(css).toContain('.reference-intent-card');
+    expect(css).toContain('.reference-intent-card.selected');
+    expect(css).toContain('.reference-intent-header');
+    expect(css).toContain('.reference-card-actions');
+    expect(css).toContain('.reference-sync-status');
+  });
+
   test('organizes the inspector around task workflows', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');

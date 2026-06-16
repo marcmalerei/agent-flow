@@ -389,7 +389,7 @@ Keep this prose.`
     expect(agent).not.toContain('Old Reviewer');
   });
 
-  it('generates actionable artifact and instruction references for agents', () => {
+  it('generates actionable artifact, instruction, and role references for agents', () => {
     const agent = generateAgentMarkdown({
       id: 'reviewer',
       type: 'agent',
@@ -404,6 +404,9 @@ Keep this prose.`
       ],
       instructionRefs: [
         { target: '.github/instructions/docs-scope.instructions.md', instruction: 'Apply $instruction when reviewing documentation changes.' }
+      ],
+      roleRefs: [
+        { target: '.github/roles/reviewer.md' }
       ]
     });
 
@@ -415,6 +418,8 @@ Keep this prose.`
     expect(agent).toContain('# Referenced instructions');
     expect(agent).toContain('<!--agent-flow:begin instruction-ref target=".github/instructions/docs-scope.instructions.md"-->');
     expect(agent).toContain('Apply `.github/instructions/docs-scope.instructions.md` when reviewing documentation changes.');
+    expect(agent).toContain('# Referenced roles');
+    expect(agent).toContain('<!--agent-flow:begin role-ref target=".github/roles/reviewer.md"-->');
   });
 
   it('parses magic reference blocks back into placeholder instructions', async () => {
@@ -437,6 +442,12 @@ Use \`.github/artifacts/implementation.md\` as the source of truth for the revie
 <!--agent-flow:begin instruction-ref target=".github/instructions/docs-scope.instructions.md"-->
 Apply \`.github/instructions/docs-scope.instructions.md\` when reviewing documentation changes.
 <!--agent-flow:end instruction-ref-->
+
+# Referenced roles
+
+<!--agent-flow:begin role-ref target=".github/roles/reviewer.md"-->
+Use \`.github/roles/reviewer.md\` for review tone.
+<!--agent-flow:end role-ref-->
 `, 'utf8');
     const pipeline = await inferPipelineFromWorkspace(workspace);
     const reviewer = pipeline.nodes.find((node) => node.id === 'reviewer');
@@ -449,6 +460,9 @@ Apply \`.github/instructions/docs-scope.instructions.md\` when reviewing documen
       ],
       instructionRefs: [
         { target: '.github/instructions/docs-scope.instructions.md', instruction: 'Apply $instruction when reviewing documentation changes.' }
+      ],
+      roleRefs: [
+        { target: '.github/roles/reviewer.md' }
       ]
     });
   });
@@ -492,7 +506,7 @@ Keep this custom note.`
     expect(agent).not.toContain('# Artifact work\n\nNone.');
   });
 
-  it('generates actionable artifact and instruction references for prompts', () => {
+  it('generates actionable artifact, instruction, and role references for prompts', () => {
     const prompt = generatePromptMarkdown({
       id: 'release-notes',
       type: 'prompt',
@@ -504,6 +518,9 @@ Keep this custom note.`
       ],
       instructionRefs: [
         { target: '.github/instructions/docs-scope.instructions.md', instruction: 'Use the docs style rules.' }
+      ],
+      roleRefs: [
+        { target: '.github/roles/release-writer.md' }
       ]
     });
 
@@ -513,6 +530,8 @@ Keep this custom note.`
     expect(prompt).toContain('# Referenced instructions');
     expect(prompt).toContain('<!--agent-flow:begin instruction-ref target=".github/instructions/docs-scope.instructions.md"-->');
     expect(prompt).toContain('Use the docs style rules.');
+    expect(prompt).toContain('# Referenced roles');
+    expect(prompt).toContain('<!--agent-flow:begin role-ref target=".github/roles/release-writer.md"-->');
   });
 
   it('honors explicit file paths for newly inserted Markdown-backed nodes', () => {

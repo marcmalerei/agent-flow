@@ -1,7 +1,7 @@
 import { PromptNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
 import { normalizeNodeLabel } from '../labels';
-import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, replaceMarkdownSection, yamlOptionalList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, referenceRoleList, replaceMarkdownSection, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function promptFilePath(node: PromptNode): string {
   if (node.promptFile) return node.promptFile;
@@ -13,9 +13,13 @@ export function generatePromptMarkdown(node: PromptNode): string {
   const label = normalizeNodeLabel(node.label, node.id);
   if (node.markdown?.trim()) {
     const body = replaceMarkdownSection(
-      replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
-      'Referenced instructions',
-      referenceInstructionList(node.instructionRefs)
+      replaceMarkdownSection(
+        replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
+        'Referenced instructions',
+        referenceInstructionList(node.instructionRefs)
+      ),
+      'Referenced roles',
+      referenceRoleList(node.roleRefs)
     );
     return mergeMarkdownWithFrontmatter(body, frontmatter);
   }
@@ -45,6 +49,10 @@ ${artifactUsageList(node.artifactUsages, node.requiredArtifacts)}
 # Referenced instructions
 
 ${referenceInstructionList(node.instructionRefs)}
+
+# Referenced roles
+
+${referenceRoleList(node.roleRefs)}
 
 # Definition of done
 

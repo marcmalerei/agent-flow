@@ -46,6 +46,7 @@ export interface ReferenceInstruction {
 
 export interface ReferenceRole {
   target: string;
+  instruction?: string;
 }
 
 export interface BaseNode {
