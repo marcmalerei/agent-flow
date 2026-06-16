@@ -14,6 +14,21 @@ describe('edge visual classes', () => {
       target: 'plan',
       label: 'writes',
       data: { derivedFrom: 'agent.outputs', kind: 'reference', artifact: '.github/artifacts/plan.md' }
-    }, 'router agent', 'plan artifact')).toBe('router agent -> plan artifact · writes · agent.outputs');
+    }, 'router agent', 'plan artifact')).toBe('router agent -> plan artifact · writes · Why this edge exists: router agent declares .github/artifacts/plan.md as an output artifact. Source: agent.outputs. Artifact: .github/artifacts/plan.md.');
+  });
+
+  it('explains stored and handoff edge provenance in user-facing language', () => {
+    expect(edgeTooltip({
+      source: 'handoff',
+      target: 'worker',
+      label: 'Escalate',
+      data: { derivedFrom: 'handoff.targetAgent', kind: 'handoff' }
+    }, 'Escalate handoff', 'worker agent')).toContain('Why this edge exists: Escalate handoff targets worker agent.');
+    expect(edgeTooltip({
+      source: 'router',
+      target: 'worker',
+      label: 'calls',
+      data: { derivedFrom: 'pipeline.edges', kind: 'flow' }
+    }, 'router agent', 'worker agent')).toContain('Source: pipeline.edges.');
   });
 });
