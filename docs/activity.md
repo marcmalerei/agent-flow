@@ -31,6 +31,7 @@ The graph uses activity events to show:
 
 - stable node badges for the latest node action
 - collapsed counts when multiple events affect the same node
+- a compact Now card in the activity HUD for the newest fresh node action
 - animated active edges for handoffs, artifacts, and instruction references
 - an Activity diagnostics tab with a chronological timeline and clear action
 

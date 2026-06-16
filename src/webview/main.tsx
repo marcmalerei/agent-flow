@@ -740,6 +740,11 @@ function ActivityHud({ onOpen, state }: { onOpen: () => void; state: ActivityHud
     <Codicon name={icon} />
     <span>{label}</span>
     <small>{state.recentCount ? `${state.recentCount} recent · ${capability}` : `${state.sourceSummary} · ${capability}`}</small>
+    {state.now && <span className="activity-now-card" data-event-id={state.now.eventId}>
+      <strong>{state.now.title}</strong>
+      <span>{state.now.action}</span>
+      <small>{state.now.detail} · {new Date(state.now.timestamp).toLocaleTimeString()}</small>
+    </span>}
   </button>;
 }
 

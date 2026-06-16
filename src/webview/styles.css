@@ -18,11 +18,16 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .toolbar strong { font-size: 14px; }
 .toolbar > span { flex: 1; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toolbar .autosave-status { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: 12px; }
-.activity-hud { display: grid; grid-template-columns: 14px auto; grid-template-rows: auto auto; column-gap: 6px; row-gap: 0; max-width: 230px; min-height: 34px; padding: 3px 8px; border-color: var(--agentflow-border); background: var(--vscode-editorWidget-background, transparent); text-align: left; }
+.activity-hud { display: grid; grid-template-columns: 14px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 6px; row-gap: 0; max-width: 270px; min-height: 34px; padding: 3px 8px; border-color: var(--agentflow-border); background: var(--vscode-editorWidget-background, transparent); text-align: left; }
 .activity-hud .codicon { grid-row: 1 / 3; align-self: center; }
 .activity-hud span, .activity-hud small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-hud span { font-size: 12px; font-weight: 700; line-height: 15px; }
 .activity-hud small { color: var(--vscode-descriptionForeground); font-size: 10px; line-height: 13px; }
+.activity-hud .activity-now-card { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 8px; margin-top: 3px; padding-top: 3px; border-top: 1px solid color-mix(in srgb, currentColor 28%, transparent); font-weight: 400; line-height: 13px; }
+.activity-now-card strong, .activity-now-card span, .activity-now-card small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-now-card strong { font-size: 11px; font-weight: 700; }
+.activity-now-card span { color: var(--vscode-foreground); font-size: 10px; font-weight: 600; text-align: right; }
+.activity-now-card small { grid-column: 1 / -1; font-size: 10px; }
 .activity-hud-live { border-color: var(--vscode-charts-green); color: var(--vscode-charts-green); box-shadow: inset 2px 0 0 var(--vscode-charts-green); }
 .activity-hud-recent { border-color: var(--vscode-charts-blue); color: var(--vscode-charts-blue); }
 .activity-hud-degraded { border-color: var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-editorWarning-foreground, #cca700); }
