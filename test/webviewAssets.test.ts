@@ -414,6 +414,9 @@ describe('webview assets', () => {
     expect(source).toContain('diagnostic-workflow-card');
     expect(source).toContain('Focus node');
     expect(source).toContain('Apply quick fix');
+    expect(source).toContain('applyDiagnosticQuickFix');
+    expect(source).toContain('onApplyQuickFix(finding.quickFix)');
+    expect(source).toContain('disabled={!finding.quickFix}');
     expect(source).toContain('openInspectorSection');
     expect(source).toContain('finding.entity');
     expect(css).toContain('.validation-ready-summary');

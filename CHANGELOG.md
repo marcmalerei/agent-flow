@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Enable deterministic diagnostic quick fixes for missing output artifacts from the validation panel.
 - Document graph visual grammar and centralize edge label visibility classes through a shared helper.
 - Add a reusable default-pipeline demo script and documentation for first-run smoke checks and Marketplace capture.
 - Add conflict-aware inspector handling for selected-node external file changes, including local/external actions and draft-vs-workspace diff opening.

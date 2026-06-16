@@ -13,7 +13,7 @@ import Code from '@tiptap/extension-code';
 import Link from '@tiptap/extension-link';
 import '@vscode/codicons/dist/codicon.css';
 import './styles.css';
-import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationFinding, RiskScore } from '../pipeline/types';
+import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationAction, ValidationFinding, RiskScore } from '../pipeline/types';
 import { AgentFlowActivityEvent } from '../activity/types';
 import { aggregateActivityMetrics } from '../activity/metrics';
 import { aggregateFileAttention } from '../activity/fileAttention';
@@ -46,6 +46,7 @@ import { shouldFocusLiveActivity } from './activityFocus';
 import { deriveInspectorSyncStatus, type InspectorSyncStatus } from './inspectorStatus';
 import { graphModePanelTarget, graphModes, type GraphMode } from './graphModes';
 import { artifactRelationshipSummary, graphNeighborhoodNodeIds, graphSearchResults, graphTypeFilterOptions, visibleGraphNodeIdsForTypes, type ArtifactRelationshipSummary as ArtifactRelationshipSummaryModel, type GraphSearchResult, type GraphTypeFilterOption } from './graphSearch';
+import { applyDiagnosticQuickFix } from './diagnosticQuickFixes';
 
 interface State {
   stateVersion: number;
@@ -377,6 +378,14 @@ function App() {
     if (nodeIds.length) commitDraft((pipeline) => deletePipelineNodes(pipeline, nodeIds));
   };
   const deleteEdges = (edgeIds: string[]) => commitDraft((pipeline) => deletePipelineEdges(pipeline, edgeIds));
+  const applyValidationQuickFix = useCallback((action: ValidationAction | undefined) => {
+    const result = applyDiagnosticQuickFix(draftRef.current, action);
+    if (!result) return;
+    const dirtyNodeIds = result.selectedId ? [result.selectedId] : [];
+    commitDraft(() => result.pipeline, result.selectedId, dirtyNodeIds);
+    setInspectorOpen(true);
+    if (result.sectionId) window.setTimeout(() => document.querySelector<HTMLElement>(`.inspector-section-${result.sectionId}`)?.scrollIntoView({ block: 'nearest' }), 0);
+  }, [commitDraft]);
   const addNode = (type: PipelineNodeType, position = { x: 120, y: 120 }, connectFrom?: string, intent?: ConnectionIntentKind) => {
     const node = createNode(type, draft, position);
     commitDraft((pipeline) => {
@@ -408,10 +417,10 @@ function App() {
   const cancelLocalEdit = useCallback(() => {
     if (editingConflict) applyConflictPipeline(editingConflict.incomingPipeline, editingConflict.nodeId);
   }, [applyConflictPipeline, editingConflict]);
-  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} editingConflict={editingConflict} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} onApplyExternalChanges={applyExternalChanges} onKeepLocalEdit={keepLocalEdit} onOpenConflictDiff={openConflictDiff} onCancelLocalEdit={cancelLocalEdit} />;
+  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} editingConflict={editingConflict} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} onApplyExternalChanges={applyExternalChanges} onKeepLocalEdit={keepLocalEdit} onOpenConflictDiff={openConflictDiff} onCancelLocalEdit={cancelLocalEdit} onApplyValidationQuickFix={applyValidationQuickFix} />;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, graphMode, inspectorOpen, viewportSignal, editingConflict, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setGraphMode, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, graphMode, inspectorOpen, viewportSignal, editingConflict, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setGraphMode, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit, onApplyValidationQuickFix }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void; onApplyValidationQuickFix: (action: ValidationAction | undefined) => void }) {
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
@@ -696,7 +705,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} conflict={editingConflict} onChange={updateNode} onConnect={applyConnection} onApplyExternalChanges={onApplyExternalChanges} onKeepLocalEdit={onKeepLocalEdit} onOpenConflictDiff={onOpenConflictDiff} onCancelLocalEdit={onCancelLocalEdit} /></aside>}
-    <section className="bottom">{bottomOpen && <div className="panel-resize-handle diagnostics-resize-handle" role="separator" aria-label="Resize diagnostics panel" aria-orientation="horizontal" aria-valuemin={diagnosticsResize.min} aria-valuemax={diagnosticsResize.max} aria-valuenow={diagnosticsResize.size} tabIndex={0} {...diagnosticsResize.resizeHandleProps} />}<VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
+    <section className="bottom">{bottomOpen && <div className="panel-resize-handle diagnostics-resize-handle" role="separator" aria-label="Resize diagnostics panel" aria-orientation="horizontal" aria-valuemin={diagnosticsResize.min} aria-valuemax={diagnosticsResize.max} aria-valuenow={diagnosticsResize.size} tabIndex={0} {...diagnosticsResize.resizeHandleProps} />}<VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onApplyQuickFix={onApplyValidationQuickFix} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
 }
 
@@ -1793,7 +1802,7 @@ function EditorTool({ active, children, icon, title, onClick }: { active?: boole
   return <VSCodeButton type="button" className={`editor-tool${active ? ' active' : ''}`} icon={icon} title={title} aria-label={title} onMouseDown={(event: any) => event.preventDefault()} onClick={onClick}>{children}</VSCodeButton>;
 }
 
-function Bottom({ onSelectNode, state, activeTab, setActiveTab }: { onSelectNode: (nodeId: string) => void; state: State; activeTab: BottomTab; setActiveTab: (tab: BottomTab) => void }) {
+function Bottom({ onApplyQuickFix, onSelectNode, state, activeTab, setActiveTab }: { onApplyQuickFix: (action: ValidationAction | undefined) => void; onSelectNode: (nodeId: string) => void; state: State; activeTab: BottomTab; setActiveTab: (tab: BottomTab) => void }) {
   const metrics = aggregateActivityMetrics(state.pipeline, state.activityEvents ?? []);
   const fileAttention = aggregateFileAttention(state.activityEvents ?? []);
   const tabs: BottomTab[] = ['activity', 'metrics', 'attention', 'validation', 'files', 'tools', 'risk'];
@@ -1809,7 +1818,7 @@ function Bottom({ onSelectNode, state, activeTab, setActiveTab }: { onSelectNode
   const title = ({ activity: 'Activity timeline', metrics: 'Run metrics', attention: 'File attention', validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
   return <div className="diagnostics">
     <nav>{tabs.map((tab) => <VSCodeButton key={tab} variant="ghost" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}><span>{tab}</span>{tabCounts[tab] !== undefined && <span className="diagnostic-tab-count">{tabCounts[tab]}</span>}</VSCodeButton>)}</nav>
-    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} sources={state.activitySources ?? []} onSelectNode={onSelectNode} />}{activeTab === 'metrics' && <MetricsDiagnostics metrics={metrics} onSelectNode={onSelectNode} />}{activeTab === 'attention' && <FileAttentionDiagnostics entries={fileAttention} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} toolOptions={state.toolOptions} onSelectNode={onSelectNode} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
+    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} sources={state.activitySources ?? []} onSelectNode={onSelectNode} />}{activeTab === 'metrics' && <MetricsDiagnostics metrics={metrics} onSelectNode={onSelectNode} />}{activeTab === 'attention' && <FileAttentionDiagnostics entries={fileAttention} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} toolOptions={state.toolOptions} onApplyQuickFix={onApplyQuickFix} onSelectNode={onSelectNode} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
   </div>;
 }
 
@@ -1952,6 +1961,7 @@ type ActionableDiagnostic = {
   finding: ValidationFinding;
   fix: string;
   normalizedTools?: string[];
+  quickFix?: ValidationAction;
   registeredTools?: string[];
   savedTools?: string[];
   sectionId?: string;
@@ -1959,7 +1969,7 @@ type ActionableDiagnostic = {
   why: string;
 };
 
-function ValidationDiagnostics({ findings, onSelectNode, pipeline, toolOptions }: { findings: ValidationFinding[]; onSelectNode: (nodeId: string) => void; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[] }) {
+function ValidationDiagnostics({ findings, onApplyQuickFix, onSelectNode, pipeline, toolOptions }: { findings: ValidationFinding[]; onApplyQuickFix: (action: ValidationAction | undefined) => void; onSelectNode: (nodeId: string) => void; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[] }) {
   const [severityFilter, setSeverityFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const actionable = findings.map((finding) => buildActionableDiagnostic(finding, pipeline, toolOptions));
@@ -1968,7 +1978,7 @@ function ValidationDiagnostics({ findings, onSelectNode, pipeline, toolOptions }
   return <div className="validation-workflow">
     <ReadyToRunSummary findings={findings} />
     <DiagnosticFilters severityFilter={severityFilter} typeFilter={typeFilter} entityTypes={unique(actionable.map((item) => item.entityType))} onSeverityChange={setSeverityFilter} onTypeChange={setTypeFilter} />
-    <div className="diagnostic-list">{filtered.map((finding, index) => <ActionableDiagnosticCard key={`${finding.finding.ruleId}-${index}`} finding={finding} onFocusNode={() => finding.finding.nodeId && openInspectorSection(finding.finding.nodeId, finding.sectionId, onSelectNode)} />)}</div>
+    <div className="diagnostic-list">{filtered.map((finding, index) => <ActionableDiagnosticCard key={`${finding.finding.ruleId}-${index}`} finding={finding} onApplyQuickFix={() => onApplyQuickFix(finding.quickFix)} onFocusNode={() => finding.finding.nodeId && openInspectorSection(finding.finding.nodeId, finding.sectionId, onSelectNode)} />)}</div>
   </div>;
 }
 
@@ -1985,7 +1995,7 @@ function DiagnosticFilters({ entityTypes, onSeverityChange, onTypeChange, severi
   return <div className="validation-filter-bar"><ActivityFilter label="Severity" value={severityFilter} options={['error', 'warning', 'risk', 'info']} onChange={onSeverityChange} /><ActivityFilter label="Entity" value={typeFilter} options={entityTypes} onChange={onTypeChange} /></div>;
 }
 
-function ActionableDiagnosticCard({ finding, onFocusNode }: { finding: ActionableDiagnostic; onFocusNode: () => void }) {
+function ActionableDiagnosticCard({ finding, onApplyQuickFix, onFocusNode }: { finding: ActionableDiagnostic; onApplyQuickFix: () => void; onFocusNode: () => void }) {
   const validation = finding.finding;
   return <div className={`diagnostic-card diagnostic-workflow-card ${validation.severity}`}>
     <Codicon name={validation.severity === 'error' ? 'error' : validation.severity === 'warning' ? 'warning' : validation.severity === 'risk' ? 'flame' : 'info'} />
@@ -1997,7 +2007,7 @@ function ActionableDiagnosticCard({ finding, onFocusNode }: { finding: Actionabl
       <div className="diagnostic-actions">
         <VSCodeButton className="compact" icon="target" disabled={!validation.nodeId} onClick={onFocusNode}>Focus node</VSCodeButton>
         <VSCodeButton className="compact" icon="go-to-file" disabled={!finding.entityPath} onClick={() => finding.entityPath && vscode?.postMessage({ command: 'openWorkspaceFile', path: finding.entityPath })}>Open file</VSCodeButton>
-        <VSCodeButton className="compact" icon="sparkle" disabled title="Quick fixes are shown when Agent Flow can make a safe deterministic edit.">Apply quick fix</VSCodeButton>
+        <VSCodeButton className="compact" icon="sparkle" disabled={!finding.quickFix} onClick={onApplyQuickFix} title={finding.quickFix ? 'Apply a safe deterministic edit for this finding.' : 'Quick fixes are shown when Agent Flow can make a safe deterministic edit.'}>Apply quick fix</VSCodeButton>
       </div>
     </div>
   </div>;
@@ -2014,10 +2024,11 @@ function buildActionableDiagnostic(finding: ValidationFinding, pipeline: AgentPi
   const normalizedTools = savedTools ? normalizeConfiguredToolsForOptions(savedTools, toolOptions) : undefined;
   const registeredToolSet = new Set(flattenToolOptionValues(toolOptions));
   const registeredTools = normalizedTools?.filter((tool) => registeredToolSet.has(tool));
+  const quickFix = finding.actions?.find((action): action is ValidationAction => action.kind === 'quickFix');
   const entityPath = finding.entity?.filePath ?? (node ? nodeFileSummary(node) : extractFindingPath(finding.message));
   const entityType = node?.type ?? finding.entity?.kind ?? (entityPath ? 'file' : 'pipeline');
   const entity = finding.entity?.label ?? (node ? node.label : entityPath ?? 'Pipeline');
-  const base = { entity, entityPath, entityType, finding, normalizedTools, registeredTools, savedTools } satisfies Partial<ActionableDiagnostic>;
+  const base = { entity, entityPath, entityType, finding, normalizedTools, quickFix, registeredTools, savedTools } satisfies Partial<ActionableDiagnostic>;
   if (finding.ruleId === 'broad-apply-to' || finding.ruleId === 'markdown-apply-to') return { ...base, title: 'Broad instruction scope', why: 'This instruction can silently apply to many Copilot customization files and consume context where it is not intended.', fix: `Narrow applyTo on ${entityPath ?? 'the instruction'} to the target folder or file pattern.`, sectionId: 'context' } as ActionableDiagnostic;
   if (finding.ruleId === 'agent-no-output') return { ...base, title: 'Missing output artifact', why: 'The next agent or prompt has no explicit handoff file to read, so work can disappear into chat context.', fix: 'Create or select an output artifact and describe what this node should write to it.', sectionId: 'artifacts' } as ActionableDiagnostic;
   if (finding.ruleId.includes('tool') || finding.ruleId.includes('command') || finding.ruleId.includes('edit')) return { ...base, title: 'Tool access needs review', why: 'Tool permissions define what Copilot can read, write, execute, or delegate from this node.', fix: 'Review the selected tools and add a command/edit safety policy when broad tools are required.', sectionId: 'tools' } as ActionableDiagnostic;
