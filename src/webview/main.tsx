@@ -1183,9 +1183,11 @@ function NativeGraph({ canvasRef, graphMode, graphReadingLevel, graphFocusMode, 
 
   return <main className={`canvas native-graph ${graphModeClassNames[graphMode]} ${readingLevelClassNames[graphReadingLevel]}`} ref={canvasRef} tabIndex={0} aria-label="Agent Flow graph canvas" aria-describedby="agentflow-keyboard-shortcuts" aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Enter Escape F Backspace Delete" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endPan} onPointerCancel={endPan} onWheel={onWheel} onKeyDown={onKeyDown}>
     <GraphSearchControl query={searchQuery} matches={searchMatches} searchIndex={searchIndex} onChange={onSearchChange} onClear={onSearchClear} onStep={onSearchStep} />
-    <GraphReadingLevelSwitch level={graphReadingLevel} onChange={onGraphReadingLevelChange} />
-    <GraphFocusModeSwitch mode={graphFocusMode} onChange={onGraphFocusModeChange} />
-    <GraphTypeFilters options={typeFilterOptions} selectedTypes={selectedGraphTypes} onChange={onTypeFilterChange} />
+    <div className="graph-toolstrip" aria-label="Graph view tools">
+      <GraphReadingLevelSwitch level={graphReadingLevel} onChange={onGraphReadingLevelChange} />
+      <GraphFocusModeSwitch mode={graphFocusMode} onChange={onGraphFocusModeChange} />
+      <GraphTypeFilters options={typeFilterOptions} selectedTypes={selectedGraphTypes} onChange={onTypeFilterChange} />
+    </div>
     {selectedId && selectedNode && <div className="graph-focus-chip" aria-live="polite"><Codicon name="target" /><span>Focused: {selectedNode.label}</span><button type="button" title="Clear graph focus" aria-label="Clear graph focus" onClick={onClearFocus}><Codicon name="close" /></button></div>}
     {artifactSummary && <ArtifactRelationshipSummary summary={artifactSummary} onSelectNode={onSelectNode} />}
     {graphFilterEmpty && <div className="graph-filter-empty" role="status"><Codicon name="filter" /><span>No graph nodes match the active graph filters.</span><button type="button" onClick={() => { onTypeFilterChange(typeFilterOptions.map((option) => option.type)); onGraphFocusModeChange('full'); }}>Show full graph</button></div>}

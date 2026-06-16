@@ -253,6 +253,21 @@ describe('webview assets', () => {
     expect(css).toContain('.artifact-relationship-summary');
   });
 
+  test('keeps graph controls compact and prevents accidental canvas text selection', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('graph-toolstrip');
+    expect(css).toContain('.native-graph {');
+    expect(css).toContain('user-select: none');
+    expect(css).toContain('-webkit-user-select: none');
+    expect(css).toContain('.native-graph input');
+    expect(css).toContain('user-select: text');
+    expect(css).toContain('.graph-toolstrip');
+    expect(css).toContain('grid-template-columns: minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr)');
+    expect(css).toContain('.graph-toolstrip .graph-reading-level-switch');
+  });
+
   test('adds semantic graph focus modes for investigative views', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const graphSearchSource = readFileSync('src/webview/graphSearch.ts', 'utf8');
