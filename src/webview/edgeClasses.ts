@@ -1,5 +1,12 @@
 import type { VisibleFlowEdge } from './graph';
 
+type EdgeVisualInput = Pick<VisibleFlowEdge, 'data' | 'label'>;
+
+export interface EdgeLabelVisibilityState {
+  active: boolean;
+  selected: boolean;
+}
+
 export function activeEdgeClass(edge: Pick<VisibleFlowEdge, 'data' | 'label'>): string {
   if (edge.data.kind === 'handoff' || edge.data.derivedFrom.includes('handoff')) return 'active-handoff';
   const label = (edge.label ?? '').toLowerCase();
@@ -8,6 +15,20 @@ export function activeEdgeClass(edge: Pick<VisibleFlowEdge, 'data' | 'label'>): 
   if (edge.data.artifact) return 'active-artifact';
   if (edge.data.kind === 'error') return 'active-error';
   return 'active-flow';
+}
+
+export function edgeLabelVisibilityClass(edge: EdgeVisualInput, state: EdgeLabelVisibilityState): 'edge-label-interactive' | 'edge-label-subtle' | 'edge-label-visible' {
+  if (state.active || state.selected) return 'edge-label-visible';
+  if (isSupportEdge(edge)) return 'edge-label-interactive';
+  return 'edge-label-subtle';
+}
+
+export function isSupportEdge(edge: Pick<VisibleFlowEdge, 'data'>): boolean {
+  return edge.data.derivedFrom.includes('artifact')
+    || edge.data.derivedFrom.includes('instruction')
+    || edge.data.derivedFrom.includes('role')
+    || edge.data.derivedFrom.includes('skill')
+    || edge.data.kind === 'reference';
 }
 
 export function edgeTooltip(edge: Pick<VisibleFlowEdge, 'source' | 'target' | 'label' | 'data'>, sourceLabel?: string, targetLabel?: string): string {
