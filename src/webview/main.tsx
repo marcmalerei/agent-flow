@@ -789,7 +789,7 @@ function NativeGraph({ canvasRef, graphMode, nodes, edges, selectedId, activeNod
               <stop offset="0%" stopColor={sourceColor} />
               <stop offset="100%" stopColor={targetColor} />
             </linearGradient>
-            <marker id={edgeMarkerId(edge.id)} markerWidth="5" markerHeight="5" refX="4.6" refY="2.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 5 2.5 L 0 5 z" fill={edgeMarkerColor(target ? { id: target.id, type: target.data.type, label: target.data.label } as PipelineNode : undefined)} /></marker>
+            <marker id={edgeMarkerId(edge.id)} markerWidth="3.5" markerHeight="3.5" refX="3.2" refY="1.75" orient="auto" markerUnits="userSpaceOnUse"><path d="M 0 0 L 3.5 1.75 L 0 3.5 z" fill={edgeMarkerColor(target ? { id: target.id, type: target.data.type, label: target.data.label } as PipelineNode : undefined)} /></marker>
           </React.Fragment>;
         })}</defs>
         {edges.map((edge) => <GraphEdge key={edge.id} edge={edge} nodesById={nodesById} selectedId={selectedId} />)}

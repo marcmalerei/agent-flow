@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Shrink graph arrowheads again so directional markers stay subtle near compact node ports.
 - Add graph search and selected-neighborhood fitting controls for large pipeline navigation.
 - Add explicit graph workflow modes for editing, running, and diagnosing flows.
 - Further reduce graph arrowhead size so directional edges stay secondary to node labels and ports.
