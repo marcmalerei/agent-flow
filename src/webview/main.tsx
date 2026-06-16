@@ -27,7 +27,7 @@ import { clamp, edgePathBetweenNodes, fitGraphNodesViewport, fitNativeGraphViewp
 import { activeEdgeIds, deriveActivityHudState, deriveActivityPlaybackState, freshActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, type ActivityHudState, type ActivityTrailItem } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
-import { filterToolOptionGroups, flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionGroupSelectionSummary, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
+import { filterToolOptionGroups, flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, selectedToolSummaryItems, toolOptionGroupSelectionSummary, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 import { TokenNode, flowHandlePositions } from './TokenNode';
 import { applyConnectionIntent, buildConnectionIntentOptions, connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, deriveRenamePreview, renamePipelineNodeLabel, type ConnectionIntentKind, type RenamePreview as RenamePreviewModel } from './flowMutations';
@@ -49,6 +49,7 @@ import { artifactRelationshipSummary, graphFocusModes, graphNeighborhoodNodeIds,
 import { applyDiagnosticQuickFix } from './diagnosticQuickFixes';
 import { edgeReadingLevelClass, graphReadingLevels, nodeReadingLevelClass, type GraphReadingLevel } from './graphReadingLevels';
 import { edgeVisualPriorityClass, nodeVisualPriorityClass } from './visualPriority';
+import { isDefaultSamplePipeline } from './firstRunGuide';
 
 interface State {
   stateVersion: number;
@@ -101,6 +102,7 @@ const graphModeClassNames: Record<GraphMode, string> = {
   diagnose: 'graph-mode-diagnose'
 };
 const graphReadingLevelStorageKey = 'agentflow.graphReadingLevel';
+const firstRunGuideStorageKey = 'agentflow.firstRunGuideDismissed';
 const readingLevelClassNames: Record<GraphReadingLevel, string> = {
   overview: 'reading-level-overview',
   'data-flow': 'reading-level-data-flow',
@@ -504,6 +506,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   const [pendingNodeConnection, setPendingNodeConnection] = useState<PendingNodeConnection | undefined>(undefined);
   const [nodeCreationDraft, setNodeCreationDraft] = useState<NodeCreationDraft | undefined>(undefined);
   const [creationFeedback, setCreationFeedback] = useState<string | undefined>(undefined);
+  const [firstRunGuideDismissed, setFirstRunGuideDismissed] = useState(window.localStorage?.getItem(firstRunGuideStorageKey) === '1');
   const [graphSearchQuery, setGraphSearchQuery] = useState('');
   const [graphSearchIndex, setGraphSearchIndex] = useState(0);
   const [graphFocusMode, setGraphFocusMode] = useState<GraphFocusMode>('full');
@@ -555,6 +558,11 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   const visibleEdgesForFilters = useMemo(() => edges.filter((edge) => visibleGraphNodeSet.has(edge.source) && visibleGraphNodeSet.has(edge.target)), [edges, visibleGraphNodeSet]);
   const graphFilterEmpty = nodes.length > 0 && visibleNodes.length === 0;
   const artifactSummary = useMemo(() => artifactRelationshipSummary(draft, selectedId), [draft, selectedId]);
+  const showFirstRunGuide = isDefaultSamplePipeline(draft) && !firstRunGuideDismissed;
+  const dismissFirstRunGuide = useCallback(() => {
+    window.localStorage?.setItem(firstRunGuideStorageKey, '1');
+    setFirstRunGuideDismissed(true);
+  }, []);
   const setGraphViewport = useCallback((next: GraphViewport, userInteracted = false) => {
     if (userInteracted) userViewportInteracted.current = true;
     viewportRef.current = next;
@@ -808,6 +816,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     </header>
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
     {syncBanner && <SyncTrustBanner banner={syncBanner} onDismiss={() => setSyncBanner(undefined)} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onReloadGraph={() => vscode?.postMessage({ command: 'runCommand', name: 'agentflow.scanWorkspace' })} onReviewChanges={() => editingConflict ? onOpenConflictDiff() : (setBottomOpen(true), setActiveTab('files'))} />}
+    {showFirstRunGuide && <FirstRunGuideCallout onDismiss={dismissFirstRunGuide} onPlayDemo={() => vscode?.postMessage({ command: 'runCommand', name: 'agentflow.playDemoActivity' })} onSelectImplementer={() => { setSelectedId('implementer'); setInspectorOpen(true); }} />}
     <NativeGraph graphMode={graphMode} graphReadingLevel={graphReadingLevel} graphFocusMode={graphFocusMode} onGraphReadingLevelChange={setGraphReadingLevel} onGraphFocusModeChange={setGraphFocusMode} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} replayEventId={replayEventId} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => { setReplayEventId(item.id); openActivityForNode(item.nodeId ?? item.targetNodeId); }} onViewportChange={setGraphViewport} onFit={fitViewport} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
@@ -869,6 +878,17 @@ function SyncTrustBanner({ banner, onDismiss, onOpenDiagnostics, onReloadGraph, 
       <VSCodeIconButton type="button" icon="close" title="Dismiss sync notice" aria-label="Dismiss sync notice" onClick={onDismiss} />
     </div>
   </section>;
+}
+
+function FirstRunGuideCallout({ onDismiss, onPlayDemo, onSelectImplementer }: { onDismiss: () => void; onPlayDemo: () => void; onSelectImplementer: () => void }) {
+  return <aside className="first-run-guide" aria-label="First-run guide">
+    <header><Codicon name="sparkle" /><strong>First-run guide</strong><VSCodeIconButton type="button" icon="close" title="Dismiss first-run guide" aria-label="Dismiss first-run guide" onClick={onDismiss} /></header>
+    <div className="first-run-guide-steps">
+      <button type="button" onClick={onSelectImplementer}><Codicon name="target" /><span>Select implementer</span></button>
+      <button type="button" onClick={onSelectImplementer}><Codicon name="references" /><span>Create artifact reference</span></button>
+      <button type="button" onClick={onPlayDemo}><Codicon name="pulse" /><span>Play demo activity</span></button>
+    </div>
+  </aside>;
 }
 
 function KeyboardShortcutsPopover({ onClose }: { onClose: () => void }) {
@@ -1719,13 +1739,13 @@ function ConnectionIntentPreview({ option }: { option: ReturnType<typeof buildCo
 }
 
 function ToolSelectionSummary({ groups, selected, unavailable }: { groups: readonly ToolOptionGroup[]; selected: readonly string[]; unavailable: readonly string[] }) {
-  const normalized = normalizeConfiguredToolsForOptions(selected, groups);
-  if (!normalized.length && !unavailable.length) return <p className="tool-selection-summary empty">No tools selected.</p>;
-  return <div className="tool-selection-summary" aria-label="Selected tools">{[...normalized, ...unavailable].slice(0, 8).map((tool) => <span key={tool}>{tool}</span>)}{normalized.length + unavailable.length > 8 && <small>+{normalized.length + unavailable.length - 8}</small>}</div>;
+  const tools = selectedToolSummaryItems({ groups, selected, unavailable });
+  if (!tools.length) return <p className="tool-selection-summary empty">No tools selected.</p>;
+  return <div className="tool-selection-summary" aria-label="Selected tools">{tools.slice(0, 8).map((tool) => <span key={tool}>{tool}</span>)}{tools.length > 8 && <small>+{tools.length - 8}</small>}</div>;
 }
 
 function selectedToolSummary(selected: readonly string[], groups: readonly ToolOptionGroup[], unavailable: readonly string[]): string {
-  const count = normalizeConfiguredToolsForOptions(selected, groups).length + unavailable.length;
+  const count = selectedToolSummaryItems({ groups, selected, unavailable }).length;
   return count ? `${count} selected` : 'No tools selected';
 }
 

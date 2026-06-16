@@ -68,6 +68,13 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .sync-trust-banner strong { display: block; color: var(--vscode-foreground); font-size: 12px; }
 .sync-trust-banner p { margin: 2px 0 0; color: var(--vscode-descriptionForeground); line-height: 1.35; }
 .sync-trust-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.first-run-guide { position: absolute; right: 12px; top: 68px; z-index: 8; display: grid; gap: 8px; box-sizing: border-box; width: min(340px, calc(100vw - 24px)); padding: 9px; border: 1px solid var(--agentflow-border); border-left: 3px solid var(--vscode-focusBorder); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 96%, transparent); box-shadow: 0 8px 22px var(--vscode-widget-shadow, rgba(0,0,0,.32)); }
+.first-run-guide header { display: grid; grid-template-columns: 18px minmax(0, 1fr) 24px; align-items: center; gap: 7px; }
+.first-run-guide header strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.first-run-guide header button { width: 24px; height: 24px; padding: 0; }
+.first-run-guide-steps { display: grid; gap: 5px; }
+.first-run-guide-steps button { display: grid; grid-template-columns: 18px minmax(0, 1fr); justify-content: stretch; gap: 7px; width: 100%; padding: 5px 7px; text-align: left; }
+.first-run-guide-steps span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .graph-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .graph-edge-layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .graph-node-layer { position: absolute; left: 0; top: 0; }

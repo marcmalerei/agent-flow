@@ -10,17 +10,19 @@ describe('flow empty state', () => {
     const state = deriveFlowEmptyState(0, { hasGithubFolder: false, supportedFileCount: 0 });
 
     expect(state.kind).toBe('no-workspace-files');
-    expect(state.title).toContain('No Agent Flow files');
+    expect(state.title).toContain('Start with a sample flow');
+    expect(state.primaryAction.label).toBe('Create sample pipeline');
     expect(state.primaryAction.command).toBe('agentflow.createDefaultPipeline');
-    expect(state.secondaryActions.map((action) => action.command)).toContain('agentflow.checkSetup');
-    expect(state.secondaryActions.map((action) => action.command)).toContain('agentflow.playDemoActivity');
+    expect(state.secondaryActions.map((action) => action.label)).toEqual(expect.arrayContaining(['Open existing .github pipeline', 'Learn with demo activity']));
   });
 
   test('explains when .github exists without supported customization files', () => {
     const state = deriveFlowEmptyState(0, { hasGithubFolder: true, supportedFileCount: 0 });
 
     expect(state.kind).toBe('no-supported-files');
+    expect(state.title).toContain('Create a sample graph');
     expect(state.detail).toContain('no agent, prompt, instruction, skill, role, or artifact files');
+    expect(state.primaryAction.label).toBe('Create sample pipeline');
   });
 
   test('recommends setup validation when supported files produce no graph nodes', () => {

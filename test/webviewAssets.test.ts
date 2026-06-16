@@ -418,6 +418,18 @@ describe('webview assets', () => {
     expect(css).toContain('.flow-empty-card');
   });
 
+  test('adds a dismissible first-run guide for the default sample pipeline', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('FirstRunGuideCallout');
+    expect(webviewSource).toContain('isDefaultSamplePipeline');
+    expect(webviewSource).toContain('agentflow.firstRunGuideDismissed');
+    expect(webviewSource).toContain('Create artifact reference');
+    expect(webviewSource).toContain('Play demo activity');
+    expect(css).toContain('.first-run-guide');
+  });
+
   test('shows graph startup and recovery states when parsed nodes are not visible', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const recoverySource = readFileSync('src/webview/graphRecoveryState.ts', 'utf8');

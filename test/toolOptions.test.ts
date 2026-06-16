@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildToolOptionGroups, filterToolOptionGroups, flattenToolOptionValues, listToolOptionNames, normalizeConfiguredTools, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionGroupSelectionSummary, toolOptionSelectionState } from '../src/webview/toolOptions';
+import { buildToolOptionGroups, filterToolOptionGroups, flattenToolOptionValues, listToolOptionNames, normalizeConfiguredTools, normalizeConfiguredToolsForOptions, partitionConfiguredTools, selectedToolSummaryItems, toolOptionGroupSelectionSummary, toolOptionSelectionState } from '../src/webview/toolOptions';
 
 describe('VS Code tool options', () => {
   it('builds a VS Code-like Built-In tool tree with concrete child tools', () => {
@@ -175,5 +175,14 @@ describe('VS Code tool options', () => {
       available: ['execute', 'read', 'search'],
       unavailable: ['legacyTool', 'missingTool']
     });
+  });
+
+  it('deduplicates selected tool summary items across unavailable fallbacks', () => {
+    const groups = buildToolOptionGroups([{ name: 'copilot_readFile', description: 'Read a file.', inputSchema: undefined, tags: [] }]);
+    expect(selectedToolSummaryItems({
+      groups,
+      selected: ['read/readFile', 'terminal', 'missingTool'],
+      unavailable: ['execute', 'missingTool']
+    })).toEqual(['execute', 'missingTool', 'read/readFile']);
   });
 });
