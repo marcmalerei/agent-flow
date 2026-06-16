@@ -44,6 +44,7 @@ import { deriveGraphRecoveryState, type GraphRecoveryState } from './graphRecove
 import { activeEdgeClass, edgeTooltip } from './edgeClasses';
 import { shouldFocusLiveActivity } from './activityFocus';
 import { deriveInspectorSyncStatus, type InspectorSyncStatus } from './inspectorStatus';
+import { countGraphNodeTypes, relationshipNeighborhood, searchGraphNodes, summarizeGraphRelationships, visibleNodeIdsForTypes, type GraphRelationshipSummary, type GraphSearchMatch, type GraphTypeCounts } from './graphReading';
 
 interface State {
   stateVersion: number;
@@ -75,6 +76,7 @@ const nodePaletteGroups: Array<{ label: string; types: PipelineNodeType[] }> = [
   { label: 'Context', types: ['instruction', 'skill', 'role'] },
   { label: 'Data and integrations', types: ['artifact', 'hook', 'mcp-server'] }
 ];
+const graphFilterTypeOrder: PipelineNodeType[] = ['prompt', 'agent', 'handoff', 'artifact', 'instruction', 'skill', 'role', 'gate', 'hook', 'mcp-server'];
 
 interface RenderedNode {
   id: string;
@@ -328,6 +330,10 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [followLiveActivity, setFollowLiveActivity] = useState(false);
+  const [graphSearchQuery, setGraphSearchQuery] = useState('');
+  const [graphMatchIndex, setGraphMatchIndex] = useState(0);
+  const [focusPathActive, setFocusPathActive] = useState(false);
+  const [hiddenGraphTypes, setHiddenGraphTypes] = useState<PipelineNodeType[]>([]);
   const [pendingNodeConnection, setPendingNodeConnection] = useState<PendingNodeConnection | undefined>(undefined);
   const [viewport, setViewport] = useState<GraphViewport>({ x: 0, y: 0, zoom: 1 });
   const viewportRef = useRef(viewport);
@@ -346,6 +352,14 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     emptyStateKind: emptyState.kind,
     reason: renderStatus?.reason
   }), [edges.length, emptyState.kind, nodes.length, renderStatus?.reason, renderStatus?.renderedNodeCount, renderStatus?.visibleNodeCount]);
+  const graphSearchMatches = useMemo(() => searchGraphNodes(draft, state.findings, graphSearchQuery), [draft, graphSearchQuery, state.findings]);
+  const graphTypeCounts = useMemo(() => countGraphNodeTypes(draft.nodes), [draft.nodes]);
+  const visibleNodeIds = useMemo(() => visibleNodeIdsForTypes(draft.nodes, hiddenGraphTypes), [draft.nodes, hiddenGraphTypes]);
+  const filteredNodes = useMemo(() => nodes.filter((node) => visibleNodeIds.has(node.id)), [nodes, visibleNodeIds]);
+  const filteredEdges = useMemo(() => edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)), [edges, visibleNodeIds]);
+  const focusNeighborhood = useMemo(() => relationshipNeighborhood(focusPathActive ? selectedId : undefined, filteredEdges), [filteredEdges, focusPathActive, selectedId]);
+  const selectedRelationshipSummary = useMemo(() => summarizeGraphRelationships(selectedId, draft, edges), [draft, edges, selectedId]);
+  const filteredOutNodeCount = nodes.length - filteredNodes.length;
   const setGraphViewport = useCallback((next: GraphViewport, userInteracted = false) => {
     if (userInteracted) userViewportInteracted.current = true;
     viewportRef.current = next;
@@ -359,6 +373,12 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       const target = event.target as HTMLElement | null;
       if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
       if (event.key === 'Escape') {
+        if (focusPathActive || graphSearchQuery || hiddenGraphTypes.length) {
+          setFocusPathActive(false);
+          setGraphSearchQuery('');
+          setGraphMatchIndex(0);
+          setHiddenGraphTypes([]);
+        }
         setAddNodeMenuOpen(false);
         setPendingNodeConnection(undefined);
         setShortcutsOpen(false);
@@ -388,7 +408,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [copySelection, pasteSelection, redoLast, undoLast]);
+  }, [copySelection, focusPathActive, graphSearchQuery, hiddenGraphTypes.length, pasteSelection, redoLast, undoLast]);
   useEffect(() => {
     if (!addNodeMenuOpen) return;
     const onPointerDown = (event: PointerEvent) => {
@@ -496,11 +516,31 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     setActiveTab('activity');
     setBottomOpen(true);
   };
+  const selectGraphMatch = (index: number) => {
+    if (!graphSearchMatches.length) return;
+    const bounded = ((index % graphSearchMatches.length) + graphSearchMatches.length) % graphSearchMatches.length;
+    const match = graphSearchMatches[bounded];
+    const node = nodes.find((item) => item.id === match.nodeId);
+    setGraphMatchIndex(bounded);
+    setSelectedId(match.nodeId);
+    setFocusPathActive(true);
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (node && rect && rect.width >= 20 && rect.height >= 20) setGraphViewport(focusViewportOnNode(node, viewportRef.current, rect));
+  };
+  const toggleGraphTypeFilter = (type: PipelineNodeType) => {
+    setHiddenGraphTypes((current) => current.includes(type) ? current.filter((item) => item !== type) : [...current, type]);
+  };
+  const clearGraphReadingState = () => {
+    setFocusPathActive(false);
+    setGraphSearchQuery('');
+    setGraphMatchIndex(0);
+    setHiddenGraphTypes([]);
+  };
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
-    <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><ActivityHud state={activityHud} onOpen={() => openActivityForNode()} /><VSCodeButton className={`compact follow-live-toggle${followLiveActivity ? ' active' : ''}`} icon="target" aria-pressed={followLiveActivity} onClick={() => setFollowLiveActivity((enabled) => { if (!enabled) userViewportInteracted.current = false; return !enabled; })} title="Follow live activity without changing zoom">Follow live</VSCodeButton><VSCodeButton className="compact" icon="question" aria-keyshortcuts="?" onClick={() => setShortcutsOpen((open) => !open)} title="Keyboard shortcuts">Shortcuts</VSCodeButton><VSCodeButton className="compact" icon="discard" aria-keyshortcuts="Control+Z Meta+Z" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><VSCodeButton className="compact" icon="redo" aria-keyshortcuts="Control+Y Meta+Y" onClick={redoLast} disabled={!canRedo} title="Redo last graph change">Redo</VSCodeButton><VSCodeButton className="compact" icon="copy" aria-keyshortcuts="Control+C Meta+C" onClick={copySelection} disabled={!selectedId} title="Copy selected node">Copy</VSCodeButton><VSCodeButton className="compact" icon="files" aria-keyshortcuts="Control+V Meta+V" onClick={pasteSelection} disabled={!canPaste} title="Paste copied node">Paste</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => addNodeAtCenter(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.type, pendingNodeConnection.position); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.type, pendingNodeConnection.position, pendingNodeConnection.sourceId, kind); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</div>}</div></header>
+    <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><GraphSearchBox query={graphSearchQuery} matches={graphSearchMatches} matchIndex={graphMatchIndex} onQueryChange={(query) => { setGraphSearchQuery(query); setGraphMatchIndex(0); }} onSelectCurrent={() => selectGraphMatch(graphMatchIndex)} onSelectNext={() => selectGraphMatch(graphMatchIndex + 1)} onSelectPrevious={() => selectGraphMatch(graphMatchIndex - 1)} onClear={clearGraphReadingState} /><ActivityHud state={activityHud} onOpen={() => openActivityForNode()} /><VSCodeButton className={`compact focus-path-toggle${focusPathActive ? ' active' : ''}`} icon="symbol-class" aria-pressed={focusPathActive} onClick={() => setFocusPathActive((active) => !active)} disabled={!selectedId} title="Highlight the selected node relationship path">Focus path</VSCodeButton><VSCodeButton className={`compact follow-live-toggle${followLiveActivity ? ' active' : ''}`} icon="target" aria-pressed={followLiveActivity} onClick={() => setFollowLiveActivity((enabled) => { if (!enabled) userViewportInteracted.current = false; return !enabled; })} title="Follow live activity without changing zoom">Follow live</VSCodeButton><VSCodeButton className="compact" icon="question" aria-keyshortcuts="?" onClick={() => setShortcutsOpen((open) => !open)} title="Keyboard shortcuts">Shortcuts</VSCodeButton><VSCodeButton className="compact" icon="discard" aria-keyshortcuts="Control+Z Meta+Z" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><VSCodeButton className="compact" icon="redo" aria-keyshortcuts="Control+Y Meta+Y" onClick={redoLast} disabled={!canRedo} title="Redo last graph change">Redo</VSCodeButton><VSCodeButton className="compact" icon="copy" aria-keyshortcuts="Control+C Meta+C" onClick={copySelection} disabled={!selectedId} title="Copy selected node">Copy</VSCodeButton><VSCodeButton className="compact" icon="files" aria-keyshortcuts="Control+V Meta+V" onClick={pasteSelection} disabled={!canPaste} title="Paste copied node">Paste</VSCodeButton>{(focusPathActive || graphSearchQuery || hiddenGraphTypes.length > 0) && <VSCodeButton className="compact" icon="clear-all" onClick={clearGraphReadingState}>Clear focus</VSCodeButton>}<span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => addNodeAtCenter(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.type, pendingNodeConnection.position); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.type, pendingNodeConnection.position, pendingNodeConnection.sourceId, kind); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</div>}</div></header>
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
-    <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
+    <NativeGraph canvasRef={canvasRef} nodes={filteredNodes} edges={filteredEdges} selectedId={selectedId} selectedRelationships={selectedRelationshipSummary} typeCounts={graphTypeCounts} hiddenTypes={hiddenGraphTypes} filteredOutNodeCount={filteredOutNodeCount} focusActive={focusPathActive} focusNodeIds={focusNeighborhood.nodeIds} focusEdgeIds={focusNeighborhood.edgeIds} activeNodeIds={activeNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onTypeFilterToggle={toggleGraphTypeFilter} onClearFilters={clearGraphReadingState} onViewportChange={setGraphViewport} onFit={fitViewport} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} onConnect={applyConnection} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
@@ -514,8 +554,12 @@ function ShortcutsHelp({ onClose }: { onClose: () => void }) {
 function KeyboardShortcutsPopover({ onClose }: { onClose: () => void }) {
   const shortcuts = [
     ['Arrow keys', 'Select the nearest node in that direction'],
+    ['Graph search', 'Search labels, paths, types, tools, and findings from the toolbar'],
+    ['Enter in search', 'Jump to the current graph search match'],
+    ['Shift+Enter in search', 'Jump to the previous graph search match'],
     ['Enter', 'Open the selected node inspector'],
     ['F', 'Fit the graph to the viewport'],
+    ['Focus path', 'Highlight the selected node and immediate relationships'],
     ['Backspace/Delete', 'Remove the selected node'],
     ['Cmd/Ctrl+C', 'Copy the selected node'],
     ['Cmd/Ctrl+V', 'Paste a duplicate node'],
@@ -540,19 +584,40 @@ function ActivityHud({ onOpen, state }: { onOpen: () => void; state: ActivityHud
   </button>;
 }
 
-function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activityTrail, viewport, graphBounds, emptyState, recoveryState, onActivitySelect, onViewportChange, onFit, onOpenDiagnostics, onNodeClick, onSelectNode, onOpenSelected, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; activeNodeIds: string[]; activityTrail: ActivityTrailItem[]; viewport: GraphViewport; graphBounds: GraphBounds; emptyState: FlowEmptyState; recoveryState: GraphRecoveryState; onActivitySelect: (item: ActivityTrailItem) => void; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onOpenDiagnostics: () => void; onNodeClick: (nodeId: string) => void; onSelectNode: (nodeId: string) => void; onOpenSelected: () => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
+function GraphSearchBox({ matchIndex, matches, onClear, onQueryChange, onSelectCurrent, onSelectNext, onSelectPrevious, query }: { matchIndex: number; matches: GraphSearchMatch[]; onClear: () => void; onQueryChange: (query: string) => void; onSelectCurrent: () => void; onSelectNext: () => void; onSelectPrevious: () => void; query: string }) {
+  const current = matches[matchIndex];
+  const matchText = query ? matches.length ? `${matchIndex + 1}/${matches.length} · ${current?.reason ?? 'match'}` : 'No matches' : 'Search graph';
+  return <div className="graph-search" role="search">
+    <Codicon name="search" />
+    <input
+      aria-label="Search graph nodes"
+      value={query}
+      placeholder="Search graph"
+      onChange={(event: any) => onQueryChange(event.target.value)}
+      onKeyDown={(event: any) => {
+        if (event.key === 'Enter' && event.shiftKey) {
+          event.preventDefault();
+          onSelectPrevious();
+          return;
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          onSelectCurrent();
+        }
+        if (event.key === 'Escape') onClear();
+      }}
+    />
+    <span title={current ? `${current.label} (${current.reason})` : matchText}>{matchText}</span>
+    {query && <button type="button" aria-label="Previous graph search match" title="Previous match" onClick={onSelectPrevious} disabled={!matches.length}><Codicon name="chevron-up" /></button>}
+    {query && <button type="button" aria-label="Next graph search match" title="Next match" onClick={onSelectNext} disabled={!matches.length}><Codicon name="chevron-down" /></button>}
+    {query && <button type="button" aria-label="Clear graph search" title="Clear graph search" onClick={onClear}><Codicon name="close" /></button>}
+  </div>;
+}
+
+function NativeGraph({ activeNodeIds, activityTrail, canvasRef, edges, emptyState, filteredOutNodeCount, focusActive, focusEdgeIds, focusNodeIds, graphBounds, hiddenTypes, nodes, onActivitySelect, onCanvasClick, onClearFilters, onDeleteSelected, onFit, onNodeClick, onOpenDiagnostics, onOpenSelected, onSelectNode, onTypeFilterToggle, onViewportChange, recoveryState, selectedId, selectedRelationships, typeCounts, viewport }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; selectedRelationships: GraphRelationshipSummary; typeCounts: GraphTypeCounts; hiddenTypes: PipelineNodeType[]; filteredOutNodeCount: number; focusActive: boolean; focusNodeIds: Set<string>; focusEdgeIds: Set<string>; activeNodeIds: string[]; activityTrail: ActivityTrailItem[]; viewport: GraphViewport; graphBounds: GraphBounds; emptyState: FlowEmptyState; recoveryState: GraphRecoveryState; onActivitySelect: (item: ActivityTrailItem) => void; onTypeFilterToggle: (type: PipelineNodeType) => void; onClearFilters: () => void; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onOpenDiagnostics: () => void; onNodeClick: (nodeId: string) => void; onSelectNode: (nodeId: string) => void; onOpenSelected: () => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
   const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const activeNodeSet = useMemo(() => new Set(activeNodeIds), [activeNodeIds]);
-  const focusNodeSet = useMemo(() => {
-    if (!selectedId) return new Set<string>();
-    const related = new Set([selectedId]);
-    for (const edge of edges) {
-      if (edge.source === selectedId) related.add(edge.target);
-      if (edge.target === selectedId) related.add(edge.source);
-    }
-    return related;
-  }, [edges, selectedId]);
 
   const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
@@ -624,13 +689,13 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activ
             <marker id={edgeMarkerId(edge.id)} markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M 0 0 L 9 4.5 L 0 9 z" fill={edgeMarkerColor(target ? { id: target.id, type: target.data.type, label: target.data.label } as PipelineNode : undefined)} /></marker>
           </React.Fragment>;
         })}</defs>
-        {edges.map((edge) => <GraphEdge key={edge.id} edge={edge} nodesById={nodesById} selectedId={selectedId} />)}
+        {edges.map((edge) => <GraphEdge key={edge.id} edge={edge} nodesById={nodesById} selectedId={selectedId} focusActive={focusActive} focusEdgeIds={focusEdgeIds} />)}
       </svg>
       <div className="graph-node-layer">
         {nodes.map((node) => <button
           type="button"
           key={node.id}
-          className={`agentflow-node${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}${selectedId && !focusNodeSet.has(node.id) ? ' focus-muted' : ''}${selectedId && focusNodeSet.has(node.id) && node.id !== selectedId ? ' focus-related' : ''}`}
+          className={`agentflow-node${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}${focusActive && !focusNodeIds.has(node.id) ? ' focus-muted' : ''}${focusActive && focusNodeIds.has(node.id) && node.id !== selectedId ? ' focus-related' : ''}`}
           data-node-id={node.id}
           style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: node.height }}
           aria-label={`Graph node ${node.data.fullLabel ?? node.data.label}, ${node.data.type} node`}
@@ -643,6 +708,8 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activ
     </div>
     {emptyState.kind !== 'none' && <FlowEmptyStateView state={emptyState} />}
     {emptyState.kind === 'none' && recoveryState.kind !== 'none' && <FlowRecoveryStateView state={recoveryState} onRetry={onFit} onOpenDiagnostics={onOpenDiagnostics} />}
+    {emptyState.kind === 'none' && nodes.length === 0 && filteredOutNodeCount > 0 && <GraphFilterEmptyState hiddenTypes={hiddenTypes} onClear={onClearFilters} />}
+    {emptyState.kind === 'none' && <GraphReadingPanel selectedId={selectedId} relationships={selectedRelationships} typeCounts={typeCounts} hiddenTypes={hiddenTypes} onTypeToggle={onTypeFilterToggle} onClearFilters={onClearFilters} />}
     {activityTrail.length > 0 && <div className="activity-trail" aria-label="Recent activity trail">
       {activityTrail.map((item) => <button type="button" key={item.id} title={item.summary} onClick={() => onActivitySelect(item)}>
         <Codicon name={item.label === 'handoff' ? 'arrow-swap' : item.artifactPath ? 'file' : 'pulse'} />
@@ -655,6 +722,54 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activ
       <button type="button" title="Fit graph" aria-label="Fit graph" aria-keyshortcuts="F" onClick={onFit}><Codicon name="screen-full" /></button>
     </div>
   </main>;
+}
+
+function GraphReadingPanel({ hiddenTypes, onClearFilters, onTypeToggle, relationships, selectedId, typeCounts }: { hiddenTypes: PipelineNodeType[]; onClearFilters: () => void; onTypeToggle: (type: PipelineNodeType) => void; relationships: GraphRelationshipSummary; selectedId: string; typeCounts: GraphTypeCounts }) {
+  const relationshipCount = relationships.readsFrom.length + relationships.writesTo.length + relationships.handsOffTo.length + relationships.references.length + relationships.referencedBy.length;
+  return <aside className="graph-reading-panel" aria-label="Graph reading tools">
+    <section className="graph-type-filters" aria-label="Graph type filters">
+      <header><Codicon name="filter" /><strong>Types</strong>{hiddenTypes.length > 0 && <button type="button" onClick={onClearFilters}>Reset</button>}</header>
+      <div>
+        {graphFilterTypeOrder.filter((type) => typeCounts[type]).map((type) => {
+          const hidden = hiddenTypes.includes(type);
+          return <button type="button" key={type} className={hidden ? 'disabled' : ''} aria-pressed={!hidden} onClick={() => onTypeToggle(type)} title={`${hidden ? 'Show' : 'Hide'} ${nodeTypeLabel(type)} nodes`}>
+            <span style={{ background: typeColors[type] }} />
+            {nodeTypeLabel(type)}
+            <small>{typeCounts[type]}</small>
+          </button>;
+        })}
+      </div>
+    </section>
+    {selectedId && <section className="graph-relationship-panel" aria-label="Selected node relationships">
+      <header><Codicon name="references" /><strong>Relationships</strong><small>{relationshipCount ? `${relationshipCount} direct` : 'none'}</small></header>
+      {relationshipCount ? <>
+        <RelationshipList title="Reads from" values={relationships.readsFrom} />
+        <RelationshipList title="Writes to" values={relationships.writesTo} />
+        <RelationshipList title="Hands off to" values={relationships.handsOffTo} />
+        <RelationshipList title="References" values={relationships.references} />
+        <RelationshipList title="Referenced by" values={relationships.referencedBy} />
+      </> : <p>No direct graph relationships for the selected node.</p>}
+    </section>}
+  </aside>;
+}
+
+function RelationshipList({ title, values }: { title: string; values: string[] }) {
+  if (!values.length) return null;
+  return <div className="relationship-list">
+    <span>{title}</span>
+    <ul>{values.slice(0, 4).map((value) => <li key={value}>{value}</li>)}{values.length > 4 && <li>+{values.length - 4} more</li>}</ul>
+  </div>;
+}
+
+function GraphFilterEmptyState({ hiddenTypes, onClear }: { hiddenTypes: PipelineNodeType[]; onClear: () => void }) {
+  return <section className="graph-filter-empty-state" aria-live="polite">
+    <div>
+      <Codicon name="filter-filled" />
+      <strong>Current filters hide every node</strong>
+      <p>{hiddenTypes.map(nodeTypeLabel).join(', ')} {hiddenTypes.length === 1 ? 'is hidden' : 'are hidden'}.</p>
+      <VSCodeButton className="compact" icon="clear-all" onClick={onClear}>Clear graph filters</VSCodeButton>
+    </div>
+  </section>;
 }
 
 function FlowRecoveryStateView({ onOpenDiagnostics, onRetry, state }: { onOpenDiagnostics: () => void; onRetry: () => void; state: GraphRecoveryState }) {
@@ -699,7 +814,7 @@ function FlowEmptyStateView({ state }: { state: FlowEmptyState }) {
   </section>;
 }
 
-function GraphEdge({ edge, nodesById, selectedId }: { edge: RenderedEdge; nodesById: Map<string, RenderedNode>; selectedId: string }) {
+function GraphEdge({ edge, focusActive, focusEdgeIds, nodesById, selectedId }: { edge: RenderedEdge; focusActive: boolean; focusEdgeIds: Set<string>; nodesById: Map<string, RenderedNode>; selectedId: string }) {
   const source = nodesById.get(edge.source);
   const target = nodesById.get(edge.target);
   if (!source || !target) return null;
@@ -711,8 +826,9 @@ function GraphEdge({ edge, nodesById, selectedId }: { edge: RenderedEdge; nodesB
   const opacity = typeof edge.style?.opacity === 'number' ? edge.style.opacity : 0.82;
   const strokeWidth = typeof edge.style?.strokeWidth === 'number' ? edge.style.strokeWidth : 1.8;
   const selectedEdge = Boolean(selectedId && (edge.source === selectedId || edge.target === selectedId));
+  const focusedEdge = focusActive ? focusEdgeIds.has(edge.id) : selectedEdge;
   const title = edgeTooltip(edge, source.data.fullLabel ?? source.data.label, target.data.fullLabel ?? target.data.label);
-  return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}${isSupportEdge(edge) ? ' support-edge' : ''}${selectedId && !selectedEdge ? ' focus-muted' : ''}${selectedEdge ? ' focus-edge' : ''}`} data-edge-id={edge.id} style={{ color }}>
+  return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}${isSupportEdge(edge) ? ' support-edge' : ''}${focusActive && !focusedEdge ? ' focus-muted' : ''}${focusedEdge ? ' focus-edge' : ''}`} data-edge-id={edge.id} style={{ color }}>
     <title>{title}</title>
     <path className="graph-edge-path" d={points.path} stroke={color} strokeWidth={strokeWidth} strokeDasharray={typeof edge.style?.strokeDasharray === 'string' ? edge.style.strokeDasharray : undefined} opacity={opacity} markerEnd={`url(#${edgeMarkerId(edge.id)})`} />
     {edge.animated && <circle className="graph-edge-tracer" r="4" fill={color}>

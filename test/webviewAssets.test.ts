@@ -107,6 +107,15 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('visibleNativeNodeCount');
     expect(webviewSource).toContain('minimumUsefulVisibleNodeCount');
     expect(webviewSource).toContain('ResizeObserver');
+    expect(webviewSource).toContain('GraphSearchBox');
+    expect(webviewSource).toContain('searchGraphNodes');
+    expect(webviewSource).toContain('relationshipNeighborhood');
+    expect(webviewSource).toContain('GraphReadingPanel');
+    expect(webviewSource).toContain('GraphFilterEmptyState');
+    expect(webviewSource).toContain('visibleNodeIdsForTypes');
+    expect(webviewSource).toContain('summarizeGraphRelationships');
+    expect(webviewSource).toContain('Focus path');
+    expect(webviewSource).toContain('Clear focus');
     expect(css).toContain('#root { position: fixed; inset: 0; }');
     expect(css).toContain('--agentflow-canvas-min-height: 360px');
     expect(css).toContain('grid-template-rows: 56px minmax(var(--agentflow-canvas-min-height), 1fr) 42px');
@@ -128,6 +137,11 @@ describe('webview assets', () => {
     expect(css).toContain('.graph-edge-tracer');
     expect(css).toContain('.agentflow-node');
     expect(css).toContain('.agentflow-node.active');
+    expect(css).toContain('.focus-path-toggle.active');
+    expect(css).toContain('.graph-search');
+    expect(css).toContain('.graph-reading-panel');
+    expect(css).toContain('.graph-type-filters');
+    expect(css).toContain('.graph-filter-empty-state');
     expect(css).not.toContain('react-flow__');
     expect(panelSource).toContain('onDidChangeViewState');
     expect(panelSource).toContain('retainContextWhenHidden: true');
@@ -143,10 +157,12 @@ describe('webview assets', () => {
     expect(panelSource).toContain("command: 'stateUpdated'");
   });
 
-  test('adds selected-node focus classes to mute unrelated graph content', () => {
+  test('adds explicit focus path classes to mute unrelated graph content', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 
-    expect(webviewSource).toContain('focusNodeSet');
+    expect(webviewSource).toContain('focusPathActive');
+    expect(webviewSource).toContain('focusNodeIds');
+    expect(webviewSource).toContain('focusEdgeIds');
     expect(webviewSource).toContain('focus-related');
     expect(webviewSource).toContain('focus-muted');
     expect(webviewSource).toContain('support-edge');
