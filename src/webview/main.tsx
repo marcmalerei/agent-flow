@@ -46,6 +46,7 @@ import { shouldFocusLiveActivity } from './activityFocus';
 import { deriveInspectorSyncStatus, type InspectorSyncStatus } from './inspectorStatus';
 import { graphModePanelTarget, graphModes, type GraphMode } from './graphModes';
 import { artifactRelationshipSummary, graphFocusModes, graphNeighborhoodNodeIds, graphSearchResults, graphTypeFilterOptions, visibleGraphNodeIdsForFocus, visibleGraphNodeIdsForTypes, type ArtifactRelationshipSummary as ArtifactRelationshipSummaryModel, type GraphFocusMode, type GraphSearchResult, type GraphTypeFilterOption } from './graphSearch';
+import { graphNodeIdForSelection } from './handoffNavigation';
 import { applyDiagnosticQuickFix } from './diagnosticQuickFixes';
 import { edgeReadingLevelClass, graphReadingLevels, nodeReadingLevelClass, type GraphReadingLevel } from './graphReadingLevels';
 import { edgeVisualPriorityClass, nodeVisualPriorityClass } from './visualPriority';
@@ -93,7 +94,7 @@ const typeColors: Record<string, string> = nodeTypeColors;
 const nodeTypeIcons: Record<PipelineNodeType, string> = { agent: 'hubot', prompt: 'comment-discussion', instruction: 'list-tree', skill: 'tools', role: 'person', artifact: 'file', gate: 'pass', hook: 'debug-disconnect', handoff: 'arrow-swap', 'mcp-server': 'server-process' };
 const nodePaletteGroups: Array<{ label: string; types: PipelineNodeType[] }> = [
   { label: 'Entry', types: ['prompt'] },
-  { label: 'Execution', types: ['agent', 'handoff', 'gate'] },
+  { label: 'Execution', types: ['agent', 'gate'] },
   { label: 'Context', types: ['instruction', 'skill', 'role'] },
   { label: 'Data and integrations', types: ['artifact', 'hook', 'mcp-server'] }
 ];
@@ -805,6 +806,12 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       setBottomOpen(true);
     }
   }, [setActiveTab, setBottomOpen, setGraphMode]);
+  const handleGraphNodeClick = useCallback((nodeId: string) => {
+    const selectionId = graphNodeIdForSelection(draft, nodeId);
+    setSelectedId(selectionId);
+    setInspectorOpen(true);
+    if (selectionId !== nodeId) window.setTimeout(() => document.querySelector<HTMLElement>('.inspector-section-routing')?.scrollIntoView({ block: 'nearest' }), 0);
+  }, [draft, setSelectedId, setInspectorOpen]);
 
   return <div className={`app ${graphModeClassNames[graphMode]} ${readingLevelClassNames[graphReadingLevel]} ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`} style={appStyle}>
     <header className="toolbar">
@@ -826,7 +833,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
     {syncBanner && <SyncTrustBanner banner={syncBanner} onDismiss={() => setSyncBanner(undefined)} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onReloadGraph={() => vscode?.postMessage({ command: 'runCommand', name: 'agentflow.scanWorkspace' })} onReviewChanges={() => editingConflict ? onOpenConflictDiff() : (setBottomOpen(true), setActiveTab('files'))} />}
     {showFirstRunGuide && <FirstRunGuideCallout onDismiss={dismissFirstRunGuide} onPlayDemo={() => vscode?.postMessage({ command: 'runCommand', name: 'agentflow.startGuidedDemo' })} onSelectImplementer={() => { setSelectedId('implementer'); setInspectorOpen(true); }} />}
-    <NativeGraph graphMode={graphMode} graphReadingLevel={graphReadingLevel} graphFocusMode={graphFocusMode} onGraphReadingLevelChange={setGraphReadingLevel} onGraphFocusModeChange={setGraphFocusMode} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} replayEventId={replayEventId} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => { setReplayEventId(item.id); openActivityForNode(item.nodeId ?? item.targetNodeId); }} onViewportChange={setGraphViewport} onFit={fitViewport} onFitMeaningfulFlow={fitMeaningfulFlow} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
+    <NativeGraph graphMode={graphMode} graphReadingLevel={graphReadingLevel} graphFocusMode={graphFocusMode} onGraphReadingLevelChange={setGraphReadingLevel} onGraphFocusModeChange={setGraphFocusMode} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} replayEventId={replayEventId} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => { setReplayEventId(item.id); openActivityForNode(item.nodeId ?? item.targetNodeId); }} onViewportChange={setGraphViewport} onFit={fitViewport} onFitMeaningfulFlow={fitMeaningfulFlow} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={handleGraphNodeClick} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} conflict={editingConflict} onChange={updateNode} onConnect={applyConnection} onApplyExternalChanges={onApplyExternalChanges} onKeepLocalEdit={onKeepLocalEdit} onOpenConflictDiff={onOpenConflictDiff} onCancelLocalEdit={onCancelLocalEdit} /></aside>}
@@ -1527,7 +1534,7 @@ function Inspector({ node, pipeline, toolOptions, runtime, findings, conflict, o
   }, [nodeId, nodeLabel]);
   if (!node) return <p>Select a node.</p>;
   const agents = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'agent' }> => item.type === 'agent' && item.id !== node.id);
-  const branchTargets = pipeline.nodes.filter((item) => item.id !== node.id && (item.type === 'agent' || item.type === 'prompt' || item.type === 'gate' || item.type === 'handoff'));
+  const branchTargets = pipeline.nodes.filter((item) => item.id !== node.id && (item.type === 'agent' || item.type === 'prompt' || item.type === 'gate'));
   const artifacts = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'artifact' }> => item.type === 'artifact');
   const instructions = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'instruction' }> => item.type === 'instruction');
   const roles = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'role' }> => item.type === 'role');
@@ -1567,6 +1574,23 @@ function Inspector({ node, pipeline, toolOptions, runtime, findings, conflict, o
   const selectedToolSummaryText = selectedToolSummary(node.type === 'agent' || node.type === 'prompt' ? node.tools ?? [] : [], toolOptions, toolGroups.unavailable);
   const filePath = nodeFileSummary(node);
   const syncStatus = deriveInspectorSyncStatus({ runtime, findingSeverities: findings.map((finding) => finding.severity) });
+  if (node.type === 'handoff') {
+    const sourceAgent = node.sourceAgent ? pipeline.nodes.find((item) => item.id === node.sourceAgent && item.type === 'agent') : undefined;
+    const targetAgent = node.targetAgent ? pipeline.nodes.find((item) => item.id === node.targetAgent && item.type === 'agent') : undefined;
+    const sourceFilePath = sourceAgent ? nodeFileSummary(sourceAgent) : filePath;
+    return <div className="config"><InspectorHeader node={node} filePath={sourceFilePath} syncStatus={syncStatus} />
+      <InspectorSection id="routing" title="Derived handoff" summary={targetAgent?.label ?? node.targetAgent ?? 'no target'} defaultOpen fieldHint="agent frontmatter handoffs">
+        <p className="hint">This handoff is derived from the source agent file. Edit it from the source agent Routing section.</p>
+        <dl>
+          <dt>Source agent</dt><dd>{sourceAgent?.label ?? node.sourceAgent ?? 'Unknown'}</dd>
+          <dt>Target agent</dt><dd>{targetAgent?.label ?? node.targetAgent ?? 'Unknown'}</dd>
+          {node.prompt && <><dt>Prompt</dt><dd>{node.prompt}</dd></>}
+          {node.model && <><dt>Model</dt><dd>{node.model}</dd></>}
+        </dl>
+      </InspectorSection>
+      <InspectorSection id="findings" title="Health" summary={findings.length ? `${findings.length} finding${findings.length === 1 ? '' : 's'}` : 'no findings'} defaultOpen={findings.length > 0}>{findings.length ? findings.map((finding) => <p key={`${finding.ruleId}-${finding.message}`} className={`inspector-finding ${finding.severity}`}><strong>{finding.severity}</strong>{finding.message}<small>{finding.ruleId}</small></p>) : <p>No node findings.</p>}</InspectorSection>
+    </div>;
+  }
   const firstArtifact = artifacts[0];
   const firstInstruction = instructions[0];
   const activeConflict = conflict?.nodeId === node.id ? conflict : undefined;
@@ -1593,7 +1617,6 @@ function Inspector({ node, pipeline, toolOptions, runtime, findings, conflict, o
     {node.type === 'artifact' && <InspectorSection id="artifacts" title="Artifacts" summary={node.path} defaultOpen><label>Path<input value={node.path} onChange={(event: any) => onChange(node.id, { path: event.target.value } as Partial<PipelineNode>)} /></label></InspectorSection>}
     {node.type === 'gate' && <InspectorSection id="routing" title="Routing" summary={node.condition} defaultOpen><label>Condition<input value={node.condition} onChange={(event: any) => onChange(node.id, { condition: event.target.value } as Partial<PipelineNode>)} /></label><label>True branch<select value={node.trueBranch ?? ''} onChange={(event: any) => setOptionalString('trueBranch', event.target.value)}><option value="">None</option>{branchTargets.map((target) => <option key={target.id} value={target.id}>{target.label}</option>)}</select></label><label>False branch<select value={node.falseBranch ?? ''} onChange={(event: any) => setOptionalString('falseBranch', event.target.value)}><option value="">None</option>{branchTargets.map((target) => <option key={target.id} value={target.id}>{target.label}</option>)}</select></label><label>Error branch<select value={node.errorBranch ?? ''} onChange={(event: any) => setOptionalString('errorBranch', event.target.value)}><option value="">None</option>{branchTargets.map((target) => <option key={target.id} value={target.id}>{target.label}</option>)}</select></label><label>Max iterations<input type="number" min="0" value={node.maxIterations ?? ''} onChange={(event: any) => onChange(node.id, { maxIterations: event.target.value === '' ? undefined : Number(event.target.value) } as Partial<PipelineNode>)} /></label></InspectorSection>}
     {node.type === 'hook' && <InspectorSection id="run" title="Run behavior" summary={node.trigger || 'manual trigger'} defaultOpen><label>Trigger<input value={node.trigger ?? ''} onChange={(event: any) => setOptionalString('trigger', event.target.value)} /></label><label>Action<textarea value={node.action ?? ''} onChange={(event: any) => setOptionalString('action', event.target.value)} /></label></InspectorSection>}
-    {node.type === 'handoff' && <InspectorSection id="routing" title="Routing" summary={node.targetAgent || 'no target'} defaultOpen><label>Target agent<input value={node.targetAgent ?? ''} onChange={(event: any) => setOptionalString('targetAgent', event.target.value)} /></label><label>Prompt<textarea value={node.prompt ?? ''} onChange={(event: any) => setOptionalString('prompt', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label></InspectorSection>}
     {node.type === 'mcp-server' && <InspectorSection id="run" title="Run behavior" summary={node.command || 'no command'} defaultOpen><label>Command<input value={node.command ?? ''} onChange={(event: any) => setOptionalString('command', event.target.value)} /></label><label>Args<input value={Array.isArray(node.args) ? node.args.join(' ') : node.args ?? ''} onChange={(event: any) => setOptionalString('args', event.target.value)} /></label></InspectorSection>}
     <InspectorSection id="markdown" title="Content" summary={node.markdown ? 'custom body' : 'empty'}><TiptapMarkdownEditor value={node.markdown ?? ''} references={references} onChange={(value) => onChange(node.id, { markdown: value } as Partial<PipelineNode>)} /></InspectorSection>
     <InspectorSection id="findings" title="Health" summary={findings.length ? `${findings.length} finding${findings.length === 1 ? '' : 's'}` : 'no findings'} defaultOpen={findings.length > 0}>{findings.length ? findings.map((finding) => <p key={`${finding.ruleId}-${finding.message}`} className={`inspector-finding ${finding.severity}`}><strong>{finding.severity}</strong>{finding.message}<small>{finding.ruleId}</small></p>) : <p>No node findings.</p>}</InspectorSection>

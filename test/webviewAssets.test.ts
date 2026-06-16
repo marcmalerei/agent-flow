@@ -469,7 +469,16 @@ describe('webview assets', () => {
     expect(css).toContain('.node-status-slot');
     expect(css).toContain('.flow-node-type-artifact .flow-node-label');
     expect(css).toContain('.flow-node-type-handoff');
-    expect(geometrySource).toContain('handoffNodeWidth = 148');
+    expect(geometrySource).not.toContain('handoffNodeWidth = 148');
+  });
+
+  test('treats handoff nodes as derived graph nodes instead of addable editable nodes', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+
+    expect(webviewSource).toContain("types: ['agent', 'gate']");
+    expect(webviewSource).not.toContain("types: ['agent', 'handoff', 'gate']");
+    expect(webviewSource).toContain('graphNodeIdForSelection');
+    expect(webviewSource).not.toContain("node.type === 'handoff' && <InspectorSection");
   });
 
   test('animates node-level file and artifact activity', () => {

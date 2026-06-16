@@ -37,8 +37,6 @@ export interface GraphOverviewMetrics {
 
 export const graphNodeWidth = 190;
 export const graphNodeHeight = 96;
-export const handoffNodeWidth = 148;
-export const handoffNodeHeight = 68;
 export const nativeGraphMinZoom = 0.08;
 export const nativeGraphMaxZoom = 1.4;
 const graphPadding = 120;
@@ -176,9 +174,7 @@ export function graphTransform(viewport: GraphViewport): string {
 }
 
 export function graphNodeSizeForType(type: string): { width: number; height: number } {
-  return type === 'handoff'
-    ? { width: handoffNodeWidth, height: handoffNodeHeight }
-    : { width: graphNodeWidth, height: graphNodeHeight };
+  return { width: graphNodeWidth, height: graphNodeHeight };
 }
 
 export function clamp(value: number, min: number, max: number): number {
