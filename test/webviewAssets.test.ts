@@ -44,6 +44,24 @@ describe('webview assets', () => {
     expect(webviewSource).not.toContain('placeholder={`How should this node apply');
   });
 
+  test('organizes the inspector around task workflows', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('InspectorSection');
+    expect(webviewSource).toContain('InspectorQuickActions');
+    expect(webviewSource).toContain('ToolSelectionSummary');
+    expect(webviewSource).toContain('inspector-sticky-header');
+    expect(webviewSource).toContain('Identity');
+    expect(webviewSource).toContain('Run behavior');
+    expect(webviewSource).toContain('Context');
+    expect(webviewSource).toContain('Artifacts');
+    expect(webviewSource).toContain("command: 'openWorkspaceFile'");
+    expect(css).toContain('.inspector-sticky-header');
+    expect(css).toContain('.inspector-quick-actions');
+    expect(css).toContain('.tool-selection-summary');
+  });
+
   test('uses a native graph renderer instead of React Flow inside VS Code webviews', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
@@ -170,6 +188,21 @@ describe('webview assets', () => {
     expect(css).toContain('.activity-file');
     expect(css).toContain('.activity-artifact');
     expect(css).toContain('nodeActivityPulse');
+  });
+
+  test('organizes inspector as task-oriented editing flow', () => {
+    const source = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(source).toContain('inspector-section-identity');
+    expect(source).toContain('Run behavior');
+    expect(source).toContain('Routing');
+    expect(source).toContain('Context');
+    expect(source).toContain('Artifacts');
+    expect(source).toContain('Open file');
+    expect(source).toContain('selectedToolSummary');
+    expect(css).toContain('.config-header.sticky');
+    expect(css).toContain('.inspector-section-summary');
   });
 
   test('reserves node header space so badges do not overlap labels', () => {
