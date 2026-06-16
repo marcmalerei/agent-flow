@@ -95,6 +95,7 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .shortcut-help dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; margin: 0; }
 .shortcut-help dt { padding: 1px 5px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-keybindingLabel-background, var(--vscode-editor-background)); color: var(--vscode-keybindingLabel-foreground, var(--vscode-foreground)); font-family: var(--vscode-editor-font-family, ui-monospace, monospace); font-size: 11px; white-space: nowrap; }
 .shortcut-help dd { min-width: 0; margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.35; }
+.graph-edge { pointer-events: visibleStroke; }
 .graph-edge-path { fill: none; stroke-linecap: round; }
 .graph-edge.support-edge .graph-edge-path { opacity: .5; }
 .graph-edge.focus-muted .graph-edge-path, .graph-edge.focus-muted .graph-edge-label { opacity: .18; }
@@ -102,10 +103,14 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .graph-edge.focus-edge .graph-edge-label rect { stroke: currentColor; stroke-width: .8; }
 .graph-edge.animated .graph-edge-path { stroke-dasharray: 10 5; animation: activityDash 760ms linear infinite; filter: drop-shadow(0 0 4px currentColor); }
 .graph-edge.activity-edge .graph-edge-path { opacity: 1; }
+.graph-edge-path { pointer-events: stroke; }
 .graph-edge.loop-edge .graph-edge-path { stroke-dasharray: 2 6; filter: drop-shadow(0 0 3px currentColor); }
 .graph-edge.error-edge .graph-edge-path { filter: drop-shadow(0 0 5px var(--vscode-errorForeground, #f14c4c)); }
 .graph-edge-tracer { opacity: .95; filter: drop-shadow(0 0 6px currentColor); }
-.graph-edge-label { pointer-events: none; }
+.graph-edge-label { opacity: .52; pointer-events: none; transition: opacity 120ms ease; }
+.graph-edge.support-edge:not(.activity-edge):not(.focus-edge) .graph-edge-label { opacity: 0; }
+.graph-edge:hover .graph-edge-label, .graph-edge.focus-edge .graph-edge-label, .graph-edge.activity-edge .graph-edge-label { opacity: 1; }
+.graph-edge.active-read .graph-edge-tracer, .graph-edge.active-write .graph-edge-tracer, .graph-edge.active-handoff .graph-edge-tracer { opacity: 1; }
 .graph-edge-label rect { fill: var(--vscode-editorWidget-background); opacity: .95; }
 .graph-edge-label text { fill: var(--vscode-editorWidget-foreground); font-size: 11px; font-family: var(--vscode-font-family, system-ui); }
 .graph-edge.activity-edge .graph-edge-label rect { stroke: currentColor; stroke-width: .8; opacity: .98; }

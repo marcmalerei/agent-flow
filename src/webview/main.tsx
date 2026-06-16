@@ -41,6 +41,7 @@ import { edgeGradientId, edgeMarkerColor, graphNodeDisplayLabel, graphNodeFullLa
 import { deriveFlowEmptyState, type EmptyStateAction, type FlowEmptyState, type WorkspaceFileSummary } from './emptyState';
 import { spatialNeighborNodeId, type SpatialArrowKey } from './keyboardNavigation';
 import { deriveGraphRecoveryState, type GraphRecoveryState } from './graphRecoveryState';
+import { activeEdgeClass, edgeTooltip } from './edgeClasses';
 
 interface State {
   stateVersion: number;
@@ -283,6 +284,7 @@ function App() {
   const edges: RenderedEdge[] = useMemo(() => visibleEdges.map((edge) => {
     const classNames = [
       activeEdges.has(edge.id) ? 'activity-edge' : undefined,
+      activeEdges.has(edge.id) ? activeEdgeClass(edge) : undefined,
       loopEdgeIds.has(edge.id) ? 'loop-edge' : undefined,
       edge.data.kind === 'error' ? 'error-edge' : undefined
     ].filter(Boolean).join(' ');
@@ -700,7 +702,9 @@ function GraphEdge({ edge, nodesById, selectedId }: { edge: RenderedEdge; nodesB
   const opacity = typeof edge.style?.opacity === 'number' ? edge.style.opacity : 0.82;
   const strokeWidth = typeof edge.style?.strokeWidth === 'number' ? edge.style.strokeWidth : 1.8;
   const selectedEdge = Boolean(selectedId && (edge.source === selectedId || edge.target === selectedId));
+  const title = edgeTooltip(edge, source.data.fullLabel ?? source.data.label, target.data.fullLabel ?? target.data.label);
   return <g className={`graph-edge${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}${isSupportEdge(edge) ? ' support-edge' : ''}${selectedId && !selectedEdge ? ' focus-muted' : ''}${selectedEdge ? ' focus-edge' : ''}`} data-edge-id={edge.id} style={{ color }}>
+    <title>{title}</title>
     <path className="graph-edge-path" d={points.path} stroke={color} strokeWidth={strokeWidth} strokeDasharray={typeof edge.style?.strokeDasharray === 'string' ? edge.style.strokeDasharray : undefined} opacity={opacity} markerEnd={`url(#${edgeMarkerId(edge.id)})`} />
     {edge.animated && <circle className="graph-edge-tracer" r="4" fill={color}>
       <animateMotion dur="1.15s" repeatCount="indefinite" path={points.path} />

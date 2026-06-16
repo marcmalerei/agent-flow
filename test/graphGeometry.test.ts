@@ -5,13 +5,13 @@ const source: GraphGeometryNode = { id: 'source', position: { x: 0, y: 40 } };
 const target: GraphGeometryNode = { id: 'target', position: { x: 320, y: 40 } };
 
 describe('native graph geometry', () => {
-  it('anchors horizontal edges exactly on source and target node borders', () => {
+  it('anchors horizontal edges exactly on visible source and target ports', () => {
     const edge = edgePathBetweenNodes(source, target);
 
-    expect(edge.start).toEqual({ x: 190, y: 88 });
-    expect(edge.end).toEqual({ x: 320, y: 88 });
-    expect(edge.path.startsWith('M 190 88 ')).toBe(true);
-    expect(edge.path.endsWith(' 320 88')).toBe(true);
+    expect(edge.start).toEqual({ x: 195, y: 88 });
+    expect(edge.end).toEqual({ x: 315, y: 88 });
+    expect(edge.path.startsWith('M 195 88 ')).toBe(true);
+    expect(edge.path.endsWith(' 315 88')).toBe(true);
   });
 
   it('places short edge labels outside source and target node bounds', () => {
@@ -33,8 +33,8 @@ describe('native graph geometry', () => {
     const targetAgent: GraphGeometryNode = { id: 'agent', position: { x: 320, y: 40 } };
     const edge = edgePathBetweenNodes(handoff, targetAgent);
 
-    expect(edge.start).toEqual({ x: handoffSize.width, y: 40 + handoffSize.height / 2 });
-    expect(edge.end).toEqual({ x: 320, y: 40 + graphNodeHeight / 2 });
+    expect(edge.start).toEqual({ x: handoffSize.width + 5, y: 40 + handoffSize.height / 2 });
+    expect(edge.end).toEqual({ x: 315, y: 40 + graphNodeHeight / 2 });
     expect(measuredGraphBounds([handoff])).toEqual({ x: 0, y: 0, width: handoffSize.width + 120, height: 40 + handoffSize.height + 120 });
   });
 
