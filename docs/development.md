@@ -74,6 +74,8 @@ In the Extension Development Host window, open the Command Palette and run:
 
 Use a disposable workspace for `Agent Flow: Generate Files` while testing. The command shows a generated-file preview and asks for confirmation before writing files.
 
+For release UX checks, use the [UX smoke checklist](ux-smoke-checklist.md). It covers default-pipeline visibility, graph editing, autosave, activity, diagnostics, and Marketplace capture frames.
+
 ## Keyboard shortcuts
 
 The graph canvas is keyboard accessible when it has focus:
