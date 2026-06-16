@@ -12,6 +12,7 @@
 - Improve graph readability with semantic compact layout lanes, quieter support edges, and selected-node focus highlighting.
 - Add a live activity HUD, recent activity trail, and reduced-motion handling for temporary graph activity visuals.
 - Split fresh activity animation from softer recent node status so stale activity no longer animates edges.
+- Reorganize the inspector into task-oriented sections with quick actions, sticky file context, and selected-tool summaries.
 
 ## 0.0.1
 
