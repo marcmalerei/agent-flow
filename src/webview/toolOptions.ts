@@ -88,6 +88,10 @@ export function normalizeConfiguredToolsForOptions(tools: readonly string[], gro
   return [...new Set(normalizeConfiguredTools(tools).map((tool) => aliases.get(tool) ?? tool))].sort((a, b) => a.localeCompare(b));
 }
 
+export function selectedToolSummaryItems({ groups, selected, unavailable }: { groups: readonly ToolOptionGroup[]; selected: readonly string[]; unavailable: readonly string[] }): string[] {
+  return [...new Set([...normalizeConfiguredToolsForOptions(selected, groups), ...unavailable])].sort((a, b) => a.localeCompare(b));
+}
+
 export function normalizePipelineToolsForOptions<T extends AgentPipeline>(pipeline: T, groups: readonly ToolOptionGroup[]): T {
   const nodes = pipeline.nodes.map((node) => {
     if ((node.type === 'agent' || node.type === 'prompt') && node.tools) {

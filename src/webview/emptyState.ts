@@ -24,13 +24,13 @@ export function deriveFlowEmptyState(nodeCount: number, workspace?: WorkspaceFil
   if (!workspace?.hasGithubFolder) {
     return {
       kind: 'no-workspace-files',
-      title: 'No Agent Flow files found',
-      detail: 'This workspace does not have a .github customization folder yet. Create a starter pipeline or scan again after adding agent files.',
-      primaryAction: action('Create Default Pipeline', 'agentflow.createDefaultPipeline', 'sparkle'),
+      title: 'Start with a sample flow',
+      detail: 'This workspace does not have a .github customization folder yet. Create the sample pipeline, open existing customization files, or learn with demo activity.',
+      primaryAction: action('Create sample pipeline', 'agentflow.createDefaultPipeline', 'sparkle'),
       secondaryActions: [
-        action('Scan Workspace', 'agentflow.scanWorkspace', 'refresh'),
+        action('Open existing .github pipeline', 'agentflow.scanWorkspace', 'folder-opened'),
         action('Check Setup', 'agentflow.checkSetup', 'checklist'),
-        action('Play Demo Activity', 'agentflow.playDemoActivity', 'pulse'),
+        action('Learn with demo activity', 'agentflow.playDemoActivity', 'pulse'),
         action('Open Docs', 'agentflow.openDocs', 'book')
       ]
     };
@@ -38,13 +38,13 @@ export function deriveFlowEmptyState(nodeCount: number, workspace?: WorkspaceFil
   if ((workspace.supportedFileCount ?? 0) === 0) {
     return {
       kind: 'no-supported-files',
-      title: 'No supported customization files',
+      title: 'Create a sample graph',
       detail: 'Agent Flow found .github, but no agent, prompt, instruction, skill, role, or artifact files that can become graph nodes.',
-      primaryAction: action('Create Default Pipeline', 'agentflow.createDefaultPipeline', 'sparkle'),
+      primaryAction: action('Create sample pipeline', 'agentflow.createDefaultPipeline', 'sparkle'),
       secondaryActions: [
-        action('Scan Workspace', 'agentflow.scanWorkspace', 'refresh'),
+        action('Open existing .github pipeline', 'agentflow.scanWorkspace', 'folder-opened'),
         action('Check Setup', 'agentflow.checkSetup', 'checklist'),
-        action('Play Demo Activity', 'agentflow.playDemoActivity', 'pulse'),
+        action('Learn with demo activity', 'agentflow.playDemoActivity', 'pulse'),
         action('Open Docs', 'agentflow.openDocs', 'book')
       ]
     };
