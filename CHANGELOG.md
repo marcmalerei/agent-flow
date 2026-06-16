@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Preview node renames before autosave, including normalized labels, renamed files, and reference rewrite counts.
 - Explain graph edge provenance in hover text so users can see why a relationship exists.
 - Add a compact graph overview and navigation landmarks for start, active, selected, and fit targets.
 - Reduce graph arrowhead size so active edges keep direction clear without visually overpowering node ports.

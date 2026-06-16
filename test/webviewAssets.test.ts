@@ -172,6 +172,20 @@ describe('webview assets', () => {
     expect(css).toContain('.overview-viewport');
   });
 
+  test('previews node renames before autosave rewrites files and references', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('RenamePreview');
+    expect(webviewSource).toContain('deriveRenamePreview');
+    expect(webviewSource).toContain('Rename preview');
+    expect(webviewSource).toContain('References to update');
+    expect(webviewSource).toContain('Normalized to lower-case');
+    expect(webviewSource).toContain('onBlur={commitLabelDraft}');
+    expect(css).toContain('.rename-preview');
+    expect(css).toContain('.rename-preview-grid');
+  });
+
   test('adds selected-node focus classes to mute unrelated graph content', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 
