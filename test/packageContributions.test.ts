@@ -39,7 +39,7 @@ describe('package contributions', () => {
     expect(readme).not.toContain('](media/agent-flow-screenshot.png)');
   });
 
-  it('shows one Agent Flow submenu for all markdown files under .github regardless of language id', () => {
+  it('shows one Agent Flow submenu only for supported Agent Flow files under .github', () => {
     const entries = manifest.contributes?.menus?.['explorer/context'] ?? [];
     const submenuEntry = entries.find((entry) => entry.submenu === 'agentflow.context');
     expect(manifest.contributes?.submenus).toContainEqual({ id: 'agentflow.context', label: 'Agent Flow' });
@@ -47,12 +47,18 @@ describe('package contributions', () => {
       group: 'navigation@80',
       when: expect.stringContaining('resourceScheme == file')
     }));
-    expect(submenuEntry?.when).toContain('resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/].*\\.md$/');
+    expect(submenuEntry?.when).toContain('\\.agent\\.md');
+    expect(submenuEntry?.when).toContain('\\.prompt\\.md');
+    expect(submenuEntry?.when).toContain('\\.instructions\\.md');
+    expect(submenuEntry?.when).toContain('[\\\\\\/]roles[\\\\\\/].*\\.md');
+    expect(submenuEntry?.when).toContain('[\\\\\\/]skills[\\\\\\/].*SKILL\\.md');
+    expect(submenuEntry?.when).toContain('[\\\\\\/]artifacts[\\\\\\/].*\\.md');
+    expect(submenuEntry?.when).not.toContain('/[\\\\\\/]\\.github[\\\\\\/].*\\.md$/');
     expect(submenuEntry?.when).not.toContain('resourceLangId');
     expect(entries.filter((entry) => entry.command?.startsWith('agentflow.'))).toHaveLength(0);
   });
 
-  it('keeps Agent Flow actions as submenu entries with short titles', () => {
+  it('keeps Agent Flow actions as submenu entries with command-palette titles', () => {
     const submenuEntries = manifest.contributes?.menus?.['agentflow.context'] ?? [];
     expect(submenuEntries.map((entry) => entry.command)).toEqual([
       'agentflow.openPipeline',
@@ -67,7 +73,7 @@ describe('package contributions', () => {
     for (const entry of submenuEntries) {
       const command = commands.get(entry.command!);
       expect(command?.category).toBe('Agent Flow');
-      expect(command?.title.startsWith('Agent Flow:')).toBe(false);
+      expect(command?.title.startsWith('Agent Flow:')).toBe(true);
     }
   });
 
@@ -100,31 +106,31 @@ describe('package contributions', () => {
     ]));
     expect(commands.get('agentflow.playDemoActivity')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
-      title: 'Play Demo Activity'
+      title: 'Agent Flow: Play Demo Activity'
     }));
     expect(commands.get('agentflow.exportReport')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
-      title: 'Export Report'
+      title: 'Agent Flow: Export Report'
     }));
     expect(commands.get('agentflow.exportActivityCsv')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
-      title: 'Export Activity CSV'
+      title: 'Agent Flow: Export Activity CSV'
     }));
     expect(commands.get('agentflow.checkSetup')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
-      title: 'Check Setup'
+      title: 'Agent Flow: Check Setup'
     }));
     expect(commands.get('agentflow.importActivityLog')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
-      title: 'Import Activity Log'
+      title: 'Agent Flow: Import Activity Log'
     }));
     expect(commands.get('agentflow.pauseActivityReplay')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
-      title: 'Pause Activity Replay'
+      title: 'Agent Flow: Pause Activity Replay'
     }));
     expect(commands.get('agentflow.restartActivityReplay')).toEqual(expect.objectContaining({
       category: 'Agent Flow',
-      title: 'Restart Activity Replay'
+      title: 'Agent Flow: Restart Activity Replay'
     }));
   });
 

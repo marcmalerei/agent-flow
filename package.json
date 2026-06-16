@@ -142,72 +142,72 @@
     "commands": [
       {
         "command": "agentflow.openPipeline",
-        "title": "Open Pipeline",
+        "title": "Agent Flow: Open Pipeline",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.scanWorkspace",
-        "title": "Scan Workspace",
+        "title": "Agent Flow: Scan Workspace",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.generateFiles",
-        "title": "Generate Files",
+        "title": "Agent Flow: Generate Files",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.validatePipeline",
-        "title": "Validate Pipeline",
+        "title": "Agent Flow: Validate Pipeline",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.createDefaultPipeline",
-        "title": "Create Default Pipeline",
+        "title": "Agent Flow: Create Default Pipeline",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.playDemoActivity",
-        "title": "Play Demo Activity",
+        "title": "Agent Flow: Play Demo Activity",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.exportReport",
-        "title": "Export Report",
+        "title": "Agent Flow: Export Report",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.exportActivityCsv",
-        "title": "Export Activity CSV",
+        "title": "Agent Flow: Export Activity CSV",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.checkSetup",
-        "title": "Check Setup",
+        "title": "Agent Flow: Check Setup",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.importActivityLog",
-        "title": "Import Activity Log",
+        "title": "Agent Flow: Import Activity Log",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.pauseActivityReplay",
-        "title": "Pause Activity Replay",
+        "title": "Agent Flow: Pause Activity Replay",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.restartActivityReplay",
-        "title": "Restart Activity Replay",
+        "title": "Agent Flow: Restart Activity Replay",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.copyDebugSnapshot",
-        "title": "Copy Debug Snapshot",
+        "title": "Agent Flow: Copy Debug Snapshot",
         "category": "Agent Flow"
       },
       {
         "command": "agentflow.toggleDebugOverlay",
-        "title": "Toggle Debug Overlay",
+        "title": "Agent Flow: Toggle Debug Overlay",
         "category": "Agent Flow"
       }
     ],
@@ -345,7 +345,7 @@
       "explorer/context": [
         {
           "submenu": "agentflow.context",
-          "when": "resourceScheme == file && resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/].*\\.md$/",
+          "when": "resourceScheme == file && (resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/]agents[\\\\\\/].*\\.agent\\.md$/ || resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/]prompts[\\\\\\/].*\\.prompt\\.md$/ || resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/]instructions[\\\\\\/].*\\.instructions\\.md$/ || resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/]roles[\\\\\\/].*\\.md$/ || resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/]skills[\\\\\\/].*SKILL\\.md$/ || resourcePath =~ /[\\\\\\/]\\.github[\\\\\\/]artifacts[\\\\\\/].*\\.md$/)",
           "group": "navigation@80"
         }
       ],
