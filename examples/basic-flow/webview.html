@@ -70,15 +70,19 @@
         { id: 'demo-1', timestamp: new Date().toISOString(), sessionId: 'demo', nodeId: 'router', phase: 'tool', summary: 'Routing with workspace context.', toolName: 'read' },
         { id: 'demo-2', timestamp: new Date().toISOString(), sessionId: 'demo', nodeId: 'router', targetNodeId: 'implementer', phase: 'handoff', summary: 'Handing off implementation work.' }
       ],
-      activitySources: {
-        copilotDebugLogs: {
+      activitySources: [
+        {
+          id: 'copilotDebugLogs',
+          label: 'Copilot debug logs',
           enabled: true,
-          copilotFileLoggingEnabled: true,
-          discoveredRoots: ['examples/debug-logs'],
           state: 'watching',
-          detail: 'Watching demo Copilot debug log folder.'
+          detail: 'Watching demo Copilot debug log folder.',
+          metadata: {
+            copilotFileLoggingEnabled: true,
+            discoveredRoots: ['examples/debug-logs']
+          }
         }
-      }
+      ]
     };
 
     await import('/src/webview/main.tsx');
