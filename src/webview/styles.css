@@ -23,6 +23,7 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .activity-hud-live { border-color: var(--vscode-charts-green); color: var(--vscode-charts-green); box-shadow: inset 2px 0 0 var(--vscode-charts-green); }
 .activity-hud-recent { border-color: var(--vscode-charts-blue); color: var(--vscode-charts-blue); }
 .activity-hud-degraded { border-color: var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-editorWarning-foreground, #cca700); }
+.follow-live-toggle.active { border-color: var(--vscode-focusBorder); background: color-mix(in srgb, var(--vscode-button-secondaryBackground, transparent) 72%, var(--vscode-focusBorder)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
 .canvas { position: relative; min-width: 0; min-height: var(--agentflow-canvas-min-height); width: 100%; height: 100%; overflow: hidden; background: var(--vscode-editor-background); }
 .native-graph { touch-action: none; background-image: radial-gradient(color-mix(in srgb, var(--vscode-editor-foreground) 42%, transparent) 1px, transparent 1px); background-size: 24px 24px; cursor: grab; }
 .native-graph:active { cursor: grabbing; }
