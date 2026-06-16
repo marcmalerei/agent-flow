@@ -63,7 +63,7 @@ export async function run(): Promise<void> {
   assert.match(await fs.readFile(path.join(workspace, '.github/artifacts/plan.md'), 'utf8'), /# plan/i);
   assert.match(await fs.readFile(path.join(workspace, '.github/artifacts/result.md'), 'utf8'), /# result/i);
   assert.match(await fs.readFile(path.join(workspace, '.github/prompts/start-implementation.prompt.md'), 'utf8'), /name: "start implementation prompt"/);
-  assert.match(await fs.readFile(path.join(workspace, '.github/instructions/coding-standards.instructions.md'), 'utf8'), /name: "coding standards"/);
+  assert.match(await fs.readFile(path.join(workspace, '.github/instructions/project-guidelines.instructions.md'), 'utf8'), /name: "project guidelines"/);
 
   await fs.mkdir(path.join(workspace, '.github/agents'), { recursive: true });
   await fs.mkdir(path.join(workspace, '.github/prompts'), { recursive: true });
