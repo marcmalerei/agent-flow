@@ -13,13 +13,21 @@ The extension does not execute pipelines, call Copilot agents, read private Copi
 - Open a live graph inferred from `.github` Markdown and YAML files.
 - Focus the graph by full view, selected neighborhood, active run, or execution path while keeping type filters available.
 - Edit node metadata, tools, handoffs, artifacts, intent-card references, and Markdown from a VS Code themed inspector.
+- Treat materialized handoff nodes as derived, read-only graph projections; click them to edit the source agent routing.
 - Auto-save webview edits directly back to the relevant Markdown files.
 - Keep graph edges synchronized with Markdown references, handoffs, and artifact usage.
-- Show short-lived live node and edge activity, replay recent events, and import sanitized GitHub Copilot debug logs when Copilot file logging is enabled.
+- Show short-lived live node and edge activity, replay recent events, and inspect sanitized GitHub Copilot debug logs when Copilot file logging is enabled.
 - Choose language model tools from VS Code's registered tool list.
-- Show token estimates per node and diagnostics for validation, files, tools, and context risk.
+- Show token estimates per node and resizable diagnostics for activity, validation, files, tools, and context risk.
 - Create starter agents, prompts, instructions, skills, roles, artifacts, gates, hooks, and MCP server nodes.
 - Use context menu entries on supported `.github` files to open, scan, validate, or generate Agent Flow files.
+
+## Next Release Highlights
+
+- Handoff nodes now match the standard node size in the graph and open their source agent instead of exposing a separate editable inspector.
+- The Add Node palette creates persisted node types only; handoffs are managed from agent frontmatter.
+- The configuration inspector and diagnostics panel can be resized for long Copilot debug logs, validation lists, and dense routing forms.
+- The preview media has been refreshed to show the current graph controls, activity HUD, inspector, Add Node flow, and diagnostics surface.
 
 ## Quick Start
 
@@ -49,6 +57,7 @@ Agent Flow Studio preserves frontmatter where possible and omits optional YAML f
 ## Common Workflows
 
 - Use agent nodes to manage model, target environment, invocation settings, tools, handoffs, and subagents.
+- Click derived handoff nodes to jump to the source agent Routing section where the handoff is defined.
 - Use prompt and instruction nodes to keep reusable guidance visible in the graph.
 - Use artifact nodes to make inputs and outputs explicit between agents, prompts, instructions, and skills.
 - Use role nodes for reusable role descriptions that can be referenced from Markdown.

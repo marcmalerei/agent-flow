@@ -253,6 +253,21 @@ describe('webview assets', () => {
     expect(css).toContain('.artifact-relationship-summary');
   });
 
+  test('keeps graph controls compact and prevents accidental canvas text selection', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('graph-toolstrip');
+    expect(css).toContain('.native-graph {');
+    expect(css).toContain('user-select: none');
+    expect(css).toContain('-webkit-user-select: none');
+    expect(css).toContain('.native-graph input');
+    expect(css).toContain('user-select: text');
+    expect(css).toContain('.graph-toolstrip');
+    expect(css).toContain('grid-template-columns: minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr)');
+    expect(css).toContain('.graph-toolstrip .graph-reading-level-switch');
+  });
+
   test('adds semantic graph focus modes for investigative views', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const graphSearchSource = readFileSync('src/webview/graphSearch.ts', 'utf8');
@@ -469,7 +484,16 @@ describe('webview assets', () => {
     expect(css).toContain('.node-status-slot');
     expect(css).toContain('.flow-node-type-artifact .flow-node-label');
     expect(css).toContain('.flow-node-type-handoff');
-    expect(geometrySource).toContain('handoffNodeWidth = 148');
+    expect(geometrySource).not.toContain('handoffNodeWidth = 148');
+  });
+
+  test('treats handoff nodes as derived graph nodes instead of addable editable nodes', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+
+    expect(webviewSource).toContain("types: ['agent', 'gate']");
+    expect(webviewSource).not.toContain("types: ['agent', 'handoff', 'gate']");
+    expect(webviewSource).toContain('graphNodeIdForSelection');
+    expect(webviewSource).not.toContain("node.type === 'handoff' && <InspectorSection");
   });
 
   test('animates node-level file and artifact activity', () => {

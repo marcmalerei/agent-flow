@@ -24,10 +24,9 @@ describe('native graph geometry', () => {
     expect(edge.labelY).toBeLessThan(closeSource.position.y);
   });
 
-  it('uses compact handoff node dimensions for bounds and edge anchors', () => {
+  it('uses full-size handoff node dimensions for aligned bounds and edge anchors', () => {
     const handoffSize = graphNodeSizeForType('handoff');
-    expect(handoffSize.width).toBeLessThan(graphNodeWidth);
-    expect(handoffSize.height).toBeLessThan(graphNodeHeight);
+    expect(handoffSize).toEqual({ width: graphNodeWidth, height: graphNodeHeight });
 
     const handoff: GraphGeometryNode = { id: 'handoff', position: { x: 0, y: 40 }, ...handoffSize };
     const targetAgent: GraphGeometryNode = { id: 'agent', position: { x: 320, y: 40 } };

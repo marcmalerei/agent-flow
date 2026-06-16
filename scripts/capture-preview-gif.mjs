@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const output = join(root, 'media', 'agent-flow-preview.gif');
+const screenshotOutput = join(root, 'media', 'agent-flow-screenshot.png');
 const frameDir = join(root, '.capture-preview-frames');
 const vitePort = Number(process.env.AGENTFLOW_CAPTURE_VITE_PORT ?? 5187);
 const chromePort = Number(process.env.AGENTFLOW_CAPTURE_CHROME_PORT ?? 9227);
@@ -55,47 +56,59 @@ try {
     }
   };
 
-  await caption(cdp, 'Agent Flow Studio infers a live graph from .github Markdown files');
+  await caption(cdp, 'Agent Flow Studio infers a live graph from .github Copilot files');
+  await evalPage(cdp, `selectFlowNode('router')`);
+  await waitForText(cdp, 'Routing');
+  await evalPage(cdp, `openDetails('Routing')`);
+  await waitForText(cdp, 'Review Plan');
+  await writeScreenshot(cdp, screenshotOutput);
   await capture(12);
 
-  await caption(cdp, 'Add a new artifact node');
-  await evalPage(cdp, `document.querySelector('.add-node-menu button').click()`);
+  await caption(cdp, 'Focus the graph by reading level, type, and workflow mode');
+  await evalPage(cdp, `clickButtonByText('Selected neighborhood')`);
   await capture(8);
-  await evalPage(cdp, `clickAddNodeType('artifact')`);
-  await waitForText(cdp, 'New artifact');
+  await evalPage(cdp, `clickButtonByText('Run activity')`);
   await capture(10);
 
-  await caption(cdp, 'Rename and manage the generated node');
-  await evalPage(cdp, `setConfigField('Label', 'Login Spec')`);
-  await waitForText(cdp, 'Login Spec');
-  await capture(10);
-
-  await caption(cdp, 'Reference it as Router output; the graph creates the edge');
+  await caption(cdp, 'Handoffs are edited from the source agent Routing section');
+  await evalPage(cdp, `clickButtonByText('Full graph')`);
   await evalPage(cdp, `selectFlowNode('router')`);
-  await waitForText(cdp, 'Routing and references');
-  await evalPage(cdp, `openDetails('Routing and references')`);
-  await capture(6);
-  await evalPage(cdp, `toggleArtifactDirection('Login Spec', 'Output')`);
-  await waitForText(cdp, 'writes');
+  await waitForText(cdp, 'Routing');
+  await evalPage(cdp, `openDetails('Routing')`);
+  await waitForText(cdp, 'Review Plan');
   await capture(12);
 
-  await caption(cdp, 'Add an instruction node');
-  await evalPage(cdp, `document.querySelector('.add-node-menu button').click()`);
-  await capture(6);
-  await evalPage(cdp, `clickAddNodeType('instruction')`);
-  await waitForText(cdp, 'New instruction');
-  await evalPage(cdp, `setConfigField('Label', 'Login Guidance')`);
-  await waitForText(cdp, 'Login Guidance');
+  await caption(cdp, 'Create nodes from the Add Node palette; handoffs stay derived from agents');
+  await evalPage(cdp, `clickAddNodeButton()`);
+  await waitForText(cdp, 'Execution');
+  await capture(10);
+  await evalPage(cdp, `clickAddNodeType('artifact')`);
+  await waitForText(cdp, 'Generated file');
+  await capture(8);
+
+  await caption(cdp, 'New nodes preview their id and generated file path before writing');
+  await evalPage(cdp, `setCreationField('Name or id', 'release notes')`);
+  await waitForText(cdp, 'release-notes');
+  await capture(10);
+  await evalPage(cdp, `confirmNodeCreation()`);
+  await waitForText(cdp, 'Created .github/artifacts/release-notes.md');
   await capture(10);
 
-  await caption(cdp, 'Select the instruction reference; the instruction edge appears immediately');
+  await caption(cdp, 'Artifact references update Markdown and graph edges immediately');
   await evalPage(cdp, `selectFlowNode('router')`);
-  await waitForText(cdp, 'Routing and references');
-  await evalPage(cdp, `openDetails('Routing and references')`);
-  await capture(6);
-  await evalPage(cdp, `toggleReferenceRow('Login Guidance')`);
-  await waitForText(cdp, 'instructs');
-  await capture(14);
+  await waitForText(cdp, 'Artifacts');
+  await evalPage(cdp, `openDetails('Artifacts')`);
+  await evalPage(cdp, `toggleArtifactDirection('release notes', 'Output')`);
+  await waitForText(cdp, 'writes Markdown block');
+  await capture(12);
+
+  await caption(cdp, 'Resizable diagnostics keep activity, files, tools, and risk in view');
+  await evalPage(cdp, `openDiagnosticsTab('activity')`);
+  await waitForText(cdp, 'Activity timeline');
+  await capture(10);
+  await evalPage(cdp, `openDiagnosticsTab('risk')`);
+  await waitForText(cdp, 'Context risk');
+  await capture(12);
 
   await cdp.close();
   await renderGif();
@@ -172,7 +185,7 @@ async function connectCdp(webSocketDebuggerUrl) {
 
 async function waitForPage(cdp) {
   await waitForCondition(async () => {
-    const result = await evalPage(cdp, `document.readyState === 'complete' && Boolean(document.querySelector('.react-flow__node'))`);
+    const result = await evalPage(cdp, `document.readyState === 'complete' && Boolean(document.querySelector('.agentflow-node'))`);
     return Boolean(result);
   }, 20_000, 'webview app');
 }
@@ -206,6 +219,11 @@ async function caption(cdp, text) {
   await evalPage(cdp, `window.setDemoCaption(${JSON.stringify(text)})`);
 }
 
+async function writeScreenshot(cdp, filePath) {
+  const shot = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  await writeFile(filePath, Buffer.from(shot.data, 'base64'));
+}
+
 async function setupDemoHelpers(cdp) {
   await evalPage(cdp, String.raw`
 (() => {
@@ -219,14 +237,24 @@ async function setupDemoHelpers(cdp) {
   style.textContent = '.demo-caption{position:fixed;left:24px;bottom:24px;z-index:1000;max-width:560px;padding:10px 12px;border:1px solid var(--vscode-focusBorder);background:color-mix(in srgb,var(--vscode-editor-background) 82%,var(--vscode-focusBorder));color:var(--vscode-foreground);box-shadow:0 8px 24px rgba(0,0,0,.35);font:600 15px/1.35 var(--vscode-font-family,system-ui)}';
   document.head.appendChild(style);
   window.setDemoCaption = (text) => { caption.textContent = text; };
+  window.clickButtonByText = (text) => {
+    const button = [...document.querySelectorAll('button')].find((item) => item.textContent.trim().includes(text));
+    if (!button) throw new Error('Missing button ' + text);
+    button.click();
+  };
+  window.clickAddNodeButton = () => {
+    const button = [...document.querySelectorAll('.add-node-menu button')].find((item) => item.textContent.includes('Add Node'));
+    if (!button) throw new Error('Missing Add Node button');
+    button.click();
+  };
   window.clickAddNodeType = (type) => {
     const item = [...document.querySelectorAll('.add-node-popover button')].find((button) => button.textContent.toLowerCase().includes(type));
     if (!item) throw new Error('Missing add-node type ' + type);
     item.click();
   };
   window.selectFlowNode = (id) => {
-    const node = document.querySelector('.react-flow__node[data-id="' + id + '"], [data-id="' + id + '"]')
-      || [...document.querySelectorAll('.react-flow__node')].find((item) => item.textContent.toLowerCase().includes(id.toLowerCase()));
+    const node = document.querySelector('.agentflow-node[data-node-id="' + id + '"]')
+      || [...document.querySelectorAll('.agentflow-node')].find((item) => item.textContent.toLowerCase().includes(id.toLowerCase()));
     if (!node) throw new Error('Missing flow node ' + id);
     const rect = node.getBoundingClientRect();
     const eventInit = { bubbles: true, view: window, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 };
@@ -235,9 +263,22 @@ async function setupDemoHelpers(cdp) {
     node.dispatchEvent(new MouseEvent('click', eventInit));
   };
   window.openDetails = (label) => {
-    const summary = [...document.querySelectorAll('.config details summary')].find((item) => item.textContent.trim() === label);
+    const summary = [...document.querySelectorAll('.config details summary')].find((item) => item.textContent.trim().startsWith(label));
     if (!summary) throw new Error('Missing details ' + label);
     summary.closest('details').open = true;
+  };
+  window.setCreationField = (label, value) => {
+    const field = [...document.querySelectorAll('.node-creation-form label')].find((item) => item.childNodes[0]?.textContent?.trim() === label);
+    const input = field?.querySelector('input, textarea');
+    if (!input) throw new Error('Missing creation field ' + label);
+    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value');
+    descriptor?.set?.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  window.confirmNodeCreation = () => {
+    const button = [...document.querySelectorAll('.node-creation-form button')].find((item) => item.textContent.includes('Create'));
+    if (!button) throw new Error('Missing Create button');
+    button.click();
   };
   window.setConfigField = (label, value) => {
     const field = [...document.querySelectorAll('.config label')].find((item) => item.childNodes[0]?.textContent?.trim() === label);
@@ -248,7 +289,7 @@ async function setupDemoHelpers(cdp) {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   };
   window.toggleArtifactDirection = (rowText, direction) => {
-    const row = [...document.querySelectorAll('.reference-row')].find((item) => item.textContent.includes(rowText));
+    const row = [...document.querySelectorAll('.reference-intent-card')].find((item) => item.textContent.toLowerCase().includes(rowText.toLowerCase()));
     if (!row) throw new Error('Missing artifact row ' + rowText);
     const label = [...row.querySelectorAll('.direction-chips label')].find((item) => item.textContent.includes(direction));
     if (!label) throw new Error('Missing artifact direction ' + direction);
@@ -256,10 +297,18 @@ async function setupDemoHelpers(cdp) {
     if (!input.checked) input.click();
   };
   window.toggleReferenceRow = (rowText) => {
-    const row = [...document.querySelectorAll('.reference-row')].find((item) => item.textContent.includes(rowText));
+    const row = [...document.querySelectorAll('.reference-intent-card')].find((item) => item.textContent.includes(rowText));
     if (!row) throw new Error('Missing reference row ' + rowText);
-    const input = row.querySelector('.reference-check input');
-    if (!input.checked) input.click();
+    const button = row.querySelector('.reference-card-actions button[aria-label^="Select reference"]');
+    if (button) button.click();
+  };
+  window.openDiagnosticsTab = async (tabName) => {
+    const bottomButton = [...document.querySelectorAll('.bottom button')].find((item) => item.textContent.toLowerCase().includes('diagnostics'));
+    if (bottomButton && bottomButton.textContent.includes('Show diagnostics')) bottomButton.click();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const tab = [...document.querySelectorAll('.diagnostics nav button')].find((item) => item.textContent.toLowerCase().includes(tabName.toLowerCase()));
+    if (!tab) throw new Error('Missing diagnostics tab ' + tabName);
+    tab.click();
   };
 })();
 `);
