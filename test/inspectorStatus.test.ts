@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { deriveInspectorSyncStatus } from '../src/webview/inspectorStatus';
 import { NodeRuntimeState } from '../src/webview/nodeRuntimeState';
 
-const cleanRuntime: NodeRuntimeState = {
-  nodeId: 'router',
+const baseRuntime: NodeRuntimeState = {
+  nodeId: 'agent',
+  filePath: '.github/agents/agent.agent.md',
   fileVersion: 1,
   status: 'clean',
   activity: 'idle',
@@ -11,41 +12,54 @@ const cleanRuntime: NodeRuntimeState = {
 };
 
 describe('inspector sync status', () => {
-  it('shows saved state when no runtime or validation signal needs attention', () => {
-    expect(deriveInspectorSyncStatus({ runtime: cleanRuntime, findingSeverities: [] })).toMatchObject({
+  it('shows saved when the selected node has no runtime or validation concern', () => {
+    expect(deriveInspectorSyncStatus({ runtime: baseRuntime })).toMatchObject({
       kind: 'saved',
-      label: 'Saved'
+      label: 'Saved',
+      icon: 'pass'
     });
   });
 
   it('prioritizes validation errors over runtime activity', () => {
     expect(deriveInspectorSyncStatus({
-      runtime: { ...cleanRuntime, activity: 'writing', activitySummary: 'Updated file' },
+      runtime: { ...baseRuntime, activity: 'writing', activitySummary: 'Writing artifact.' },
       findingSeverities: ['error']
     })).toMatchObject({
       kind: 'needs-attention',
-      label: 'Needs attention'
+      label: 'Needs attention',
+      icon: 'warning'
     });
   });
 
-  it('reports live runtime activity with the current activity summary', () => {
+  it('surfaces live node activity in the inspector header', () => {
     expect(deriveInspectorSyncStatus({
-      runtime: { ...cleanRuntime, activity: 'reading', activitySummary: 'Read artifact' },
-      findingSeverities: []
+      runtime: { ...baseRuntime, activity: 'reading', activitySummary: 'Read plan artifact.' }
     })).toMatchObject({
       kind: 'running',
       label: 'Reading',
-      detail: 'Read artifact'
+      detail: 'Read plan artifact.',
+      icon: 'pulse'
     });
   });
 
-  it('marks stale local edits as sync pending', () => {
+  it('distinguishes pending external sync from saved state', () => {
     expect(deriveInspectorSyncStatus({
-      runtime: { ...cleanRuntime, dirty: true, status: 'stale' },
-      findingSeverities: []
+      runtime: { ...baseRuntime, dirty: true, status: 'stale' }
     })).toMatchObject({
       kind: 'external-change',
-      label: 'Sync pending'
+      label: 'Sync pending',
+      icon: 'sync'
+    });
+  });
+
+  it('marks warnings and risk findings as review recommended after runtime is idle', () => {
+    expect(deriveInspectorSyncStatus({
+      runtime: baseRuntime,
+      findingSeverities: ['risk', 'warning']
+    })).toMatchObject({
+      kind: 'needs-attention',
+      label: 'Review recommended',
+      icon: 'warning'
     });
   });
 });
