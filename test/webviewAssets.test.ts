@@ -143,6 +143,17 @@ describe('webview assets', () => {
     expect(panelSource).toContain("command: 'stateUpdated'");
   });
 
+  test('keeps graph arrowheads compact when edge strokes get wider', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+
+    expect(webviewSource).toContain('markerWidth="7"');
+    expect(webviewSource).toContain('markerHeight="7"');
+    expect(webviewSource).toContain('refX="6.4"');
+    expect(webviewSource).toContain('refY="3.5"');
+    expect(webviewSource).toContain('markerUnits="userSpaceOnUse"');
+    expect(webviewSource).toContain('M 0 0 L 7 3.5 L 0 7 z');
+  });
+
   test('adds selected-node focus classes to mute unrelated graph content', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 
