@@ -10,7 +10,7 @@ const compactNodeHeight = 150;
 const compactMaxColumns = 8;
 const compactLaneGap = 44;
 const typeOrder = ['prompt', 'agent', 'role', 'gate', 'handoff', 'instruction', 'skill', 'artifact', 'hook', 'mcp-server'];
-const laneOrder = ['entry', 'workflow', 'control', 'artifact', 'context', 'integration'] as const;
+const laneOrder = ['entry', 'context', 'workflow', 'artifact', 'control', 'integration'] as const;
 export type FlowLayoutLane = typeof laneOrder[number];
 
 export function coerceFlowLayout(value: unknown): FlowLayout {
@@ -158,16 +158,17 @@ function graphLevels(pipeline: AgentPipeline): Map<string, number> {
 
   for (const root of roots) assignShortestLevels(root, 0, outgoing, levels);
   for (const node of pipeline.nodes) {
-    if (!levels.has(node.id)) assignShortestLevels(node.id, 0, outgoing, levels);
+    if (!levels.has(node.id)) assignShortestLevels(node.id, 0, outgoing, levels, true);
   }
   return levels;
 }
 
-function assignShortestLevels(root: string, rootLevel: number, outgoing: Map<string, string[]>, levels: Map<string, number>): void {
+function assignShortestLevels(root: string, rootLevel: number, outgoing: Map<string, string[]>, levels: Map<string, number>, preserveExisting = false): void {
   const queue: Array<{ id: string; level: number }> = [{ id: root, level: rootLevel }];
   while (queue.length) {
     const current = queue.shift()!;
     const existing = levels.get(current.id);
+    if (preserveExisting && existing !== undefined) continue;
     if (existing !== undefined && existing <= current.level) continue;
     levels.set(current.id, current.level);
     for (const target of outgoing.get(current.id) ?? []) {

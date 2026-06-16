@@ -2,7 +2,9 @@
 
 ## Unreleased
 
+- Simplify the default pipeline for first-run comprehension with lowercase names, canonical tool ids, explicit handoffs, fewer nodes, and readable compact layout.
 - Improve graph accessibility with keyboard node navigation, shortcut help, ARIA labels, reduced-motion handling, and high-contrast styles.
+- Simplify the generated default pipeline to a smaller first-run flow with lowercase nodes, valid handoffs, artifact references, and instruction references.
 - Require every pull request to update `CHANGELOG.md` before CI can pass.
 - Add a pull request template that asks for verification commands, release notes, and documentation status.
 - Document release hygiene for keeping Marketplace documentation and changelog entries current.

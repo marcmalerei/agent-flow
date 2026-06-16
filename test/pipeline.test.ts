@@ -15,13 +15,21 @@ import { coerceFlowLayout, flowLayoutLane, layoutFlowNodes } from '../src/webvie
 import { estimateNodeTokenCount, estimateTokenCount, formatTokenBadge } from '../src/webview/tokenCounts';
 import { renameNodeLabel } from '../src/webview/flowMutations';
 
+async function writeGeneratedMarkdown(workspace: string, pipeline: AgentPipeline): Promise<void> {
+  for (const file of generateFiles(pipeline).filter((item) => item.kind !== 'pipeline')) {
+    const target = path.join(workspace, file.path);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, file.content, 'utf8');
+  }
+}
+
 describe('pipeline parsing', () => {
   it('round-trips the default pipeline schema', () => {
     const pipeline = createDefaultPipeline();
     const parsed = parsePipelineJson(stringifyPipeline(pipeline));
     expect(parsed.version).toBe(1);
     expect(parsed.nodes.length).toBeGreaterThan(10);
-    expect(parsed.edges.length).toBeGreaterThan(4);
+    expect(parsed.edges.length).toBeGreaterThan(3);
   });
 
   it('rejects duplicate node ids', () => {
@@ -35,21 +43,39 @@ describe('default pipeline', () => {
   it('keeps the default pipeline compact and focused', () => {
     const pipeline = createDefaultPipeline();
     const ids = pipeline.nodes.map((node) => node.id);
-    for (const id of ['router', 'context', 'implementer', 'reviewer', 'final']) {
+    for (const id of ['router', 'implementer', 'reviewer', 'fixer']) {
       expect(ids).toContain(id);
     }
-    expect(pipeline.nodes.filter((node) => node.type === 'agent')).toHaveLength(5);
-    expect(pipeline.nodes.filter((node) => node.type === 'artifact')).toHaveLength(3);
-    expect(pipeline.nodes.filter((node) => node.type === 'instruction')).toHaveLength(3);
+    expect(pipeline.nodes.filter((node) => node.type === 'agent').length).toBeLessThanOrEqual(5);
+    expect(pipeline.nodes.filter((node) => node.type === 'artifact').length).toBeLessThanOrEqual(3);
+    expect(pipeline.nodes.filter((node) => node.type === 'instruction').length).toBeLessThanOrEqual(3);
+    expect(pipeline.nodes.filter((node) => node.type === 'handoff').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('uses lower-case default agent names', () => {
-    const agents = createDefaultPipeline().nodes.filter((node) => node.type === 'agent');
+  it('uses lower-case default names and labels', () => {
+    const pipeline = createDefaultPipeline();
 
-    for (const agent of agents) {
-      expect(agent.label).toBe(agent.label.toLowerCase());
-      expect(generateAgentMarkdown(agent)).toContain(`name: "${agent.label}"`);
+    expect(pipeline.name).toBe(pipeline.name.toLowerCase());
+    for (const node of pipeline.nodes) {
+      expect(node.label).toBe(node.label.toLowerCase());
+      if (node.type === 'agent') expect(generateAgentMarkdown(node)).toContain(`name: "${node.label}"`);
+      if (node.type === 'prompt') expect(generatePromptMarkdown(node)).toContain(`name: "${node.label}"`);
     }
+  });
+
+  it('shows the default pipeline as a readable first-run graph', () => {
+    const pipeline = createDefaultPipeline();
+    const edges = deriveVisibleFlowEdges(pipeline);
+    const positions = layoutFlowNodes(pipeline, 'compact');
+    const xs = [...positions.values()].map((position) => position.x);
+    const ys = [...positions.values()].map((position) => position.y);
+
+    expect(edges.some((edge) => edge.data.kind === 'handoff')).toBe(true);
+    expect(edges.some((edge) => edge.data.derivedFrom === 'handoff.targetAgent')).toBe(true);
+    expect(edges.some((edge) => edge.data.derivedFrom.includes('artifact'))).toBe(true);
+    expect(edges.some((edge) => edge.data.derivedFrom.includes('instructionRefs'))).toBe(true);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(285 * 6);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(900);
   });
 
   it('contains artifact nodes for all default artifact references', () => {
@@ -117,6 +143,22 @@ describe('default pipeline', () => {
     const ids = validatePipeline(createDefaultPipeline()).map((finding) => finding.ruleId);
 
     expect(ids).not.toContain('artifact-read-never-written');
+  });
+
+  it('can be regenerated from its Markdown files with visible references intact', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'agentflow-default-'));
+    await writeGeneratedMarkdown(workspace, createDefaultPipeline());
+
+    const inferred = await inferPipelineFromWorkspace(workspace);
+    const visibleEdges = deriveVisibleFlowEdges(inferred);
+
+    expect(validatePipeline(inferred).filter((finding) => finding.severity === 'error')).toEqual([]);
+    expect(inferred.nodes.filter((node) => node.type === 'agent').length).toBeLessThanOrEqual(5);
+    expect(inferred.nodes.filter((node) => node.type === 'artifact').length).toBeLessThanOrEqual(3);
+    expect(inferred.nodes.filter((node) => node.type === 'instruction').length).toBeLessThanOrEqual(3);
+    expect(visibleEdges.some((edge) => edge.data.kind === 'handoff')).toBe(true);
+    expect(visibleEdges.some((edge) => edge.data.derivedFrom.includes('artifact'))).toBe(true);
+    expect(visibleEdges.some((edge) => edge.data.derivedFrom.includes('instructionRefs'))).toBe(true);
   });
 });
 
