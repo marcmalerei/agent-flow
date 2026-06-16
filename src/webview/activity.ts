@@ -1,7 +1,30 @@
 import { AgentFlowActivityEvent, NodeActivitySummary } from '../activity/types';
+import type { ActivitySourceRuntimeState } from '../activity/sources';
 import { AgentPipeline, PipelineNode } from '../pipeline/types';
 import { nodeBackingFile } from '../activity/store';
 import { deriveVisibleFlowEdges } from './graph';
+
+export interface ActivityHudState {
+  mode: 'idle' | 'live' | 'recent' | 'degraded';
+  eventCount: number;
+  recentCount: number;
+  activeSessionId?: string;
+  lastSummary?: string;
+  lastTimestamp?: string;
+  sourceSummary: string;
+  canReportReads: boolean;
+  canReportWrites: boolean;
+}
+
+export interface ActivityTrailItem {
+  id: string;
+  label: string;
+  summary: string;
+  timestamp: string;
+  nodeId?: string;
+  targetNodeId?: string;
+  artifactPath?: string;
+}
 
 export function summarizeNodeActivity(events: AgentFlowActivityEvent[]): Map<string, NodeActivitySummary> {
   const summaries = new Map<string, NodeActivitySummary>();
@@ -31,6 +54,44 @@ export function recentActivityEvents(events: AgentFlowActivityEvent[], now = Dat
 
 export function recentNodeActivitySummaries(events: AgentFlowActivityEvent[], now = Date.now(), ttlMs = 120_000): Map<string, NodeActivitySummary> {
   return summarizeNodeActivity(recentActivityEvents(events, now, ttlMs));
+}
+
+export function deriveActivityHudState(events: AgentFlowActivityEvent[], sources: ActivitySourceRuntimeState[] = [], now = Date.now()): ActivityHudState {
+  const sorted = [...events].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  const last = sorted.at(-1);
+  const fresh = recentActivityEvents(events, now, 15_000);
+  const recent = recentActivityEvents(events, now, 120_000);
+  const watchingSources = sources.filter((source) => source.state === 'watching');
+  const degradedSources = sources.filter((source) => source.state === 'degraded' || source.state === 'error');
+  const canReportReads = watchingSources.some((source) => source.canReportReads);
+  const canReportWrites = watchingSources.some((source) => source.canReportWrites);
+  const mode: ActivityHudState['mode'] = fresh.length ? 'live' : recent.length ? 'recent' : degradedSources.length && events.length === 0 ? 'degraded' : 'idle';
+  return {
+    mode,
+    eventCount: events.length,
+    recentCount: recent.length,
+    activeSessionId: last?.sessionId,
+    lastSummary: last?.summary,
+    lastTimestamp: last?.timestamp,
+    sourceSummary: sourceSummary(watchingSources, degradedSources),
+    canReportReads,
+    canReportWrites
+  };
+}
+
+export function recentActivityTrail(events: AgentFlowActivityEvent[], now = Date.now(), limit = 6): ActivityTrailItem[] {
+  return recentActivityEvents(events, now, 120_000)
+    .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
+    .slice(0, limit)
+    .map((event) => ({
+      id: event.id,
+      label: event.toolName ? compactToolName(event.toolName) : event.phase,
+      summary: event.summary,
+      timestamp: event.timestamp,
+      nodeId: event.nodeId,
+      targetNodeId: event.targetNodeId,
+      artifactPath: event.artifactPath
+    }));
 }
 
 export function resolveActivityEventsForPipeline(pipeline: AgentPipeline, events: AgentFlowActivityEvent[]): AgentFlowActivityEvent[] {
@@ -103,6 +164,21 @@ function artifactNodeIdsByPath(pipeline: AgentPipeline): Map<string, string> {
 
 function normalizePath(value: string): string {
   return value.replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
+function sourceSummary(watchingSources: ActivitySourceRuntimeState[], degradedSources: ActivitySourceRuntimeState[]): string {
+  if (watchingSources.length) {
+    const primary = watchingSources.slice(0, 2).map((source) => source.label).join(', ');
+    const suffix = watchingSources.length > 2 ? ` +${watchingSources.length - 2}` : '';
+    return `${primary}${suffix}`;
+  }
+  if (degradedSources.length) return `${degradedSources.length} source${degradedSources.length === 1 ? '' : 's'} need setup`;
+  return 'No active sources';
+}
+
+function compactToolName(toolName: string): string {
+  const normalized = toolName.replace(/^tool[_/-]/, '').replace(/^copilot[_/-]/, '');
+  return normalized.split('/').at(-1)?.replace(/_/g, ' ') || normalized.replace(/_/g, ' ');
 }
 
 function writesArtifact(node: PipelineNode, path: string): boolean {

@@ -10,6 +10,7 @@
 - Add grouped builder palette sections, graph copy/paste, redo support, editable gate branches, error-path edges, and loop edge highlighting.
 - Add recoverable first-run and empty-canvas states with actions for creating a default pipeline, scanning, setup checks, and docs.
 - Improve graph readability with semantic compact layout lanes, quieter support edges, and selected-node focus highlighting.
+- Add a live activity HUD, recent activity trail, and reduced-motion handling for temporary graph activity visuals.
 
 ## 0.0.1
 
