@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateAgentMarkdown, generatePromptMarkdown } from '../src/pipeline/generators';
 import { AgentPipeline } from '../src/pipeline/types';
-import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renameNodeLabel, renamePipelineNodeLabel } from '../src/webview/flowMutations';
+import { applyConnectionIntent, buildConnectionIntentOptions, connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renameNodeLabel, renamePipelineNodeLabel } from '../src/webview/flowMutations';
 import { deriveVisibleFlowEdges } from '../src/webview/graph';
 
 function basePipeline(): AgentPipeline {
@@ -62,6 +62,74 @@ describe('flow mutations', () => {
     expect(prompt?.type).toBe('prompt');
     expect(prompt?.requiredArtifacts).toEqual(['.github/artifacts/result.md']);
     expect(prompt?.artifactUsages).toEqual([{ path: '.github/artifacts/result.md', action: 'read' }]);
+  });
+
+  it('offers explicit guided connection intents with markdown write previews', () => {
+    const pipeline: AgentPipeline = {
+      ...basePipeline(),
+      nodes: [
+        ...basePipeline().nodes,
+        { id: 'docs', type: 'instruction', label: 'Docs', instructionFile: '.github/instructions/docs.instructions.md', applyTo: '**/*.md' },
+        { id: 'role', type: 'role', label: 'Frontend Role', roleFile: '.github/roles/frontend.md' },
+        { id: 'gate', type: 'gate', label: 'Quality Gate', condition: 'Tests pass' }
+      ]
+    };
+
+    expect(buildConnectionIntentOptions(pipeline, 'router', 'artifact').filter((option) => option.enabled).map((option) => [option.kind, option.preview.field, option.preview.placeholder])).toEqual([
+      ['artifact-write', 'Artifact work', '$artifact'],
+      ['artifact-read', 'Artifact work', '$artifact'],
+      ['artifact-append', 'Artifact work', '$artifact'],
+      ['artifact-validate', 'Artifact work', '$artifact']
+    ]);
+    expect(buildConnectionIntentOptions(pipeline, 'router', 'worker').filter((option) => option.enabled).map((option) => option.kind)).toEqual(['handoff', 'subagent']);
+    expect(buildConnectionIntentOptions(pipeline, 'router', 'docs').filter((option) => option.enabled).map((option) => [option.kind, option.preview.field, option.preview.placeholder])).toEqual([
+      ['instruction-ref', 'Referenced instructions', '$instruction']
+    ]);
+    expect(buildConnectionIntentOptions(pipeline, 'router', 'role').filter((option) => option.enabled).map((option) => [option.kind, option.preview.field, option.preview.placeholder])).toEqual([
+      ['role-ref', 'Referenced roles', '$role']
+    ]);
+    expect(buildConnectionIntentOptions(pipeline, 'gate', 'worker').filter((option) => option.enabled).map((option) => option.kind)).toEqual(['gate-true', 'gate-false', 'gate-error']);
+  });
+
+  it('applies guided connection intents without ambiguous fallback edges', () => {
+    const pipeline: AgentPipeline = {
+      ...basePipeline(),
+      nodes: [
+        ...basePipeline().nodes,
+        { id: 'docs', type: 'instruction', label: 'Docs', instructionFile: '.github/instructions/docs.instructions.md', applyTo: '**/*.md' },
+        { id: 'role', type: 'role', label: 'Frontend Role', roleFile: '.github/roles/frontend.md' },
+        { id: 'gate', type: 'gate', label: 'Quality Gate', condition: 'Tests pass' }
+      ]
+    };
+
+    const withOutput = applyConnectionIntent(pipeline, 'router', 'artifact', 'artifact-write');
+    const routerWithOutput = withOutput.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+    expect(routerWithOutput?.outputs).toEqual(['.github/artifacts/result.md']);
+    expect(routerWithOutput?.artifactUsages).toEqual([{ path: '.github/artifacts/result.md', action: 'write', instruction: 'Write $artifact.' }]);
+
+    const withInput = applyConnectionIntent(withOutput, 'artifact', 'worker', 'artifact-read');
+    const worker = withInput.nodes.find((node) => node.id === 'worker' && node.type === 'agent');
+    expect(worker?.inputs).toEqual(['.github/artifacts/result.md']);
+    expect(worker?.artifactUsages).toEqual([{ path: '.github/artifacts/result.md', action: 'read', instruction: 'Read $artifact.' }]);
+
+    const withInstruction = applyConnectionIntent(withInput, 'router', 'docs', 'instruction-ref');
+    const routerWithInstruction = withInstruction.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+    expect(routerWithInstruction?.instructionRefs).toEqual([{ target: '.github/instructions/docs.instructions.md', instruction: 'Use $instruction.' }]);
+
+    const withRole = applyConnectionIntent(withInstruction, 'router', 'role', 'role-ref');
+    const routerWithRole = withRole.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+    expect(routerWithRole?.roleRefs).toEqual([{ target: '.github/roles/frontend.md' }]);
+
+    const withHandoff = applyConnectionIntent(withRole, 'router', 'worker', 'handoff');
+    const routerWithHandoff = withHandoff.nodes.find((node) => node.id === 'router' && node.type === 'agent');
+    expect(routerWithHandoff?.calls).toEqual([]);
+    expect(routerWithHandoff?.handoffs).toEqual([{ label: 'hand off to worker', agent: 'worker', send: false }]);
+    expect(withHandoff.edges).toContainEqual({ id: 'router-handoff-worker', from: 'router', to: 'worker', kind: 'handoff', label: 'hand off to worker' });
+
+    const withGate = applyConnectionIntent(withHandoff, 'gate', 'worker', 'gate-true');
+    const gate = withGate.nodes.find((node) => node.id === 'gate' && node.type === 'gate');
+    expect(gate?.trueBranch).toBe('worker');
+    expect(withGate.edges).not.toContainEqual(expect.objectContaining({ kind: 'flow', from: 'gate', to: 'worker' }));
   });
 
   it('syncs node label changes into managed file names', () => {

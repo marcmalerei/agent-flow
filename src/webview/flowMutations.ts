@@ -1,7 +1,35 @@
-import { AgentPipeline, ArtifactAction, ArtifactUsage, PipelineEdge, PipelineNode, ReferenceInstruction, ReferenceRole } from '../pipeline/types';
+import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineEdge, PipelineNode, ReferenceInstruction, ReferenceRole } from '../pipeline/types';
 import { deriveVisibleFlowEdges } from './graph';
 import { normalizeNodeLabel } from '../pipeline/labels';
 import { resolveAgentReference, stripYamlQuotes } from '../pipeline/referenceResolver';
+
+export type ConnectionIntentKind =
+  | 'handoff'
+  | 'subagent'
+  | 'artifact-read'
+  | 'artifact-write'
+  | 'artifact-append'
+  | 'artifact-validate'
+  | 'instruction-ref'
+  | 'role-ref'
+  | 'prompt-start'
+  | 'gate-true'
+  | 'gate-false'
+  | 'gate-error';
+
+export interface ConnectionIntentOption {
+  kind: ConnectionIntentKind;
+  label: string;
+  description: string;
+  enabled: boolean;
+  reason?: string;
+  preview: {
+    targetFile?: string;
+    field: string;
+    placeholder?: '$artifact' | '$instruction' | '$role';
+    value: string;
+  };
+}
 
 export function connectPipelineNodes(pipeline: AgentPipeline, sourceId: string, targetId: string): AgentPipeline {
   const source = pipeline.nodes.find((node) => node.id === sourceId);
@@ -14,6 +42,201 @@ export function connectPipelineNodes(pipeline: AgentPipeline, sourceId: string, 
     ? pipeline.edges
     : [...pipeline.edges, edge];
   return { ...pipeline, nodes, edges };
+}
+
+export function buildConnectionIntentOptions(pipeline: AgentPipeline, sourceId: string, targetId: string): ConnectionIntentOption[] {
+  const source = pipeline.nodes.find((node) => node.id === sourceId);
+  const target = pipeline.nodes.find((node) => node.id === targetId);
+  if (!source || !target) return [];
+  const sourceFile = nodeFileTarget(source);
+  const targetFile = nodeFileTarget(target);
+  const options: ConnectionIntentOption[] = [];
+
+  if (source.type === 'agent' && target.type === 'agent') {
+    options.push(intentOption('handoff', 'Handoff to agent', 'Route work through an explicit handoff block.', true, sourceFile, 'handoffs', `handoffs[].agent = ${target.id}`));
+    options.push(intentOption('subagent', 'Call as subagent', 'Allow this agent to call the target agent directly.', true, sourceFile, 'agents', `agents: ${target.id}`));
+  }
+
+  if (source.type === 'prompt' && target.type === 'agent') {
+    options.push(intentOption('prompt-start', 'Start agent from prompt', 'Set the prompt frontmatter agent target.', true, sourceFile, 'agent', `agent: ${target.id}`));
+  }
+
+  addArtifactIntentOptions(options, source, target, sourceFile, targetFile);
+  addInstructionIntentOptions(options, source, target, sourceFile, targetFile);
+  addRoleIntentOptions(options, source, target, sourceFile, targetFile);
+
+  if (source.type === 'gate' && target.id !== source.id) {
+    options.push(intentOption('gate-true', 'True branch', 'Route passing checks to this target.', true, sourceFile, 'trueBranch', `trueBranch: ${target.id}`));
+    options.push(intentOption('gate-false', 'False branch', 'Route failed checks to this target.', true, sourceFile, 'falseBranch', `falseBranch: ${target.id}`));
+    options.push(intentOption('gate-error', 'Error branch', 'Route unexpected errors to this target.', true, sourceFile, 'errorBranch', `errorBranch: ${target.id}`));
+  }
+
+  if (options.length) return options;
+  return [intentOption('subagent', 'Unsupported relationship', 'This node pair cannot be saved as a clear Markdown relationship.', false, sourceFile, 'none', `${source.type} -> ${target.type}`, 'Choose an agent, artifact, instruction, role, prompt, or gate-compatible target.')];
+}
+
+export function applyConnectionIntent(pipeline: AgentPipeline, sourceId: string, targetId: string, kind: ConnectionIntentKind): AgentPipeline {
+  const source = pipeline.nodes.find((node) => node.id === sourceId);
+  const target = pipeline.nodes.find((node) => node.id === targetId);
+  if (!source || !target) return pipeline;
+  if (!buildConnectionIntentOptions(pipeline, sourceId, targetId).some((option) => option.kind === kind && option.enabled)) return pipeline;
+
+  const nodes = pipeline.nodes.map((node) => updateNodeForConnectionIntent(node, source, target, kind));
+  const edge = edgeForConnectionIntent(source, target, kind);
+  const edges = edge && !pipeline.edges.some((item) => item.id === edge.id) ? [...pipeline.edges, edge] : pipeline.edges;
+  return { ...pipeline, nodes, edges };
+}
+
+function addArtifactIntentOptions(options: ConnectionIntentOption[], source: PipelineNode, target: PipelineNode, sourceFile: string | undefined, targetFile: string | undefined): void {
+  const sourceCanUse = supportsArtifactUsageRefs(source);
+  const targetCanUse = supportsArtifactUsageRefs(target);
+  if (target.type === 'artifact' && sourceCanUse) {
+    const field = source.type === 'agent' ? 'Artifact work' : 'Required artifacts';
+    options.push(artifactIntentOption('artifact-write', 'Write artifact', 'Write this artifact from the source node.', sourceFile, field, target.path));
+    options.push(artifactIntentOption('artifact-read', 'Read artifact', 'Read this artifact before the source node runs.', sourceFile, field, target.path));
+    options.push(artifactIntentOption('artifact-append', 'Append artifact', 'Append to this artifact from the source node.', sourceFile, field, target.path));
+    options.push(artifactIntentOption('artifact-validate', 'Validate artifact', 'Validate this artifact in the source node.', sourceFile, field, target.path));
+  }
+  if (source.type === 'artifact' && targetCanUse) {
+    const field = target.type === 'agent' ? 'Artifact work' : 'Required artifacts';
+    options.push(artifactIntentOption('artifact-read', 'Read artifact', 'Read this artifact before the target node runs.', targetFile, field, source.path));
+    options.push(artifactIntentOption('artifact-validate', 'Validate artifact', 'Validate this artifact in the target node.', targetFile, field, source.path));
+  }
+}
+
+function addInstructionIntentOptions(options: ConnectionIntentOption[], source: PipelineNode, target: PipelineNode, sourceFile: string | undefined, targetFile: string | undefined): void {
+  const reference = instructionReferenceForConnection(source, target);
+  if (!reference) return;
+  options.push(intentOption('instruction-ref', 'Use instruction', 'Add a parseable instruction reference block.', true, nodeFileTarget(reference.referencingNode) ?? (reference.referencingNode.id === source.id ? sourceFile : targetFile), 'Referenced instructions', `Use ${reference.target} as $instruction.`, undefined, '$instruction'));
+}
+
+function addRoleIntentOptions(options: ConnectionIntentOption[], source: PipelineNode, target: PipelineNode, sourceFile: string | undefined, targetFile: string | undefined): void {
+  const reference = roleReferenceForConnection(source, target);
+  if (!reference) return;
+  options.push(intentOption('role-ref', 'Use role', 'Add a parseable role reference block.', true, nodeFileTarget(reference.referencingNode) ?? (reference.referencingNode.id === source.id ? sourceFile : targetFile), 'Referenced roles', `Use ${reference.target} as $role.`, undefined, '$role'));
+}
+
+function updateNodeForConnectionIntent(node: PipelineNode, source: PipelineNode, target: PipelineNode, kind: ConnectionIntentKind): PipelineNode {
+  if (kind === 'subagent' && node.id === source.id && source.type === 'agent' && target.type === 'agent') {
+    return { ...source, calls: addUnique(source.calls, target.id) };
+  }
+  if (kind === 'handoff' && node.id === source.id && source.type === 'agent' && target.type === 'agent') {
+    return { ...source, handoffs: upsertHandoff(source.handoffs, target) };
+  }
+  if (kind === 'prompt-start' && node.id === source.id && source.type === 'prompt' && target.type === 'agent') {
+    return { ...source, startAgent: target.id };
+  }
+  if ((kind === 'gate-true' || kind === 'gate-false' || kind === 'gate-error') && node.id === source.id && source.type === 'gate') {
+    const field = kind === 'gate-true' ? 'trueBranch' : kind === 'gate-false' ? 'falseBranch' : 'errorBranch';
+    return { ...source, [field]: target.id };
+  }
+  if (kind.startsWith('artifact-')) return updateNodeForArtifactIntent(node, source, target, artifactActionForIntent(kind));
+  if (kind === 'instruction-ref') return updateNodeForInstructionIntent(node, source, target);
+  if (kind === 'role-ref') return updateNodeForRoleIntent(node, source, target);
+  return node;
+}
+
+function updateNodeForArtifactIntent(node: PipelineNode, source: PipelineNode, target: PipelineNode, action: ArtifactAction): PipelineNode {
+  if (target.type === 'artifact' && node.id === source.id && supportsArtifactUsageRefs(source)) {
+    return addArtifactReference(source, target.path, action);
+  }
+  if (source.type === 'artifact' && node.id === target.id && supportsArtifactUsageRefs(target)) {
+    return addArtifactReference(target, source.path, action);
+  }
+  return node;
+}
+
+function updateNodeForInstructionIntent(node: PipelineNode, source: PipelineNode, target: PipelineNode): PipelineNode {
+  const reference = instructionReferenceForConnection(source, target);
+  if (reference && node.id === reference.referencingNode.id && supportsInstructionRefs(node)) {
+    return { ...node, instructionRefs: upsertInstructionRef(node.instructionRefs, reference.target, 'Use $instruction.') } as PipelineNode;
+  }
+  return node;
+}
+
+function updateNodeForRoleIntent(node: PipelineNode, source: PipelineNode, target: PipelineNode): PipelineNode {
+  const reference = roleReferenceForConnection(source, target);
+  if (reference && node.id === reference.referencingNode.id && supportsRoleRefs(node)) {
+    return { ...node, roleRefs: upsertRoleRef(node.roleRefs, reference.target) } as PipelineNode;
+  }
+  return node;
+}
+
+function edgeForConnectionIntent(source: PipelineNode, target: PipelineNode, kind: ConnectionIntentKind): PipelineEdge | undefined {
+  if (kind === 'handoff') return { id: `${source.id}-handoff-${target.id}`, from: source.id, to: target.id, kind: 'handoff', label: defaultHandoffLabel(target) };
+  if (kind === 'subagent') return { id: `${source.id}-flow-${target.id}`, from: source.id, to: target.id, kind: 'flow', artifact: undefined };
+  if (kind === 'prompt-start') return { id: `${source.id}-prompt-${target.id}`, from: source.id, to: target.id, kind: 'prompt', artifact: undefined };
+  if (kind === 'instruction-ref') return instructionConnectionEdge(source, target);
+  if (kind === 'role-ref') return roleConnectionEdge(source, target);
+  if (kind.startsWith('artifact-')) {
+    const artifact = source.type === 'artifact' ? source.path : target.type === 'artifact' ? target.path : undefined;
+    return { id: `${source.id}-${kind}-${target.id}`, from: source.id, to: target.id, kind: 'artifact', artifact, label: artifactActionForIntent(kind) };
+  }
+  if (kind === 'gate-true' || kind === 'gate-false' || kind === 'gate-error') {
+    const branch = kind.replace('gate-', '');
+    return { id: `${source.id}-${kind}-${target.id}`, from: source.id, to: target.id, kind: kind === 'gate-error' ? 'error' : 'gate', label: branch };
+  }
+  return undefined;
+}
+
+function addArtifactReference<T extends PipelineNode>(node: T, path: string, action: ArtifactAction): T {
+  const artifactUsages = upsertArtifactUsage((node as any).artifactUsages, path, action, { instruction: defaultArtifactInstruction(action) });
+  if (node.type === 'agent') {
+    return {
+      ...node,
+      inputs: action === 'read' || action === 'validate' ? addUnique(node.inputs, path) : node.inputs ?? [],
+      outputs: action === 'write' || action === 'append' ? addUnique(node.outputs, path) : node.outputs ?? [],
+      artifactUsages
+    } as T;
+  }
+  if (supportsRequiredArtifactRefs(node) || node.type === 'prompt') {
+    return { ...node, requiredArtifacts: addUnique((node as any).requiredArtifacts, path), artifactUsages } as T;
+  }
+  return { ...node, artifactUsages } as T;
+}
+
+function upsertHandoff(handoffs: AgentHandoff[] | undefined, target: Extract<PipelineNode, { type: 'agent' }>): AgentHandoff[] {
+  const current = handoffs ?? [];
+  const agent = target.id;
+  if (current.some((handoff) => resolveAgentReference(handoff.agent, [target]) === target.id || handoff.agent === agent)) return current as any;
+  return [...current, { label: defaultHandoffLabel(target), agent, send: false }];
+}
+
+function intentOption(kind: ConnectionIntentKind, label: string, description: string, enabled: boolean, targetFile: string | undefined, field: string, value: string, reason?: string, placeholder?: '$artifact' | '$instruction' | '$role'): ConnectionIntentOption {
+  return { kind, label, description, enabled, reason, preview: { targetFile, field, placeholder, value } };
+}
+
+function artifactIntentOption(kind: Extract<ConnectionIntentKind, 'artifact-read' | 'artifact-write' | 'artifact-append' | 'artifact-validate'>, label: string, description: string, targetFile: string | undefined, field: string, path: string): ConnectionIntentOption {
+  const action = artifactActionForIntent(kind);
+  return intentOption(kind, label, description, true, targetFile, field, `${action}: ${path} with ${defaultArtifactInstruction(action)}`, undefined, '$artifact');
+}
+
+function artifactActionForIntent(kind: ConnectionIntentKind): ArtifactAction {
+  if (kind === 'artifact-write') return 'write';
+  if (kind === 'artifact-append') return 'append';
+  if (kind === 'artifact-validate') return 'validate';
+  return 'read';
+}
+
+function defaultArtifactInstruction(action: ArtifactAction): string {
+  if (action === 'write') return 'Write $artifact.';
+  if (action === 'append') return 'Append to $artifact.';
+  if (action === 'validate') return 'Validate $artifact.';
+  return 'Read $artifact.';
+}
+
+function defaultHandoffLabel(target: PipelineNode): string {
+  return `hand off to ${target.label.toLowerCase()}`;
+}
+
+function nodeFileTarget(node: PipelineNode): string | undefined {
+  if (node.type === 'agent') return node.agentFile ?? `.github/agents/${node.id}.agent.md`;
+  if (node.type === 'prompt') return node.promptFile ?? `.github/prompts/${node.id}.prompt.md`;
+  if (node.type === 'instruction') return node.instructionFile ?? `.github/instructions/${node.id}.instructions.md`;
+  if (node.type === 'skill') return node.skillFile ?? `.github/skills/${node.id}/SKILL.md`;
+  if (node.type === 'role') return node.roleFile ?? `.github/roles/${node.id}.md`;
+  if (node.type === 'artifact') return node.path;
+  return undefined;
 }
 
 export function renameNodeLabel(node: PipelineNode, label: string): PipelineNode {
@@ -190,16 +413,16 @@ function addUnique(values: string[] | undefined, value: string): string[] {
   return [...new Set([...(values ?? []), value])];
 }
 
-function upsertArtifactUsage(usages: ArtifactUsage[] | undefined, path: string, action: ArtifactAction): ArtifactUsage[] {
+function upsertArtifactUsage(usages: ArtifactUsage[] | undefined, path: string, action: ArtifactAction, patch?: Partial<ArtifactUsage>): ArtifactUsage[] {
   const current = usages ?? [];
-  if (current.some((usage) => usage.path === path)) return current;
-  return [...current, { path, action }];
+  if (current.some((usage) => usage.path === path)) return current.map((usage) => usage.path === path ? { ...usage, action, ...patch, path } : usage);
+  return [...current, { path, action, ...patch }];
 }
 
-function upsertInstructionRef(refs: ReferenceInstruction[] | undefined, target: string): ReferenceInstruction[] {
+function upsertInstructionRef(refs: ReferenceInstruction[] | undefined, target: string, instruction?: string): ReferenceInstruction[] {
   const current = refs ?? [];
-  if (current.some((ref) => ref.target === target)) return current;
-  return [...current, { target }];
+  if (current.some((ref) => ref.target === target)) return current.map((ref) => ref.target === target && instruction && !ref.instruction ? { ...ref, instruction } : ref);
+  return [...current, instruction ? { target, instruction } : { target }];
 }
 
 function upsertRoleRef(refs: ReferenceRole[] | undefined, target: string): ReferenceRole[] {
@@ -329,6 +552,10 @@ function supportsInstructionRefs(node: PipelineNode | undefined): node is Extrac
 
 function supportsRequiredArtifactRefs(node: PipelineNode | undefined): node is Extract<PipelineNode, { type: 'instruction' | 'skill' }> {
   return node?.type === 'instruction' || node?.type === 'skill';
+}
+
+function supportsArtifactUsageRefs(node: PipelineNode | undefined): node is Extract<PipelineNode, { type: 'agent' | 'prompt' | 'instruction' | 'skill' }> {
+  return node?.type === 'agent' || node?.type === 'prompt' || node?.type === 'instruction' || node?.type === 'skill';
 }
 
 function roleReferenceForConnection(source: PipelineNode, target: PipelineNode): { roleNode: Extract<PipelineNode, { type: 'role' }>; referencingNode: PipelineNode; target: string } | undefined {
