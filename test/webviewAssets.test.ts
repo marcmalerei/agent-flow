@@ -271,6 +271,26 @@ describe('webview assets', () => {
     expect(readme).toContain('Backspace');
   });
 
+  test('documents a release UX smoke checklist with a fixture workspace', () => {
+    const docs = readFileSync('docs/development.md', 'utf8');
+    const checklist = readFileSync('docs/ux-smoke-checklist.md', 'utf8');
+    const fixturePrompt = readFileSync('examples/ux-smoke-workspace/.github/prompts/start-implementation.prompt.md', 'utf8');
+    const fixtureRouter = readFileSync('examples/ux-smoke-workspace/.github/agents/router.agent.md', 'utf8');
+    const fixtureInstruction = readFileSync('examples/ux-smoke-workspace/.github/instructions/project-guidelines.instructions.md', 'utf8');
+
+    expect(docs).toContain('ux-smoke-checklist.md');
+    expect(checklist).toContain('Expected visual outcome');
+    expect(checklist).toContain('Blocking release issues');
+    expect(checklist).toContain('Cosmetic issues');
+    expect(checklist).toContain('within 4 seconds');
+    expect(checklist).toContain('examples/ux-smoke-workspace');
+    expect(checklist).toContain('Marketplace Capture');
+    expect(fixturePrompt).toContain('agent: "router"');
+    expect(fixtureRouter).toContain('handoffs:');
+    expect(fixtureRouter).toContain('<!--agent-flow:begin artifact-ref action="write" path=".github/artifacts/plan.md"-->');
+    expect(fixtureInstruction).toContain('name: "project guidelines"');
+  });
+
   test('reserves node header space so badges do not overlap labels', () => {
     const css = readFileSync('src/webview/styles.css', 'utf8');
 
