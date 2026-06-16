@@ -67,6 +67,12 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .agentflow-node.selected { box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
 .agentflow-node.active { z-index: 3; }
 .agentflow-node.problem-node .flow-node { box-shadow: inset 0 0 0 1px var(--vscode-editorWarning-foreground, #cca700), 0 0 0 3px color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 16%, transparent); }
+.agentflow-node.node-priority-selected { z-index: 6; }
+.agentflow-node.node-priority-activity { z-index: 5; }
+.agentflow-node.node-priority-status { z-index: 4; }
+.agentflow-node.node-priority-related { z-index: 3; }
+.agentflow-node.node-priority-muted { opacity: .32; }
+.agentflow-node.node-priority-muted:hover { opacity: .68; }
 .agentflow-node.reading-primary { z-index: 2; }
 .agentflow-node.reading-related { opacity: .78; z-index: 1; }
 .agentflow-node.reading-muted { opacity: .34; }
@@ -185,6 +191,11 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .graph-edge.error-edge .graph-edge-path { filter: drop-shadow(0 0 5px var(--vscode-errorForeground, #f14c4c)); }
 .graph-edge-tracer { opacity: .95; filter: drop-shadow(0 0 6px currentColor); }
 .graph-edge-label { pointer-events: none; transition: opacity 120ms ease; }
+.graph-edge.edge-priority-active .graph-edge-path { opacity: 1; }
+.graph-edge.edge-priority-selected .graph-edge-path { opacity: .94; }
+.graph-edge.edge-priority-static .graph-edge-label { opacity: .48; }
+.graph-edge.edge-priority-support .graph-edge-label { opacity: 0; }
+.graph-edge.edge-priority-support:hover .graph-edge-label, .graph-edge.edge-priority-active .graph-edge-label, .graph-edge.edge-priority-selected .graph-edge-label { opacity: 1; }
 .graph-edge.edge-label-subtle .graph-edge-label { opacity: .52; }
 .graph-edge.edge-label-interactive .graph-edge-label { opacity: 0; }
 .graph-edge.edge-label-interactive:hover .graph-edge-label, .graph-edge.edge-label-visible .graph-edge-label { opacity: 1; }

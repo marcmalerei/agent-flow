@@ -349,6 +349,26 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('isSupportEdge');
   });
 
+  test('defines visual collision priority classes for nodes, badges, labels, and edges', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+    const prioritySource = readFileSync('src/webview/visualPriority.ts', 'utf8');
+
+    expect(prioritySource).toContain('graphVisualPriorityOrder');
+    expect(webviewSource).toContain('nodeVisualPriorityClass');
+    expect(webviewSource).toContain('edgeVisualPriorityClass');
+    expect(css).toContain('.agentflow-node.node-priority-selected');
+    expect(css).toContain('.agentflow-node.node-priority-activity');
+    expect(css).toContain('.agentflow-node.node-priority-status');
+    expect(css).toContain('.graph-edge.edge-priority-active');
+    expect(css).toContain('.graph-edge.edge-priority-support .graph-edge-label');
+    expect(css).toContain('.flow-node-label');
+    expect(css).toContain('overflow-wrap: anywhere');
+    expect(css).toContain('.node-meta-slot');
+    expect(css).toContain('.node-status-slot');
+    expect(css).toContain('.flow-node-type-handoff');
+  });
+
   test('surfaces webview bundle load and runtime failures instead of a blank panel', () => {
     const panelSource = readFileSync('src/webview/panel.ts', 'utf8');
 
