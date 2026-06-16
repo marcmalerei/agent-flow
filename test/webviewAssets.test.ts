@@ -154,6 +154,24 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('M 0 0 L 7 3.5 L 0 7 z');
   });
 
+  test('adds graph overview and navigation landmarks for large canvases', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('GraphOverview');
+    expect(webviewSource).toContain('graphOverviewMetrics');
+    expect(webviewSource).toContain('graph-navigation-landmarks');
+    expect(webviewSource).toContain('Jump to start');
+    expect(webviewSource).toContain('Jump to active node');
+    expect(webviewSource).toContain('Jump to selected node');
+    expect(webviewSource).toContain('Jump to first problem');
+    expect(webviewSource).toContain('aria-label="Graph overview"');
+    expect(css).toContain('.graph-overview');
+    expect(css).toContain('.graph-navigation-landmarks');
+    expect(css).toContain('.overview-node.problem');
+    expect(css).toContain('.overview-viewport');
+  });
+
   test('adds selected-node focus classes to mute unrelated graph content', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 

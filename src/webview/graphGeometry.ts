@@ -28,6 +28,13 @@ export interface GraphCanvasSize {
   height: number;
 }
 
+export interface GraphOverviewMetrics {
+  height: number;
+  scale: number;
+  viewport: { x: number; y: number; width: number; height: number };
+  width: number;
+}
+
 export const graphNodeWidth = 190;
 export const graphNodeHeight = 96;
 export const handoffNodeWidth = 148;
@@ -94,6 +101,29 @@ export function focusViewportOnNode(node: GraphGeometryNode, current: GraphViewp
     x: size.width / 2 - center.x * current.zoom,
     y: size.height / 2 - center.y * current.zoom,
     zoom: current.zoom
+  };
+}
+
+export function graphOverviewMetrics(bounds: GraphBounds, viewport: GraphViewport, canvasSize: GraphCanvasSize, maxSize: GraphCanvasSize): GraphOverviewMetrics {
+  const scale = Math.min(maxSize.width / bounds.width, maxSize.height / bounds.height);
+  const width = Math.max(1, Math.round(bounds.width * scale));
+  const height = Math.max(1, Math.round(bounds.height * scale));
+  const visibleLeft = (-viewport.x / viewport.zoom - bounds.x) * scale;
+  const visibleTop = (-viewport.y / viewport.zoom - bounds.y) * scale;
+  const visibleWidth = canvasSize.width / viewport.zoom * scale;
+  const visibleHeight = canvasSize.height / viewport.zoom * scale;
+  const viewportWidth = Math.min(width, Math.max(4, visibleWidth));
+  const viewportHeight = Math.min(height, Math.max(4, visibleHeight));
+  return {
+    height,
+    scale,
+    viewport: {
+      x: clamp(visibleLeft, 0, Math.max(0, width - viewportWidth)),
+      y: clamp(visibleTop, 0, Math.max(0, height - viewportHeight)),
+      width: viewportWidth,
+      height: viewportHeight
+    },
+    width
   };
 }
 

@@ -88,6 +88,17 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .native-controls button { width: 28px; height: 28px; padding: 0; border: 0; border-bottom: 1px solid var(--agentflow-border); border-radius: 0; background: transparent; color: var(--vscode-icon-foreground, var(--vscode-foreground)); }
 .native-controls button:last-child { border-bottom: 0; }
 .native-controls button:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); }
+.graph-navigation-landmarks { position: absolute; right: 12px; bottom: 118px; z-index: 5; display: flex; gap: 3px; padding: 3px; border: 1px solid var(--agentflow-border); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 94%, transparent); pointer-events: auto; }
+.graph-navigation-landmarks button { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--vscode-icon-foreground, var(--vscode-foreground)); }
+.graph-navigation-landmarks button:hover { background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)); }
+.graph-overview { position: absolute; right: 12px; bottom: 12px; z-index: 5; display: block; box-sizing: border-box; width: 184px; height: 100px; padding: 7px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 94%, transparent); color: var(--vscode-foreground); pointer-events: auto; }
+.graph-overview svg { display: block; max-width: 100%; max-height: 100%; overflow: visible; }
+.overview-bounds { fill: color-mix(in srgb, var(--vscode-editor-background) 86%, transparent); stroke: var(--agentflow-border); stroke-width: 1; }
+.overview-node { fill: color-mix(in srgb, var(--vscode-descriptionForeground) 70%, transparent); opacity: .72; }
+.overview-node.selected { fill: var(--vscode-focusBorder); opacity: 1; }
+.overview-node.active { fill: var(--vscode-charts-green); opacity: 1; }
+.overview-node.problem { fill: var(--vscode-editorWarning-foreground, #cca700); opacity: 1; }
+.overview-viewport { fill: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent); stroke: var(--vscode-focusBorder); stroke-width: 1.5; }
 .activity-trail { position: absolute; left: 52px; bottom: 12px; z-index: 5; display: flex; max-width: min(560px, calc(100% - 100px)); gap: 4px; overflow: hidden; pointer-events: auto; }
 .activity-trail button { max-width: 132px; min-height: 28px; padding: 3px 7px; border-color: var(--agentflow-border); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 92%, transparent); color: var(--vscode-foreground); }
 .activity-trail button:first-child { border-color: var(--vscode-charts-green); box-shadow: inset 2px 0 0 var(--vscode-charts-green); }

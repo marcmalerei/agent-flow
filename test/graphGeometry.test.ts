@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { edgePathBetweenNodes, findSpatialNeighborNodeId, fitNativeGraphViewport, focusViewportOnNode, graphNodeHeight, graphNodeSizeForType, graphNodeWidth, measuredGraphBounds, normalizeGraphNodePositions, shouldAutoFitGraph, type GraphGeometryNode, type GraphViewport } from '../src/webview/graphGeometry';
+import { edgePathBetweenNodes, findSpatialNeighborNodeId, fitNativeGraphViewport, focusViewportOnNode, graphNodeHeight, graphNodeSizeForType, graphNodeWidth, graphOverviewMetrics, measuredGraphBounds, normalizeGraphNodePositions, shouldAutoFitGraph, type GraphGeometryNode, type GraphViewport } from '../src/webview/graphGeometry';
 
 const source: GraphGeometryNode = { id: 'source', position: { x: 0, y: 40 } };
 const target: GraphGeometryNode = { id: 'target', position: { x: 320, y: 40 } };
@@ -72,6 +72,13 @@ describe('native graph geometry', () => {
 
     expect(viewport.zoom).toBeGreaterThan(0.5);
     expect(viewport.zoom).toBeLessThanOrEqual(1);
+  });
+
+  it('maps graph and viewport bounds into a compact overview rectangle', () => {
+    const overview = graphOverviewMetrics({ x: 0, y: 0, width: 1200, height: 600 }, { x: -120, y: -60, zoom: 0.5 }, { width: 900, height: 420 }, { width: 160, height: 96 });
+
+    expect(overview).toMatchObject({ width: 160, height: 80, scale: 160 / 1200 });
+    expect(overview.viewport).toEqual({ x: 0, y: 0, width: 160, height: 80 });
   });
 
   it('finds spatial keyboard navigation neighbors by direction', () => {
