@@ -51,24 +51,30 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .agentflow-node.focus-muted { opacity: .34; }
 .agentflow-node.focus-muted:hover { opacity: .72; }
 .agentflow-node.active .flow-node { box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 86%, transparent), 0 0 0 4px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 20%, transparent), 0 0 28px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 48%, transparent); }
-.flow-node { position: relative; box-sizing: border-box; display: grid; grid-template-rows: minmax(0, auto) auto; align-content: center; justify-items: center; row-gap: 8px; height: 100%; min-height: 72px; min-width: 0; padding: 38px 18px 14px; text-align: center; white-space: normal; overflow: hidden; }
+.flow-node { position: relative; box-sizing: border-box; display: grid; grid-template-rows: 18px minmax(0, 1fr) 22px; align-content: stretch; justify-items: stretch; height: 100%; min-height: 72px; min-width: 0; padding: 6px 14px 8px; text-align: center; white-space: normal; overflow: hidden; }
 .flow-node.has-activity { background: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--agentflow-token-color, var(--vscode-focusBorder))); box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 74%, transparent), 0 0 0 3px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 10%, transparent); }
 .flow-node.activity-freshness-fresh { animation: nodeActivityPulse 1.15s ease-in-out infinite; box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 90%, transparent), 0 0 0 4px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 18%, transparent), 0 0 28px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 52%, transparent); }
 .flow-node.activity-freshness-recent { opacity: .9; }
 .flow-node.has-activity::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--agentflow-token-color, var(--vscode-focusBorder)); box-shadow: 0 0 16px var(--agentflow-token-color, var(--vscode-focusBorder)); }
 .flow-node.activity-freshness-fresh.activity-node-file, .flow-node.activity-freshness-fresh.activity-node-artifact { animation-duration: .9s; }
-.flow-node-label { box-sizing: border-box; display: -webkit-box; max-width: 100%; min-width: 0; max-height: 2.6em; padding: 0 8px; overflow: hidden; overflow-wrap: anywhere; word-break: break-word; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.flow-node small { color: var(--vscode-descriptionForeground); font-size: 12px; }
-.flow-node-type-handoff { padding-top: 32px; row-gap: 5px; }
-.flow-node-type-handoff .flow-node-label { font-size: 12px; line-height: 1.2; }
+.flow-node-main { display: grid; align-self: center; justify-self: stretch; min-width: 0; gap: 7px; }
+.flow-node-label { box-sizing: border-box; display: -webkit-box; max-width: 100%; min-width: 0; max-height: 2.7em; padding: 0 10px; overflow: hidden; overflow-wrap: anywhere; word-break: normal; line-height: 1.28; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.flow-node-type-artifact .flow-node-label { font-family: var(--vscode-editor-font-family, var(--vscode-font-family, system-ui)); overflow-wrap: anywhere; word-break: break-word; }
+.flow-node small { min-width: 0; overflow: hidden; color: var(--vscode-descriptionForeground); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.flow-node-type-handoff { grid-template-rows: 18px minmax(0, 1fr) 18px; padding: 5px 12px 6px; }
+.flow-node-type-handoff .flow-node-main { gap: 4px; }
+.flow-node-type-handoff .flow-node-label { max-height: 2.5em; padding: 0 8px; font-size: 12px; line-height: 1.2; }
 .flow-node-type-handoff small { font-size: 11px; }
-.token-badge { position: absolute; top: 6px; right: 8px; padding: 1px 6px; border-radius: 999px; background: var(--agentflow-token-color, var(--vscode-badge-background)); color: var(--vscode-badge-foreground); font-size: 10px; font-weight: 700; line-height: 16px; }
-.activity-badge { position: absolute; left: 8px; top: 6px; max-width: calc(100% - 88px); padding: 1px 7px; border: 1px solid var(--agentflow-token-color, var(--vscode-focusBorder)); border-radius: 999px; background: color-mix(in srgb, var(--vscode-editor-background) 60%, var(--agentflow-token-color, var(--vscode-focusBorder))); color: var(--vscode-foreground); font-size: 10px; font-weight: 800; line-height: 16px; overflow: hidden; text-overflow: ellipsis; text-transform: lowercase; white-space: nowrap; box-shadow: 0 0 10px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 42%, transparent); }
-.runtime-badge { position: absolute; left: 8px; top: 6px; max-width: calc(100% - 78px); padding: 1px 6px; border: 1px solid var(--vscode-editorWarning-foreground, #cca700); border-radius: 999px; background: color-mix(in srgb, var(--vscode-editor-background) 75%, var(--vscode-editorWarning-foreground, #cca700)); color: var(--vscode-foreground); font-size: 10px; font-weight: 700; line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.flow-node.has-activity.is-dirty { padding-top: 54px; }
-.flow-node.has-activity.is-dirty .runtime-badge { top: 26px; }
+.node-meta-slot { display: flex; align-items: start; justify-content: flex-end; min-width: 0; min-height: 18px; padding-left: 24px; overflow: hidden; }
+.token-badge { position: static; max-width: 100%; padding: 1px 6px; border-radius: 999px; background: var(--agentflow-token-color, var(--vscode-badge-background)); color: var(--vscode-badge-foreground); font-size: 10px; font-weight: 700; line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node-status-slot { display: flex; align-self: end; justify-self: stretch; min-width: 0; gap: 4px; align-items: center; justify-content: flex-start; overflow: hidden; }
+.activity-badge, .runtime-badge, .attention-badge { box-sizing: border-box; flex: 0 1 auto; min-width: 0; max-width: 100%; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 800; line-height: 16px; overflow: hidden; text-overflow: ellipsis; text-transform: lowercase; white-space: nowrap; }
+.activity-badge { border: 1px solid var(--agentflow-token-color, var(--vscode-focusBorder)); background: color-mix(in srgb, var(--vscode-editor-background) 68%, var(--agentflow-token-color, var(--vscode-focusBorder))); color: var(--vscode-foreground); box-shadow: 0 0 10px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 34%, transparent); }
+.runtime-badge { border: 1px solid var(--vscode-editorWarning-foreground, #cca700); background: color-mix(in srgb, var(--vscode-editor-background) 82%, var(--vscode-editorWarning-foreground, #cca700)); color: var(--vscode-foreground); }
+.attention-badge { flex: 0 0 auto; width: 18px; padding: 1px 0; border: 1px solid var(--vscode-editorWarning-foreground, #cca700); background: color-mix(in srgb, var(--vscode-editor-background) 78%, var(--vscode-editorWarning-foreground, #cca700)); color: var(--vscode-editorWarning-foreground, #cca700); text-align: center; }
 .flow-node.runtime-error { box-shadow: inset 0 0 0 1px var(--vscode-errorForeground, #f14c4c); }
 .flow-node.is-dirty { box-shadow: inset 0 0 0 1px var(--vscode-editorWarning-foreground, #cca700); }
+.flow-node.needs-attention { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 70%, transparent); }
 .node-port { position: absolute; z-index: 2; width: 9px; height: 9px; border: 1px solid var(--vscode-focusBorder); border-radius: 50%; background: var(--vscode-editor-background); }
 .node-port-left { left: -10px; top: 50%; transform: translateY(-50%); }
 .node-port-right { right: -10px; top: 50%; transform: translateY(-50%); }

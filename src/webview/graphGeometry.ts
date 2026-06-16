@@ -30,8 +30,8 @@ export interface GraphCanvasSize {
 
 export const graphNodeWidth = 190;
 export const graphNodeHeight = 96;
-export const handoffNodeWidth = 158;
-export const handoffNodeHeight = 72;
+export const handoffNodeWidth = 148;
+export const handoffNodeHeight = 68;
 export const nativeGraphMinZoom = 0.08;
 export const nativeGraphMaxZoom = 1.4;
 const graphPadding = 120;

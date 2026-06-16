@@ -181,6 +181,22 @@ describe('webview assets', () => {
     expect(css).toContain('.flow-recovery-card');
   });
 
+  test('reserves node badge regions so labels do not compete with status chips', () => {
+    const nodeSource = readFileSync('src/webview/TokenNode.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+    const geometrySource = readFileSync('src/webview/graphGeometry.ts', 'utf8');
+
+    expect(nodeSource).toContain('flow-node-main');
+    expect(nodeSource).toContain('node-meta-slot');
+    expect(nodeSource).toContain('node-status-slot');
+    expect(nodeSource).toContain('attention-badge');
+    expect(css).toContain('.node-meta-slot');
+    expect(css).toContain('.node-status-slot');
+    expect(css).toContain('.flow-node-type-artifact .flow-node-label');
+    expect(css).toContain('.flow-node-type-handoff');
+    expect(geometrySource).toContain('handoffNodeWidth = 148');
+  });
+
   test('animates node-level file and artifact activity', () => {
     const tokenNodeSource = readFileSync('src/webview/TokenNode.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
@@ -271,7 +287,7 @@ describe('webview assets', () => {
     expect(source).toContain('ArrowDown');
     expect(source).toContain("event.key.toLowerCase() === 'f'");
     expect(source).toContain("event.key === 'Enter'");
-    expect(source).toContain('aria-label={`Graph node ${node.data.label}');
+    expect(source).toContain('aria-label={`Graph node ${node.data.fullLabel ?? node.data.label}');
     expect(source).toContain('aria-label="Zoom in graph"');
     expect(source).toContain('aria-keyshortcuts');
     expect(css).toContain('.shortcut-help');
@@ -308,9 +324,10 @@ describe('webview assets', () => {
   test('reserves node header space so badges do not overlap labels', () => {
     const css = readFileSync('src/webview/styles.css', 'utf8');
 
-    expect(css).toContain('padding: 38px 18px 14px');
+    expect(css).toContain('grid-template-rows: 18px minmax(0, 1fr) 22px');
+    expect(css).toContain('grid-template-rows: 18px minmax(0, 1fr) 18px');
+    expect(css).toContain('.token-badge { position: static;');
     expect(css).toContain('-webkit-line-clamp: 2');
-    expect(css).toContain('.flow-node.has-activity.is-dirty');
-    expect(css).toContain('.flow-node.has-activity.is-dirty .runtime-badge');
+    expect(css).toContain('.node-status-slot');
   });
 });

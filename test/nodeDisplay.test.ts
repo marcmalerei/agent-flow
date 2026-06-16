@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { graphNodeDisplayLabel, nodeTypeColor, edgeGradientId, edgeMarkerColor } from '../src/webview/nodeDisplay';
+import { graphNodeDisplayLabel, graphNodeFullLabel, nodeTypeColor, edgeGradientId, edgeMarkerColor } from '../src/webview/nodeDisplay';
 import { PipelineNode } from '../src/pipeline/types';
 
 describe('node display helpers', () => {
@@ -9,6 +9,18 @@ describe('node display helpers', () => {
       type: 'artifact',
       label: '.github/artifacts/results/ticket.md',
       path: '.github/artifacts/results/ticket.md'
+    };
+
+    expect(graphNodeDisplayLabel(node)).toBe('results/ticket.md');
+    expect(graphNodeFullLabel(node)).toBe('.github/artifacts/results/ticket.md');
+  });
+
+  it('normalizes artifact display paths before shortening them', () => {
+    const node: PipelineNode = {
+      id: 'ticket',
+      type: 'artifact',
+      label: '.github\\artifacts\\results\\ticket.md',
+      path: '.github\\artifacts\\results\\ticket.md'
     };
 
     expect(graphNodeDisplayLabel(node)).toBe('results/ticket.md');

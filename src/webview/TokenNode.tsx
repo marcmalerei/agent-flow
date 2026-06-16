@@ -5,12 +5,14 @@ export type NodePortPosition = 'left' | 'top' | 'right' | 'bottom';
 
 export interface TokenNodeData {
   label: string;
+  fullLabel?: string;
   type: string;
   tokenBadge: string;
   tokenColor: string;
   activity?: NodeActivitySummary;
   runtimeStatus?: string;
   dirty?: boolean;
+  attention?: boolean;
   sourcePosition: NodePortPosition;
   targetPosition: NodePortPosition;
 }
@@ -19,13 +21,21 @@ export function TokenNode({ data }: { data: TokenNodeData }) {
   const tokenBadgeStyle = { '--agentflow-token-color': data.tokenColor } as React.CSSProperties;
   const activityClass = data.activity ? ` has-activity activity-node-${data.activity.phase} activity-freshness-${data.activity.freshness ?? 'recent'}` : '';
 
-  return <div className={`flow-node flow-node-type-${data.type} runtime-${data.runtimeStatus ?? 'clean'}${data.dirty ? ' is-dirty' : ''}${activityClass}`} style={tokenBadgeStyle}>
+  const title = data.fullLabel ?? data.label;
+  return <div className={`flow-node flow-node-type-${data.type} runtime-${data.runtimeStatus ?? 'clean'}${data.dirty ? ' is-dirty' : ''}${data.attention ? ' needs-attention' : ''}${activityClass}`} style={tokenBadgeStyle} title={title}>
     <span className={`node-port node-port-target node-port-${data.targetPosition}`} aria-hidden="true" />
-    <span className="token-badge" title="Estimated token count">{data.tokenBadge}</span>
-    {data.activity && <span className={`activity-badge activity-${data.activity.phase} activity-freshness-${data.activity.freshness ?? 'recent'}`} title={data.activity.summary}>{activityIcon(data.activity.phase)} {activityLabel(data.activity)}</span>}
-    {data.dirty && <span className="runtime-badge" title="Unsaved node changes">stale</span>}
-    <span className="flow-node-label" title={data.label}>{data.label}</span>
-    <small>{data.type}</small>
+    <span className="node-meta-slot">
+      <span className="token-badge" title="Estimated token count">{data.tokenBadge}</span>
+    </span>
+    <span className="flow-node-main node-body-slot">
+      <span className="flow-node-label">{data.label}</span>
+      <small>{data.type}</small>
+    </span>
+    {(data.activity || data.dirty || data.attention) && <span className="node-status-slot" aria-label="Node status">
+      {data.activity && <span className={`activity-badge activity-${data.activity.phase} activity-freshness-${data.activity.freshness ?? 'recent'}`} title={data.activity.summary}>{activityIcon(data.activity.phase)} {activityLabel(data.activity)}</span>}
+      {data.dirty && <span className="runtime-badge" title="Unsaved node changes">stale</span>}
+      {data.attention && <span className="attention-badge" title="Node has diagnostics">!</span>}
+    </span>}
     <span className={`node-port node-port-source node-port-${data.sourcePosition}`} aria-hidden="true" />
   </div>;
 }
