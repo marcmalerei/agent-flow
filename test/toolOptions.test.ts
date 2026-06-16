@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildToolOptionGroups, flattenToolOptionValues, listToolOptionNames, normalizeConfiguredTools, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionSelectionState } from '../src/webview/toolOptions';
+import { buildToolOptionGroups, filterToolOptionGroups, flattenToolOptionValues, listToolOptionNames, normalizeConfiguredTools, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionGroupSelectionSummary, toolOptionSelectionState } from '../src/webview/toolOptions';
 
 describe('VS Code tool options', () => {
   it('builds a VS Code-like Built-In tool tree with concrete child tools', () => {
@@ -84,6 +84,36 @@ describe('VS Code tool options', () => {
     const selectedSet = new Set(normalizeConfiguredToolsForOptions(['read/readFile'], [builtIns]));
     expect(toolOptionSelectionState(read!, selectedSet)).toEqual({ checked: true, disabled: true });
     expect(toolOptionSelectionState(child!, selectedSet, read)).toEqual({ checked: true, disabled: false });
+  });
+
+  it('filters tool groups by labels, canonical ids, aliases, and descriptions', () => {
+    const groups = buildToolOptionGroups([
+      { name: 'copilot_readFile', description: 'Read a workspace file.', inputSchema: undefined, tags: [] },
+      { name: 'agentflow_report_activity', description: 'Report node activity.', inputSchema: undefined, tags: [] },
+      { name: 'mcp_docs_server_search_docs', description: 'Search documentation.', inputSchema: undefined, tags: [] }
+    ]);
+
+    expect(filterToolOptionGroups(groups, 'readFile')[0].options).toEqual([
+      expect.objectContaining({ value: 'read', children: [expect.objectContaining({ value: 'read/readFile' })] })
+    ]);
+    expect(filterToolOptionGroups(groups, 'agentflow_report_activity').find((group) => group.label === 'Agentflow')?.options).toEqual([
+      expect.objectContaining({ value: 'agentflow/report_activity', aliases: ['agentflow_report_activity'] })
+    ]);
+    expect(filterToolOptionGroups(groups, 'workspace file')[0].options).toEqual([
+      expect.objectContaining({ value: 'read', children: [expect.objectContaining({ value: 'read/readFile' })] })
+    ]);
+  });
+
+  it('summarizes selected tool counts per group without double-counting inherited parents', () => {
+    const groups = buildToolOptionGroups([
+      { name: 'copilot_readFile', description: 'Read a file.', inputSchema: undefined, tags: [] },
+      { name: 'copilot_editFiles', description: 'Edit files.', inputSchema: undefined, tags: [] },
+      { name: 'agentflow_report_activity', description: 'Report node activity.', inputSchema: undefined, tags: [] }
+    ]);
+    const selected = new Set(normalizeConfiguredToolsForOptions(['read/readFile', 'agentflow_report_activity'], groups));
+
+    expect(toolOptionGroupSelectionSummary(groups[0], selected)).toEqual({ selected: 1, total: 11 });
+    expect(toolOptionGroupSelectionSummary(groups.find((group) => group.label === 'Agentflow')!, selected)).toEqual({ selected: 1, total: 1 });
   });
 
   it('normalizes raw child tool frontmatter values to parent/tool values for UI edits', () => {
