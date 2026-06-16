@@ -38,6 +38,7 @@ import { applyNodePatch } from './nodeMarkdownSync';
 import { mergeRemoteStateUpdate } from './stateUpdates';
 import { deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
 import { edgeGradientId, edgeMarkerColor, graphNodeDisplayLabel, nodeTypeColor, nodeTypeColors } from './nodeDisplay';
+import { deriveFlowEmptyState, type EmptyStateAction, type FlowEmptyState, type WorkspaceFileSummary } from './emptyState';
 
 interface State {
   stateVersion: number;
@@ -50,6 +51,7 @@ interface State {
   activityEvents: AgentFlowActivityEvent[];
   nodeRuntime: NodeRuntimeStateMap;
   activitySources?: ActivitySourceRuntimeState[];
+  workspaceFiles?: WorkspaceFileSummary;
   debugOverlay?: boolean;
 }
 
@@ -312,6 +314,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   const [renderStatus, setRenderStatus] = useState<FlowRenderStatus | undefined>(undefined);
   const flowNodeSignature = useMemo(() => nodes.map((node) => `${node.id}@${Math.round(node.position.x)},${Math.round(node.position.y)}`).join('|'), [nodes]);
   const graphBounds = useMemo(() => measuredGraphBounds(nodes), [nodes]);
+  const emptyState = useMemo(() => deriveFlowEmptyState(nodes.length, state.workspaceFiles), [nodes.length, state.workspaceFiles]);
   const setGraphViewport = useCallback((next: GraphViewport, userInteracted = false) => {
     if (userInteracted) userViewportInteracted.current = true;
     viewportRef.current = next;
@@ -430,14 +433,14 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><VSCodeButton className="compact" icon="redo" onClick={redoLast} disabled={!canRedo} title="Redo last graph change">Redo</VSCodeButton><VSCodeButton className="compact" icon="copy" onClick={copySelection} disabled={!selectedId} title="Copy selected node">Copy</VSCodeButton><VSCodeButton className="compact" icon="files" onClick={pasteSelection} disabled={!canPaste} title="Paste copied node">Paste</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</section>)}</div>}</div></header>
-    <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} viewport={viewport} graphBounds={graphBounds} onViewportChange={setGraphViewport} onFit={fitViewport} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
+    <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} onViewportChange={setGraphViewport} onFit={fitViewport} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
 }
 
-function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, viewport, graphBounds, onViewportChange, onFit, onNodeClick, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; activeNodeIds: string[]; viewport: GraphViewport; graphBounds: GraphBounds; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onNodeClick: (nodeId: string) => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
+function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, viewport, graphBounds, emptyState, onViewportChange, onFit, onNodeClick, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; activeNodeIds: string[]; viewport: GraphViewport; graphBounds: GraphBounds; emptyState: FlowEmptyState; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onNodeClick: (nodeId: string) => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
   const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const activeNodeSet = useMemo(() => new Set(activeNodeIds), [activeNodeIds]);
@@ -503,12 +506,32 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, viewp
         </button>)}
       </div>
     </div>
+    {emptyState.kind !== 'none' && <FlowEmptyStateView state={emptyState} />}
     <div className="native-controls" aria-label="Graph controls">
       <button type="button" title="Zoom in" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom * 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) }, true)}><Codicon name="add" /></button>
       <button type="button" title="Zoom out" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom / 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) }, true)}><Codicon name="dash" /></button>
       <button type="button" title="Fit graph" onClick={onFit}><Codicon name="screen-full" /></button>
     </div>
   </main>;
+}
+
+function FlowEmptyStateView({ state }: { state: FlowEmptyState }) {
+  const runAction = (action: EmptyStateAction) => {
+    vscode?.postMessage({ command: 'runCommand', name: action.command });
+  };
+  return <section className="flow-empty-state" aria-live="polite">
+    <div className="flow-empty-card">
+      <Codicon name="graph" />
+      <div>
+        <h2>{state.title}</h2>
+        <p>{state.detail}</p>
+        <div className="flow-empty-actions">
+          <VSCodeButton variant="primary" icon={state.primaryAction.icon} onClick={() => runAction(state.primaryAction)}>{state.primaryAction.label}</VSCodeButton>
+          {state.secondaryActions.map((action) => <VSCodeButton key={action.command} className="compact" icon={action.icon} onClick={() => runAction(action)}>{action.label}</VSCodeButton>)}
+        </div>
+      </div>
+    </div>
+  </section>;
 }
 
 function GraphEdge({ edge, nodesById }: { edge: RenderedEdge; nodesById: Map<string, RenderedNode> }) {

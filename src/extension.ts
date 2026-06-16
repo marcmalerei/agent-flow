@@ -155,6 +155,12 @@ async function validatePipelineCommand(): Promise<void> {
 
 async function playDemoActivityCommand(): Promise<void> {
   const { pipeline } = await loadWorkspacePipeline();
+  if (!pipeline.nodes.length) {
+    const answer = await vscode.window.showInformationMessage('Agent Flow needs graph nodes before demo activity can be shown.', 'Create Default Pipeline', 'Check Setup');
+    if (answer === 'Create Default Pipeline') await vscode.commands.executeCommand('agentflow.createDefaultPipeline');
+    if (answer === 'Check Setup') await vscode.commands.executeCommand('agentflow.checkSetup');
+    return;
+  }
   const events = createSyntheticActivity(pipeline, `demo-${Date.now()}`);
   for (const event of events) activityStore.append(event);
   vscode.window.showInformationMessage(`Agent Flow emitted ${events.length} demo activity events.`);

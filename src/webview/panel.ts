@@ -19,6 +19,7 @@ import { activityInputsForChangedFiles } from '../activity/fileActivity';
 import { ActivitySourceRuntimeState, buildActivitySourceStatuses } from '../activity/sources';
 import { resolveActivityEventsForPipeline } from './activity';
 import { deriveNodeRuntimeState } from './nodeRuntimeState';
+import { WorkspaceFileSummary } from './emptyState';
 
 export interface AgentFlowPanelSnapshot {
   open: boolean;
@@ -285,6 +286,14 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
           await vscode.window.showTextDocument(doc, { preview: true });
         }
       }
+      if (message?.command === 'runCommand' && isAllowedWebviewCommand(message.name)) {
+        log(`running webview requested command ${message.name}`);
+        if (message.name === 'agentflow.openDocs') {
+          await vscode.commands.executeCommand('vscode.open', vscode.Uri.parse('https://github.com/marcmalerei/agent-flow#readme'));
+        } else {
+          await vscode.commands.executeCommand(message.name);
+        }
+      }
     } catch (error) {
       log(`error while handling ${String(message?.command ?? 'unknown')} message: ${(error as Error).stack ?? (error as Error).message}`);
       vscode.window.showErrorMessage(`Agent Flow failed to update files: ${(error as Error).message}`);
@@ -413,8 +422,59 @@ async function buildState(workspace: string, pipeline: AgentPipeline, activitySt
     activityEvents,
     nodeRuntime: deriveNodeRuntimeState(displayPipeline, activityEvents),
     activitySources,
+    workspaceFiles: await summarizeWorkspaceFiles(workspace),
     debugOverlay: vscode.workspace.getConfiguration('agentflow.debug').get<boolean>('overlay', false)
   };
+}
+
+async function summarizeWorkspaceFiles(workspace: string): Promise<WorkspaceFileSummary> {
+  const paths = await listExistingGithubPaths(workspace);
+  return {
+    hasGithubFolder: paths.includes('.github'),
+    supportedFileCount: paths.filter(isSupportedPipelinePath).length
+  };
+}
+
+function isSupportedPipelinePath(relativePath: string): boolean {
+  return /^\.github\/agents\/.+\.agent\.md$/u.test(relativePath)
+    || /^\.github\/prompts\/.+\.prompt\.md$/u.test(relativePath)
+    || /^\.github\/instructions\/.+\.instructions\.md$/u.test(relativePath)
+    || /^\.github\/skills\/.+\/SKILL\.md$/u.test(relativePath)
+    || /^\.github\/roles\/.+\.md$/u.test(relativePath)
+    || /^\.github\/artifacts\/.+\.(md|json|txt)$/u.test(relativePath);
+}
+
+async function listExistingGithubPaths(workspace: string): Promise<string[]> {
+  const root = path.join(workspace, '.github');
+  const paths: string[] = [];
+  async function visit(folder: string): Promise<void> {
+    let entries: Array<{ name: string; isDirectory(): boolean }>;
+    try {
+      entries = await vscode.workspace.fs.readDirectory(vscode.Uri.file(folder)).then((items) => items.map(([name, type]) => ({
+        name,
+        isDirectory: () => type === vscode.FileType.Directory
+      })));
+    } catch {
+      return;
+    }
+    paths.push(path.relative(workspace, folder).replace(/\\/g, '/'));
+    for (const entry of entries) {
+      const target = path.join(folder, entry.name);
+      const relative = path.relative(workspace, target).replace(/\\/g, '/');
+      paths.push(relative);
+      if (entry.isDirectory()) await visit(target);
+    }
+  }
+  await visit(root);
+  return [...new Set(paths)];
+}
+
+function isAllowedWebviewCommand(command: unknown): command is 'agentflow.createDefaultPipeline' | 'agentflow.scanWorkspace' | 'agentflow.checkSetup' | 'agentflow.playDemoActivity' | 'agentflow.openDocs' {
+  return command === 'agentflow.createDefaultPipeline'
+    || command === 'agentflow.scanWorkspace'
+    || command === 'agentflow.checkSetup'
+    || command === 'agentflow.playDemoActivity'
+    || command === 'agentflow.openDocs';
 }
 
 function activitySourceEnabled(key: 'filesystem' | 'vscodeDocuments' | 'agentFlowTools'): boolean {

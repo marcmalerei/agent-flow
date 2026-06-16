@@ -116,6 +116,26 @@ describe('webview assets', () => {
     expect(panelSource).toContain('__AGENTFLOW_APP_BOOTED__');
   });
 
+  test('shows recoverable empty states with command actions instead of a blank canvas', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const panelSource = readFileSync('src/webview/panel.ts', 'utf8');
+    const extensionSource = readFileSync('src/extension.ts', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('deriveFlowEmptyState');
+    expect(webviewSource).toContain('FlowEmptyStateView');
+    expect(webviewSource).toContain("command: 'runCommand'");
+    expect(webviewSource).toContain('flow-empty-state');
+    expect(panelSource).toContain('summarizeWorkspaceFiles');
+    expect(panelSource).toContain('isAllowedWebviewCommand');
+    expect(panelSource).toContain('agentflow.createDefaultPipeline');
+    expect(panelSource).toContain('agentflow.playDemoActivity');
+    expect(panelSource).toContain('agentflow.openDocs');
+    expect(extensionSource).toContain('Agent Flow needs graph nodes before demo activity can be shown.');
+    expect(css).toContain('.flow-empty-state');
+    expect(css).toContain('.flow-empty-card');
+  });
+
   test('animates node-level file and artifact activity', () => {
     const tokenNodeSource = readFileSync('src/webview/TokenNode.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
