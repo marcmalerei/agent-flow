@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add semantic graph focus modes for full graph, selected neighborhood, active run, and execution path views.
 - Add an activity playback layer with short active pulses, replay/pause controls, active edge tracers, and a 30-second subdued recent window.
 - Redesign inspector reference editing around full-width intent cards with explicit sync states, referenced-file actions, and role reference Markdown round-tripping.
 - Make Add Node file-first with lower-case name normalization, generated path preview, cancelable creation, and created-file feedback.

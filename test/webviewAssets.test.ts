@@ -234,13 +234,28 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('ArtifactRelationshipSummary');
     expect(webviewSource).toContain('artifactRelationshipSummary');
     expect(webviewSource).toContain('Clear graph focus');
-    expect(webviewSource).toContain('No graph nodes match the active type filters.');
+    expect(webviewSource).toContain('No graph nodes match the active graph filters.');
     expect(webviewSource).toContain('aria-label="Graph type filters"');
     expect(webviewSource).toContain("event.key === 'Escape'");
     expect(css).toContain('.graph-type-filters');
     expect(css).toContain('.graph-focus-chip');
     expect(css).toContain('.graph-filter-empty');
     expect(css).toContain('.artifact-relationship-summary');
+  });
+
+  test('adds semantic graph focus modes for investigative views', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const graphSearchSource = readFileSync('src/webview/graphSearch.ts', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('GraphFocusModeSwitch');
+    expect(webviewSource).toContain('visibleGraphNodeIdsForFocus');
+    expect(webviewSource).toContain('graphFocusMode');
+    expect(graphSearchSource).toContain('graphFocusModes');
+    expect(graphSearchSource).toContain('Selected neighborhood');
+    expect(graphSearchSource).toContain('Active run');
+    expect(graphSearchSource).toContain('Execution path');
+    expect(css).toContain('.graph-focus-mode-switch');
   });
 
   test('adds selected-node external edit conflict banner actions', () => {

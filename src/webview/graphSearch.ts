@@ -26,6 +26,15 @@ export interface ArtifactRelationshipSummary {
   referencedBy: GraphRelationshipNode[];
 }
 
+export type GraphFocusMode = 'full' | 'selected-neighborhood' | 'active-run' | 'execution-path';
+
+export const graphFocusModes: Array<{ id: GraphFocusMode; label: string; icon: string; description: string }> = [
+  { id: 'full', label: 'Full graph', icon: 'screen-full', description: 'Show every node allowed by the current type filters.' },
+  { id: 'selected-neighborhood', label: 'Selected neighborhood', icon: 'symbol-interface', description: 'Show the selected node and direct inputs, outputs, handoffs, and references.' },
+  { id: 'active-run', label: 'Active run', icon: 'pulse', description: 'Show only nodes touched by the current live or replayed activity.' },
+  { id: 'execution-path', label: 'Execution path', icon: 'debug-start', description: 'Show the likely primary path from prompt through agents to produced artifacts.' }
+];
+
 const graphTypeOrder: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'role', 'skill', 'artifact', 'handoff', 'gate', 'hook', 'mcp-server'];
 const graphTypeLabels: Record<PipelineNodeType, string> = {
   agent: 'Agents',
@@ -70,6 +79,16 @@ export function graphTypeFilterOptions(pipeline: AgentPipeline): GraphTypeFilter
 export function visibleGraphNodeIdsForTypes(pipeline: AgentPipeline, selectedTypes: readonly PipelineNodeType[]): string[] {
   const selected = new Set(selectedTypes);
   return pipeline.nodes.filter((node) => selected.has(node.type)).map((node) => node.id);
+}
+
+export function visibleGraphNodeIdsForFocus(pipeline: AgentPipeline, mode: GraphFocusMode, selectedId: string, activeNodeIds: readonly string[]): string[] {
+  if (mode === 'full') return pipeline.nodes.map((node) => node.id);
+  if (mode === 'selected-neighborhood') return graphNeighborhoodNodeIds(pipeline, selectedId);
+  if (mode === 'active-run') {
+    const active = new Set(activeNodeIds);
+    return pipeline.nodes.filter((node) => active.has(node.id)).map((node) => node.id);
+  }
+  return executionPathNodeIds(pipeline);
 }
 
 export function artifactRelationshipSummary(pipeline: AgentPipeline, artifactId: string): ArtifactRelationshipSummary | undefined {
@@ -144,6 +163,24 @@ function nodeReferencesArtifact(node: PipelineNode, path: string): boolean {
 function nodeArtifactUsages(node: PipelineNode): Array<{ path: string; action: string }> {
   if ('artifactUsages' in node && Array.isArray(node.artifactUsages)) return node.artifactUsages;
   return [];
+}
+
+function executionPathNodeIds(pipeline: AgentPipeline): string[] {
+  const pathKinds = new Set(['flow', 'prompt', 'handoff', 'artifact', 'gate']);
+  const adjacency = new Map<string, string[]>();
+  for (const edge of pipeline.edges) {
+    if (!pathKinds.has(edge.kind)) continue;
+    adjacency.set(edge.from, [...(adjacency.get(edge.from) ?? []), edge.to]);
+  }
+  const visited = new Set<string>();
+  const queue = pipeline.nodes.filter((node) => node.type === 'prompt').map((node) => node.id);
+  while (queue.length) {
+    const current = queue.shift()!;
+    if (visited.has(current)) continue;
+    visited.add(current);
+    for (const next of adjacency.get(current) ?? []) if (!visited.has(next)) queue.push(next);
+  }
+  return pipeline.nodes.filter((node) => visited.has(node.id)).map((node) => node.id);
 }
 
 function normalizeSearchText(value: string): string {

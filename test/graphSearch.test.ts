@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   artifactRelationshipSummary,
+  graphFocusModes,
   graphNeighborhoodNodeIds,
   graphSearchResults,
   graphTypeFilterOptions,
+  visibleGraphNodeIdsForFocus,
   visibleGraphNodeIdsForTypes
 } from '../src/webview/graphSearch';
 import type { AgentPipeline } from '../src/pipeline/types';
@@ -47,6 +49,15 @@ describe('graph search and focus helpers', () => {
     ]);
     expect(visibleGraphNodeIdsForTypes(pipeline, ['agent', 'artifact'])).toEqual(['router', 'release-notes']);
     expect(visibleGraphNodeIdsForTypes(pipeline, [])).toEqual([]);
+  });
+
+  it('filters visible nodes by semantic graph focus mode without mutating pipeline state', () => {
+    expect(graphFocusModes.map((mode) => mode.id)).toEqual(['full', 'selected-neighborhood', 'active-run', 'execution-path']);
+    expect(visibleGraphNodeIdsForFocus(pipeline, 'full', 'router', [])).toEqual(['start', 'router', 'release-notes', 'review-policy']);
+    expect(visibleGraphNodeIdsForFocus(pipeline, 'selected-neighborhood', 'release-notes', [])).toEqual(['router', 'release-notes']);
+    expect(visibleGraphNodeIdsForFocus(pipeline, 'active-run', '', ['router', 'release-notes'])).toEqual(['router', 'release-notes']);
+    expect(visibleGraphNodeIdsForFocus(pipeline, 'execution-path', '', [])).toEqual(['start', 'router', 'release-notes']);
+    expect(pipeline.nodes.map((node) => node.id)).toEqual(['start', 'router', 'release-notes', 'review-policy']);
   });
 
   it('summarizes artifact producers and consumers from explicit metadata and edges', () => {
