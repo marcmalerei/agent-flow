@@ -1,8 +1,52 @@
-import { AgentPipeline, PipelineEdge, PipelineNode } from '../pipeline/types';
+import { AgentPipeline, PipelineEdge, PipelineNode, PipelineNodeType } from '../pipeline/types';
 
 export interface DuplicateSelectionResult {
   pipeline: AgentPipeline;
   selectedIds: string[];
+}
+
+export interface NodeCreationPreview {
+  description?: string;
+  filePath?: string;
+  id: string;
+  label: string;
+  normalized: boolean;
+  rawName: string;
+  type: PipelineNodeType;
+}
+
+export function previewNodeCreation(pipeline: AgentPipeline, type: PipelineNodeType, rawName: string, description?: string): NodeCreationPreview {
+  const fallback = `new ${type}`;
+  const trimmed = rawName.trim() || fallback;
+  const label = normalizeCreationLabel(trimmed, fallback);
+  const existingIds = new Set(pipeline.nodes.map((node) => node.id));
+  const id = uniqueId(slug(label), existingIds);
+  const existingPaths = new Set(pipeline.nodes.flatMap(nodeFilePaths));
+  const filePath = uniqueCreationFilePath(type, id, existingPaths);
+  return {
+    description: description?.trim() || undefined,
+    filePath,
+    id,
+    label,
+    normalized: trimmed !== label || id !== slug(label),
+    rawName,
+    type
+  };
+}
+
+export function createPipelineNode(pipeline: AgentPipeline, type: PipelineNodeType, position: { x: number; y: number }, options: { description?: string; name?: string } = {}): PipelineNode {
+  const preview = previewNodeCreation(pipeline, type, options.name ?? `new ${type}`, options.description);
+  const base = { id: preview.id, type, label: preview.label, description: preview.description, position };
+  if (type === 'agent') return { ...base, type, agentFile: preview.filePath, tools: ['read', 'search'], calls: [], inputs: [], outputs: [] };
+  if (type === 'prompt') return { ...base, type, promptFile: preview.filePath, tools: [], workflow: [], constraints: [] };
+  if (type === 'instruction') return { ...base, type, instructionFile: preview.filePath, rules: [] };
+  if (type === 'skill') return { ...base, type, skillFile: preview.filePath, activationCriteria: [], procedure: [] };
+  if (type === 'role') return { ...base, type, roleFile: preview.filePath };
+  if (type === 'artifact') return { ...base, type, path: preview.filePath ?? `.github/artifacts/${preview.id}.md` };
+  if (type === 'gate') return { ...base, type, condition: 'Define condition' };
+  if (type === 'handoff') return { ...base, type, label: preview.label || 'new handoff' };
+  if (type === 'mcp-server') return { ...base, type, label: preview.label || 'new mcp server' };
+  return { ...base, type };
 }
 
 export function duplicatePipelineSelection(pipeline: AgentPipeline, selectedIds: readonly string[], offset = { x: 42, y: 42 }): DuplicateSelectionResult {
@@ -99,6 +143,20 @@ function nodeFilePaths(node: PipelineNode): string[] {
   if (node.type === 'role') return [node.roleFile].filter(Boolean) as string[];
   if (node.type === 'artifact') return [node.path];
   return [];
+}
+
+function uniqueCreationFilePath(type: PipelineNodeType, id: string, existing: Set<string>): string | undefined {
+  if (type === 'agent') return uniqueRequiredManagedPath(`.github/agents/${id}.agent.md`, existing);
+  if (type === 'prompt') return uniqueRequiredManagedPath(`.github/prompts/${id}.prompt.md`, existing);
+  if (type === 'instruction') return uniqueRequiredManagedPath(`.github/instructions/${id}.instructions.md`, existing);
+  if (type === 'skill') return uniqueRequiredManagedPath(`.github/skills/${id}/SKILL.md`, existing);
+  if (type === 'role') return uniqueRequiredManagedPath(`.github/roles/${id}.md`, existing);
+  if (type === 'artifact') return uniqueRequiredManagedPath(`.github/artifacts/${id}.md`, existing);
+  return undefined;
+}
+
+function normalizeCreationLabel(value: string, fallback: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() || fallback;
 }
 
 function slug(value: string): string {

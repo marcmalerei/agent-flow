@@ -30,7 +30,7 @@ Agent Flow Studio requires VS Code `1.120.0` or newer.
 4. Click a node to edit its configuration.
 5. Connect nodes or update references in the inspector to change the underlying Markdown.
 
-Changes made in the graph are written to the matching file immediately. The graph layout is inferred automatically from the current workspace files.
+Changes made in the graph are written to the matching file immediately. When adding a node, Agent Flow previews the lower-case id and generated file path before writing. The graph layout is inferred automatically from the current workspace files.
 
 ## Supported Files
 
