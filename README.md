@@ -24,6 +24,7 @@ The extension does not execute pipelines, call Copilot agents, read private Copi
 
 ## Next Release Highlights
 
+- The first graph open now frames the meaningful starter flow before secondary support nodes so default pipelines read clearly at a glance.
 - Handoff nodes now match the standard node size in the graph and open their source agent instead of exposing a separate editable inspector.
 - The Add Node palette creates persisted node types only; handoffs are managed from agent frontmatter.
 - The configuration inspector and diagnostics panel can be resized for long Copilot debug logs, validation lists, and dense routing forms.

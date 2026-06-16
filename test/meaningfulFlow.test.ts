@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultPipeline } from '../src/pipeline/defaultPipeline';
-import { meaningfulFlowNodeIds } from '../src/webview/meaningfulFlow';
+import { initialViewportNodeIds, meaningfulFlowNodeIds } from '../src/webview/meaningfulFlow';
 import type { AgentPipeline } from '../src/pipeline/types';
 
 describe('meaningful graph flow', () => {
@@ -29,5 +29,28 @@ describe('meaningful graph flow', () => {
     };
 
     expect(meaningfulFlowNodeIds(pipeline)).toEqual(['artifact-result', 'guidelines']);
+  });
+
+  it('uses the meaningful flow for the first viewport when support nodes are also visible', () => {
+    const pipeline = createDefaultPipeline();
+    const visibleNodeIds = pipeline.nodes.map((node) => node.id);
+
+    expect(initialViewportNodeIds(pipeline, visibleNodeIds)).toEqual([
+      'start-implementation',
+      'router',
+      'implementer',
+      'reviewer',
+      'fixer',
+      'router-handoff-hand-off-to-implementer',
+      'implementer-handoff-hand-off-to-reviewer',
+      'reviewer-handoff-hand-off-to-fixer'
+    ]);
+  });
+
+  it('keeps the full visible set when only meaningful nodes are visible already', () => {
+    const pipeline = createDefaultPipeline();
+    const visibleNodeIds = meaningfulFlowNodeIds(pipeline);
+
+    expect(initialViewportNodeIds(pipeline, visibleNodeIds)).toEqual(visibleNodeIds);
   });
 });
