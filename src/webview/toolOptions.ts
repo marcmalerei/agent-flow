@@ -116,6 +116,29 @@ export function partitionConfiguredTools({ availableTools, configuredTools }: { 
   return { available, unavailable };
 }
 
+export function filterToolOptionGroups(groups: readonly ToolOptionGroup[], query: string): ToolOptionGroup[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return groups.map((group) => ({ ...group, options: group.options }));
+  return groups.reduce<ToolOptionGroup[]>((filteredGroups, group) => {
+    const groupMatches = textMatches(normalizedQuery, group.id, group.label);
+    const options = group.options
+      .map((option) => filterToolOption(option, normalizedQuery, groupMatches))
+      .filter((option): option is ToolOption => Boolean(option));
+    if (options.length) filteredGroups.push({ ...group, options });
+    return filteredGroups;
+  }, []);
+}
+
+export function toolOptionGroupSelectionSummary(group: ToolOptionGroup, selectedSet: ReadonlySet<string>): { selected: number; total: number } {
+  return group.options.reduce((summary, option) => {
+    const optionSummary = toolOptionSelectionSummary(option, selectedSet);
+    return {
+      selected: summary.selected + optionSummary.selected,
+      total: summary.total + optionSummary.total
+    };
+  }, { selected: 0, total: 0 });
+}
+
 type ConcreteToolOption = ToolOption & { readonly tags: readonly string[] };
 
 function toConcreteToolOption(tool: ToolInformation): ConcreteToolOption | undefined {
@@ -180,6 +203,37 @@ function toolOptionHasSelectedDescendant(option: ToolOption, selectedSet: Readon
 
 function toolOptionSelected(option: ToolOption, selectedSet: ReadonlySet<string>): boolean {
   return selectedSet.has(option.value) || Boolean(option.aliases?.some((alias) => selectedSet.has(alias)));
+}
+
+function filterToolOption(option: ToolOption, query: string, ancestorMatches = false): ToolOption | undefined {
+  const matches = ancestorMatches || toolOptionMatches(option, query);
+  const children = option.children
+    ?.map((child) => filterToolOption(child, query, matches))
+    .filter((child): child is ToolOption => Boolean(child));
+  if (!matches && !children?.length) return undefined;
+  return children ? { ...option, children } : option;
+}
+
+function toolOptionMatches(option: ToolOption, query: string): boolean {
+  return textMatches(query, option.value, option.label, option.description, ...(option.aliases ?? []));
+}
+
+function textMatches(query: string, ...values: Array<string | undefined>): boolean {
+  return values.some((value) => value?.toLowerCase().includes(query));
+}
+
+function toolOptionSelectionSummary(option: ToolOption, selectedSet: ReadonlySet<string>): { selected: number; total: number } {
+  const childSummary = option.children?.reduce((summary, child) => {
+    const next = toolOptionSelectionSummary(child, selectedSet);
+    return {
+      selected: summary.selected + next.selected,
+      total: summary.total + next.total
+    };
+  }, { selected: 0, total: 0 }) ?? { selected: 0, total: 0 };
+  return {
+    selected: (toolOptionSelected(option, selectedSet) ? 1 : 0) + childSummary.selected,
+    total: 1 + childSummary.total
+  };
 }
 
 function toolAliasMap(groups: readonly ToolOptionGroup[]): Map<string, string> {

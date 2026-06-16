@@ -27,7 +27,7 @@ import { clamp, edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNod
 import { activeEdgeIds, deriveActivityHudState, freshActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, type ActivityHudState, type ActivityTrailItem } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
-import { flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
+import { filterToolOptionGroups, flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionGroupSelectionSummary, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 import { TokenNode, flowHandlePositions } from './TokenNode';
 import { applyConnectionIntent, buildConnectionIntentOptions, connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, deriveRenamePreview, renamePipelineNodeLabel, type ConnectionIntentKind, type RenamePreview as RenamePreviewModel } from './flowMutations';
@@ -1253,15 +1253,25 @@ function selectedToolSummary(selected: readonly string[], groups: readonly ToolO
 }
 
 function ToolTree({ groups, onToggle, selected, unavailable }: { groups: readonly ToolOptionGroup[]; selected: readonly string[]; unavailable: readonly string[]; onToggle: (tool: string, checked: boolean) => void }) {
+  const [query, setQuery] = useState('');
   const selectedSet = new Set(normalizeConfiguredToolsForOptions(selected, groups));
+  const visibleGroups = useMemo(() => filterToolOptionGroups(groups, query), [groups, query]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleUnavailable = normalizedQuery ? unavailable.filter((tool) => tool.toLowerCase().includes(normalizedQuery)) : unavailable;
+  const visibleOptionCount = visibleGroups.reduce((count, group) => count + toolOptionGroupSelectionSummary(group, new Set()).total, 0) + visibleUnavailable.length;
   return <div className="tool-tree">
-    {groups.length ? groups.map((group) => <details className="tool-group" key={group.id}>
-      <summary>{group.icon && <Codicon name={group.icon} />}<span>{group.label}</span></summary>
+    <VSCodeInput className="tool-search" label="Search tools" placeholder="Find by label, id, alias, or description" value={query} onChange={(event: any) => setQuery(event.target.value)} />
+    {query && <p className="tool-search-count">{visibleOptionCount ? `${visibleOptionCount} matching tool${visibleOptionCount === 1 ? '' : 's'}` : 'No matching tools'}</p>}
+    {visibleGroups.length ? visibleGroups.map((group) => {
+      const summary = toolOptionGroupSelectionSummary(group, selectedSet);
+      return <details className="tool-group" key={group.id} open={Boolean(query) || undefined}>
+      <summary>{group.icon && <Codicon name={group.icon} />}<span>{group.label}</span><small className="tool-group-count">{summary.selected}/{summary.total}</small></summary>
       <div className="tool-group-options">{group.options.map((option) => <ToolOptionRow key={option.value} option={option} selectedSet={selectedSet} onToggle={onToggle} />)}</div>
-    </details>) : <p className="hint">No VS Code language model tools are registered.</p>}
-    {unavailable.length > 0 && <details className="tool-group unavailable-tools">
-      <summary><Codicon name="warning" /><span>Selected tools</span></summary>
-      <div className="tool-group-options">{unavailable.map((tool) => <label className="tool-option-row unavailable" key={tool} title="Selected on this node, but not registered by VS Code right now."><input type="checkbox" checked={true} onChange={(event: any) => onToggle(tool, event.target.checked)} /><span className="tool-option-icon"><Codicon name="question" /></span><span className="tool-option-text"><span className="tool-option-label">{tool}</span></span></label>)}</div>
+    </details>;
+    }) : groups.length ? <p className="tool-search-empty">No tools match the current search.</p> : <p className="hint">No VS Code language model tools are registered.</p>}
+    {visibleUnavailable.length > 0 && <details className="tool-group unavailable-tools" open={Boolean(query) || undefined}>
+      <summary><Codicon name="warning" /><span>Selected tools</span><small className="tool-group-count">{visibleUnavailable.length}/{visibleUnavailable.length}</small></summary>
+      <div className="tool-group-options">{visibleUnavailable.map((tool) => <label className="tool-option-row unavailable" key={tool} title="Selected on this node, but not registered by VS Code right now."><input type="checkbox" checked={true} onChange={(event: any) => onToggle(tool, event.target.checked)} /><span className="tool-option-icon"><Codicon name="question" /></span><span className="tool-option-text"><span className="tool-option-label">{tool}</span></span></label>)}</div>
     </details>}
   </div>;
 }

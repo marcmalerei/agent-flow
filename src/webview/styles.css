@@ -257,6 +257,10 @@ pre { white-space: pre-wrap; font-size: 12px; background: var(--vscode-textCodeB
 .tool-selection-summary { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 8px; color: var(--vscode-descriptionForeground); font-size: 11px; }
 .tool-selection-summary span, .tool-selection-summary small { max-width: 100%; padding: 1px 6px; border: 1px solid var(--agentflow-border); border-radius: 999px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool-selection-summary.empty { display: block; }
+.tool-search { margin-bottom: 6px; }
+.tool-search-count, .tool-search-empty { margin: 4px 0 8px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.tool-search-empty { padding: 8px; border: 1px dashed var(--agentflow-border); border-radius: var(--agentflow-control-radius); }
+.tool-group-count { margin-left: auto; padding: 1px 6px; border: 1px solid var(--agentflow-border); border-radius: 999px; color: var(--vscode-descriptionForeground); font-size: 11px; font-weight: 400; }
 .inspector-finding { display: grid; gap: 3px; margin: 8px 0; padding: 7px 9px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
 .inspector-finding.warning { border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 55%, var(--agentflow-border)); }
 .inspector-finding.error { border-color: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 55%, var(--agentflow-border)); }

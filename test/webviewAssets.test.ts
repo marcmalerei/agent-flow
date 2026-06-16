@@ -186,6 +186,21 @@ describe('webview assets', () => {
     expect(css).toContain('.rename-preview-grid');
   });
 
+  test('makes tool selection searchable with VS Code-style group counts', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const toolOptionsSource = readFileSync('src/webview/toolOptions.ts', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('Search tools');
+    expect(webviewSource).toContain('filterToolOptionGroups');
+    expect(webviewSource).toContain('toolOptionGroupSelectionSummary');
+    expect(webviewSource).toContain('tool-search-empty');
+    expect(toolOptionsSource).toContain('filterToolOptionGroups');
+    expect(toolOptionsSource).toContain('toolOptionGroupSelectionSummary');
+    expect(css).toContain('.tool-search');
+    expect(css).toContain('.tool-group-count');
+  });
+
   test('adds selected-node focus classes to mute unrelated graph content', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 
