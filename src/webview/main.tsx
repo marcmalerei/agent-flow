@@ -1405,9 +1405,22 @@ const inspectorSectionClassNames: Record<string, string> = {
   tools: 'inspector-section-tools'
 };
 
-function InspectorSection({ children, defaultOpen = false, id, summary, title }: { children: React.ReactNode; defaultOpen?: boolean; id: string; summary?: React.ReactNode; title: string }) {
+const inspectorSectionFieldHints: Record<string, string> = {
+  artifacts: 'Artifact work and Required artifacts',
+  connections: 'Markdown references and graph relationship fields',
+  context: 'Referenced instructions and frontmatter applyTo',
+  findings: 'Validation findings for this node',
+  identity: 'frontmatter name, file path, description',
+  markdown: 'Markdown body',
+  routing: 'frontmatter agents, handoffs, branch targets',
+  run: 'frontmatter tools, model, target',
+  tools: 'frontmatter tools, model, target'
+};
+
+function InspectorSection({ children, defaultOpen = false, fieldHint, id, summary, title }: { children: React.ReactNode; defaultOpen?: boolean; fieldHint?: string; id: string; summary?: React.ReactNode; title: string }) {
+  const resolvedFieldHint = fieldHint ?? inspectorSectionFieldHints[id];
   return <details className={`vscode-section inspector-section ${inspectorSectionClassNames[id] ?? `inspector-section-${id}`}`} data-section-id={id} open={defaultOpen}>
-    <summary><Codicon name="chevron-right" /><span>{title}</span>{summary && <small className="inspector-section-summary">{summary}</small>}</summary>
+    <summary><Codicon name="chevron-right" /><span>{title}</span>{summary && <small className="inspector-section-summary">{summary}</small>}{resolvedFieldHint && <small className="inspector-section-field">Writes: {resolvedFieldHint}</small>}</summary>
     <div className="vscode-section-body">{children}</div>
   </details>;
 }
