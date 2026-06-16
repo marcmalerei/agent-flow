@@ -48,6 +48,7 @@ import { graphModePanelTarget, graphModes, type GraphMode } from './graphModes';
 import { artifactRelationshipSummary, graphFocusModes, graphNeighborhoodNodeIds, graphSearchResults, graphTypeFilterOptions, visibleGraphNodeIdsForFocus, visibleGraphNodeIdsForTypes, type ArtifactRelationshipSummary as ArtifactRelationshipSummaryModel, type GraphFocusMode, type GraphSearchResult, type GraphTypeFilterOption } from './graphSearch';
 import { applyDiagnosticQuickFix } from './diagnosticQuickFixes';
 import { edgeReadingLevelClass, graphReadingLevels, nodeReadingLevelClass, type GraphReadingLevel } from './graphReadingLevels';
+import { edgeVisualPriorityClass, nodeVisualPriorityClass } from './visualPriority';
 
 interface State {
   stateVersion: number;
@@ -1097,7 +1098,7 @@ function NativeGraph({ canvasRef, graphMode, graphReadingLevel, graphFocusMode, 
         {nodes.map((node) => <button
           type="button"
           key={node.id}
-          className={`agentflow-node ${nodeReadingLevelClass(node.data.type as PipelineNodeType, graphReadingLevel, { active: activeNodeSet.has(node.id), related: focusNodeSet.has(node.id), selected: node.id === selectedId })}${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}${problemNodeSet.has(node.id) ? ' problem-node' : ''}${graphMode === 'diagnose' && problemNodeSet.size > 0 && !problemNodeSet.has(node.id) ? ' diagnose-muted' : ''}${selectedId && !focusNodeSet.has(node.id) ? ' focus-muted' : ''}${selectedId && focusNodeSet.has(node.id) && node.id !== selectedId ? ' focus-related' : ''}`}
+          className={`agentflow-node ${nodeReadingLevelClass(node.data.type as PipelineNodeType, graphReadingLevel, { active: activeNodeSet.has(node.id), related: focusNodeSet.has(node.id), selected: node.id === selectedId })} ${nodeVisualPriorityClass({ active: activeNodeSet.has(node.id), hasStatus: Boolean(node.data.dirty || node.data.attention || problemNodeSet.has(node.id)), muted: Boolean(selectedId && !focusNodeSet.has(node.id)), related: Boolean(selectedId && focusNodeSet.has(node.id) && node.id !== selectedId), selected: node.id === selectedId })}${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}${problemNodeSet.has(node.id) ? ' problem-node' : ''}${graphMode === 'diagnose' && problemNodeSet.size > 0 && !problemNodeSet.has(node.id) ? ' diagnose-muted' : ''}${selectedId && !focusNodeSet.has(node.id) ? ' focus-muted' : ''}${selectedId && focusNodeSet.has(node.id) && node.id !== selectedId ? ' focus-related' : ''}`}
           data-node-id={node.id}
           style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: node.height }}
           aria-label={`Graph node ${node.data.fullLabel ?? node.data.label}, ${node.data.type} node`}
@@ -1210,8 +1211,10 @@ function GraphEdge({ edge, nodesById, selectedId }: { edge: RenderedEdge; nodesB
   const selectedEdge = Boolean(selectedId && (edge.source === selectedId || edge.target === selectedId));
   const title = edgeTooltip(edge, source.data.fullLabel ?? source.data.label, target.data.fullLabel ?? target.data.label);
   const readingProminent = Boolean(edge.className?.includes('reading-primary') && !edge.className?.includes('reading-muted'));
-  const labelVisibility = edgeLabelVisibilityClass(edge, { active: Boolean(edge.animated || edge.className?.includes('activity-edge') || readingProminent), selected: selectedEdge });
-  return <g className={`graph-edge ${labelVisibility}${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}${isSupportEdge(edge) ? ' support-edge' : ''}${selectedId && !selectedEdge ? ' focus-muted' : ''}${selectedEdge ? ' focus-edge' : ''}`} data-edge-id={edge.id} style={{ color }}>
+  const activeEdge = Boolean(edge.animated || edge.className?.includes('activity-edge') || readingProminent);
+  const labelVisibility = edgeLabelVisibilityClass(edge, { active: activeEdge, selected: selectedEdge });
+  const supportEdge = isSupportEdge(edge);
+  return <g className={`graph-edge ${labelVisibility} ${edgeVisualPriorityClass({ active: activeEdge, selected: selectedEdge, support: supportEdge })}${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}${supportEdge ? ' support-edge' : ''}${selectedId && !selectedEdge ? ' focus-muted' : ''}${selectedEdge ? ' focus-edge' : ''}`} data-edge-id={edge.id} style={{ color }}>
     <title>{title}</title>
     <path className="graph-edge-path" d={points.path} stroke={color} strokeWidth={strokeWidth} strokeDasharray={typeof edge.style?.strokeDasharray === 'string' ? edge.style.strokeDasharray : undefined} opacity={opacity} markerEnd={`url(#${edgeMarkerId(edge.id)})`} />
     {edge.animated && <circle className="graph-edge-tracer" r="4" fill={color}>
