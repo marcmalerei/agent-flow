@@ -11,7 +11,7 @@ import { AgentPipeline, PromptNode } from '../src/pipeline/types';
 import { normalizePipelineAgentReferences, resolveAgentReference, stripYamlQuotes } from '../src/pipeline/referenceResolver';
 import { inferPipelineFromWorkspace } from '../src/pipeline/scanner';
 import { deriveVisibleFlowEdges } from '../src/webview/graph';
-import { coerceFlowLayout, layoutFlowNodes } from '../src/webview/flowLayout';
+import { coerceFlowLayout, flowLayoutLane, layoutFlowNodes } from '../src/webview/flowLayout';
 import { estimateNodeTokenCount, estimateTokenCount, formatTokenBadge } from '../src/webview/tokenCounts';
 import { renameNodeLabel } from '../src/webview/flowMutations';
 
@@ -556,6 +556,11 @@ describe('webview graph projection', () => {
     expect(layoutFlowNodes(pipeline, 'horizontal').get('agent')?.x).toBeGreaterThan(layoutFlowNodes(pipeline, 'horizontal').get('prompt')?.x ?? 0);
     expect(layoutFlowNodes(pipeline, 'typeColumns').get('agent')?.x).toBeGreaterThan(layoutFlowNodes(pipeline, 'typeColumns').get('prompt')?.x ?? 0);
     expect(layoutFlowNodes(pipeline, 'compact').size).toBe(3);
+    expect(flowLayoutLane('prompt')).toBe('entry');
+    expect(flowLayoutLane('agent')).toBe('workflow');
+    expect(flowLayoutLane('gate')).toBe('control');
+    expect(flowLayoutLane('artifact')).toBe('artifact');
+    expect(flowLayoutLane('instruction')).toBe('context');
   });
 
   it('places large compact layouts without node collisions', () => {
@@ -609,8 +614,9 @@ describe('webview graph projection', () => {
     const maxY = Math.max(...[...positions.values()].map((position) => position.y));
 
     expect(maxX).toBeGreaterThan(285 * 8);
-    expect(maxY).toBeLessThanOrEqual(150);
+    expect(maxY).toBeLessThanOrEqual(150 * 4);
     expect((positions.get('step-9')?.x ?? 0)).toBeGreaterThan(positions.get('step-7')?.x ?? 0);
+    expect((positions.get('step-1')?.y ?? 0)).toBeGreaterThan(positions.get('step-0')?.y ?? 0);
   });
 
   it('keeps the default compact layout bounded and collision-free', () => {
@@ -624,6 +630,11 @@ describe('webview graph projection', () => {
     expect(occupied.size).toBe(pipeline.nodes.length);
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(285 * 3);
     expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(150 * 8);
+    const prompt = pipeline.nodes.find((node) => node.type === 'prompt');
+    const firstAgent = pipeline.nodes.find((node) => node.type === 'agent');
+    const firstArtifact = pipeline.nodes.find((node) => node.type === 'artifact');
+    expect(positions.get(firstAgent?.id ?? '')?.y).toBeGreaterThan(positions.get(prompt?.id ?? '')?.y ?? 0);
+    expect(positions.get(firstArtifact?.id ?? '')?.y).toBeGreaterThan(positions.get(firstAgent?.id ?? '')?.y ?? 0);
     for (const edge of deriveVisibleFlowEdges(pipeline).filter((edge) => edge.data.derivedFrom.includes('artifact'))) {
       const source = positions.get(edge.source);
       const target = positions.get(edge.target);
