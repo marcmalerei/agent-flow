@@ -50,6 +50,7 @@ import { applyDiagnosticQuickFix } from './diagnosticQuickFixes';
 import { edgeReadingLevelClass, graphReadingLevels, nodeReadingLevelClass, type GraphReadingLevel } from './graphReadingLevels';
 import { edgeVisualPriorityClass, nodeVisualPriorityClass } from './visualPriority';
 import { isDefaultSamplePipeline } from './firstRunGuide';
+import { meaningfulFlowNodeIds } from './meaningfulFlow';
 
 interface State {
   stateVersion: number;
@@ -784,6 +785,14 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     if (!relatedNodes.length) return;
     setGraphViewport(fitGraphNodesViewport(relatedNodes, viewportRef.current, rect), true);
   }, [draft, selectedId, setGraphViewport, visibleNodes]);
+  const fitMeaningfulFlow = useCallback(() => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect || rect.width < 20 || rect.height < 20) return;
+    const meaningfulIds = new Set(meaningfulFlowNodeIds(draft));
+    const meaningfulNodes = visibleNodes.filter((node) => meaningfulIds.has(node.id));
+    if (!meaningfulNodes.length) return;
+    setGraphViewport(fitGraphNodesViewport(meaningfulNodes, viewportRef.current, rect), true);
+  }, [draft, setGraphViewport, visibleNodes]);
   const changeGraphMode = useCallback((mode: GraphMode) => {
     setGraphMode(mode);
     const targetTab = graphModePanelTarget(mode);
@@ -817,7 +826,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
     {syncBanner && <SyncTrustBanner banner={syncBanner} onDismiss={() => setSyncBanner(undefined)} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onReloadGraph={() => vscode?.postMessage({ command: 'runCommand', name: 'agentflow.scanWorkspace' })} onReviewChanges={() => editingConflict ? onOpenConflictDiff() : (setBottomOpen(true), setActiveTab('files'))} />}
     {showFirstRunGuide && <FirstRunGuideCallout onDismiss={dismissFirstRunGuide} onPlayDemo={() => vscode?.postMessage({ command: 'runCommand', name: 'agentflow.playDemoActivity' })} onSelectImplementer={() => { setSelectedId('implementer'); setInspectorOpen(true); }} />}
-    <NativeGraph graphMode={graphMode} graphReadingLevel={graphReadingLevel} graphFocusMode={graphFocusMode} onGraphReadingLevelChange={setGraphReadingLevel} onGraphFocusModeChange={setGraphFocusMode} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} replayEventId={replayEventId} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => { setReplayEventId(item.id); openActivityForNode(item.nodeId ?? item.targetNodeId); }} onViewportChange={setGraphViewport} onFit={fitViewport} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
+    <NativeGraph graphMode={graphMode} graphReadingLevel={graphReadingLevel} graphFocusMode={graphFocusMode} onGraphReadingLevelChange={setGraphReadingLevel} onGraphFocusModeChange={setGraphFocusMode} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} replayEventId={replayEventId} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => { setReplayEventId(item.id); openActivityForNode(item.nodeId ?? item.targetNodeId); }} onViewportChange={setGraphViewport} onFit={fitViewport} onFitMeaningfulFlow={fitMeaningfulFlow} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} conflict={editingConflict} onChange={updateNode} onConnect={applyConnection} onApplyExternalChanges={onApplyExternalChanges} onKeepLocalEdit={onKeepLocalEdit} onOpenConflictDiff={onOpenConflictDiff} onCancelLocalEdit={onCancelLocalEdit} /></aside>}
@@ -1072,6 +1081,7 @@ interface NativeGraphProps {
   onClearFocus: () => void;
   onDeleteSelected: () => void;
   onFit: () => void;
+  onFitMeaningfulFlow: () => void;
   onFitSelectedNeighborhood: () => void;
   onGraphFocusModeChange: (mode: GraphFocusMode) => void;
   onGraphReadingLevelChange: (level: GraphReadingLevel) => void;
@@ -1090,7 +1100,7 @@ interface NativeGraphProps {
   onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void;
 }
 
-function NativeGraph({ canvasRef, graphMode, graphReadingLevel, graphFocusMode, nodes, edges, selectedId, selectedNode, activeNodeIds, problemNodeIds, activityTrail, replayEventId, viewport, graphBounds, emptyState, recoveryState, searchQuery, searchMatches, searchIndex, typeFilterOptions, selectedGraphTypes, graphFilterEmpty, artifactSummary, onActivitySelect, onViewportChange, onFit, onFitSelectedNeighborhood, onGraphFocusModeChange, onGraphReadingLevelChange, onJumpActive, onJumpProblem, onJumpSelected, onJumpStart, onOpenDiagnostics, onNodeClick, onSelectNode, onClearFocus, onTypeFilterChange, onOpenSelected, onCanvasClick, onDeleteSelected, onSearchChange, onSearchClear, onSearchStep }: NativeGraphProps) {
+function NativeGraph({ canvasRef, graphMode, graphReadingLevel, graphFocusMode, nodes, edges, selectedId, selectedNode, activeNodeIds, problemNodeIds, activityTrail, replayEventId, viewport, graphBounds, emptyState, recoveryState, searchQuery, searchMatches, searchIndex, typeFilterOptions, selectedGraphTypes, graphFilterEmpty, artifactSummary, onActivitySelect, onViewportChange, onFit, onFitMeaningfulFlow, onFitSelectedNeighborhood, onGraphFocusModeChange, onGraphReadingLevelChange, onJumpActive, onJumpProblem, onJumpSelected, onJumpStart, onOpenDiagnostics, onNodeClick, onSelectNode, onClearFocus, onTypeFilterChange, onOpenSelected, onCanvasClick, onDeleteSelected, onSearchChange, onSearchClear, onSearchStep }: NativeGraphProps) {
   const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const activeNodeSet = useMemo(() => new Set(activeNodeIds), [activeNodeIds]);
@@ -1215,12 +1225,14 @@ function NativeGraph({ canvasRef, graphMode, graphReadingLevel, graphFocusMode, 
     <div className="native-controls" aria-label="Graph controls">
       <button type="button" title="Zoom in" aria-label="Zoom in graph" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom * 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) }, true)}><Codicon name="add" /></button>
       <button type="button" title="Zoom out" aria-label="Zoom out graph" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom / 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) }, true)}><Codicon name="dash" /></button>
+      <button type="button" title="Fit meaningful flow" aria-label="Fit meaningful flow" onClick={onFitMeaningfulFlow}><Codicon name="symbol-interface" /></button>
       <button type="button" title="Fit graph" aria-label="Fit graph" aria-keyshortcuts="F" onClick={onFit}><Codicon name="screen-full" /></button>
     </div>
     <div className="graph-navigation-landmarks" aria-label="Graph navigation landmarks">
       <button type="button" title="Jump to start" aria-label="Jump to start" disabled={!nodes.length} onClick={onJumpStart}><Codicon name="debug-start" /></button>
       <button type="button" title="Jump to active node" aria-label="Jump to active node" disabled={!activeNodeIds.length} onClick={onJumpActive}><Codicon name="pulse" /></button>
       <button type="button" title="Jump to selected node" aria-label="Jump to selected node" disabled={!selectedId} onClick={onJumpSelected}><Codicon name="target" /></button>
+      <button type="button" title="Fit meaningful flow" aria-label="Fit meaningful flow" disabled={!nodes.length} onClick={onFitMeaningfulFlow}><Codicon name="symbol-interface" /></button>
       <button type="button" title="Fit selected neighborhood" aria-label="Fit selected neighborhood" disabled={!selectedId} onClick={onFitSelectedNeighborhood}><Codicon name="symbol-interface" /></button>
       <button type="button" title="Jump to first problem" aria-label="Jump to first problem" disabled={!problemNodeIds.length} onClick={onJumpProblem}><Codicon name="warning" /></button>
       <button type="button" title="Fit graph" aria-label="Fit all graph nodes" onClick={onFit}><Codicon name="screen-full" /></button>

@@ -224,6 +224,16 @@ describe('webview assets', () => {
     expect(css).toContain('.graph-search-results');
   });
 
+  test('adds a fit meaningful flow action for large graphs', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const meaningfulFlowSource = readFileSync('src/webview/meaningfulFlow.ts', 'utf8');
+
+    expect(webviewSource).toContain('fitMeaningfulFlow');
+    expect(webviewSource).toContain('Fit meaningful flow');
+    expect(webviewSource).toContain('meaningfulFlowNodeIds');
+    expect(meaningfulFlowSource).toContain('primaryMeaningfulFlowTypes');
+  });
+
   test('adds graph type filters, focus clearing, and artifact relationship summaries', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
