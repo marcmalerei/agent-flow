@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add an opt-in Follow live activity toggle that centers the newest active node without changing zoom and respects manual viewport/inspector use.
 - Anchor graph edges at visible node ports and hide low-priority support labels until hover, focus, or live activity.
 - Reserve explicit node header/body/status regions for token counts, identity, diagnostics, stale state, and activity chips so graph labels remain readable.
 - Add graph startup and recovery states for render delays, invisible nodes, render failures, retry actions, and debug snapshot copying.

@@ -76,6 +76,9 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('graph-viewport');
     expect(webviewSource).toContain('agentflow-node');
     expect(webviewSource).toContain('activeNodeIds');
+    expect(webviewSource).toContain('shouldFocusLiveActivity');
+    expect(webviewSource).toContain('followLiveActivity');
+    expect(webviewSource).toContain('Follow live');
     expect(webviewSource).toContain('graph-edge-path');
     expect(webviewSource).toContain('edgePathBetweenNodes');
     expect(webviewSource).toContain('graph-edge-tracer');
@@ -218,6 +221,7 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('ActivityHud');
     expect(webviewSource).toContain('activityTrail');
     expect(webviewSource).toContain('canReportReads');
+    expect(css).toContain('.follow-live-toggle.active');
     expect(css).toContain('.flow-node.has-activity');
     expect(css).toContain('.flow-node.activity-freshness-fresh');
     expect(css).toContain('.flow-node.activity-freshness-recent');
