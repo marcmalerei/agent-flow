@@ -222,6 +222,26 @@ describe('webview assets', () => {
     expect(css).toContain('.diagnostic-actions');
   });
 
+  test('offers guided connection creation from the inspector', () => {
+    const source = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(source).toContain('GuidedConnectionPanel');
+    expect(source).toContain('ConnectionIntentChooser');
+    expect(source).toContain('buildConnectionIntentOptions');
+    expect(source).toContain('applyConnectionIntent');
+    expect(source).toContain('Connect from selected');
+    expect(source).toContain('Create without connection');
+    expect(source).toContain('Create and connect');
+    expect(source).toContain('Add connection');
+    expect(source).toContain('Connection preview');
+    expect(source).toContain('placeholder token');
+    expect(source).toContain('invalid-connection-option');
+    expect(css).toContain('.guided-connection-panel');
+    expect(css).toContain('.connection-intent-chooser');
+    expect(css).toContain('.connection-intent-preview');
+  });
+
   test('reserves node header space so badges do not overlap labels', () => {
     const css = readFileSync('src/webview/styles.css', 'utf8');
 

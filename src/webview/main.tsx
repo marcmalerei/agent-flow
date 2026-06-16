@@ -30,7 +30,7 @@ import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmat
 import { flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 import { TokenNode, flowHandlePositions } from './TokenNode';
-import { connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renamePipelineNodeLabel } from './flowMutations';
+import { applyConnectionIntent, buildConnectionIntentOptions, connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, renamePipelineNodeLabel, type ConnectionIntentKind } from './flowMutations';
 import { duplicatePipelineSelection } from './builderMutations';
 import { optionalTextValue, referenceInstructionTextValue } from './formState';
 import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } from './components';
@@ -81,6 +81,14 @@ interface RenderedNode {
 }
 
 type RenderedEdge = VisibleFlowEdge & { className?: string };
+
+interface PendingNodeConnection {
+  type: PipelineNodeType;
+  position: { x: number; y: number };
+  sourceId: string;
+  targetNode: PipelineNode;
+  options: ReturnType<typeof buildConnectionIntentOptions>;
+}
 
 function deriveState(pipeline: AgentPipeline, previous: State): State {
   const activityEvents = resolveActivityEventsForPipeline(pipeline, previous.activityEvents ?? []);
@@ -289,25 +297,30 @@ function App() {
     commitDraft((pipeline) => ({ ...pipeline, nodes: pipeline.nodes.map((node) => node.id === nodeId ? applyNodePatch(node, patch) : node) }), undefined, [nodeId]);
   };
   const connectNodes = (sourceId: string, targetId: string) => commitDraft((pipeline) => connectPipelineNodes(pipeline, sourceId, targetId));
+  const applyConnection = (sourceId: string, targetId: string, kind: ConnectionIntentKind) => {
+    commitDraft((pipeline) => applyConnectionIntent(pipeline, sourceId, targetId, kind), undefined, [sourceId, targetId]);
+  };
   const deleteNodes = (nodeIds: string[]) => {
     if (nodeIds.length) commitDraft((pipeline) => deletePipelineNodes(pipeline, nodeIds));
   };
   const deleteEdges = (edgeIds: string[]) => commitDraft((pipeline) => deletePipelineEdges(pipeline, edgeIds));
-  const addNode = (type: PipelineNodeType, position = { x: 120, y: 120 }, connectFrom?: string) => {
+  const addNode = (type: PipelineNodeType, position = { x: 120, y: 120 }, connectFrom?: string, intent?: ConnectionIntentKind) => {
     const node = createNode(type, draft, position);
     commitDraft((pipeline) => {
       const next = { ...pipeline, nodes: [...pipeline.nodes, node] };
+      if (connectFrom && intent) return applyConnectionIntent(next, connectFrom, node.id, intent);
       return connectFrom ? connectPipelineNodes(next, connectFrom, node.id) : next;
     }, node.id, [node.id]);
     setInspectorOpen(true);
   };
-  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} />;
+  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activeTab={activeTab} bottomOpen={bottomOpen} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} />;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, inspectorOpen, viewportSignal, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, deleteNodes, addNode }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; viewportSignal: number; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string) => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, inspectorOpen, viewportSignal, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; inspectorOpen: boolean; viewportSignal: number; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string, intent?: ConnectionIntentKind) => void }) {
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
+  const [pendingNodeConnection, setPendingNodeConnection] = useState<PendingNodeConnection | undefined>(undefined);
   const [viewport, setViewport] = useState<GraphViewport>({ x: 0, y: 0, zoom: 1 });
   const viewportRef = useRef(viewport);
   const userViewportInteracted = useRef(false);
@@ -331,6 +344,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
       if (event.key === 'Escape') {
         setAddNodeMenuOpen(false);
+        setPendingNodeConnection(undefined);
         return;
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) {
@@ -360,6 +374,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       if (!(target instanceof globalThis.Node)) return;
       if (target && addNodeMenuRef.current?.contains(target)) return;
       setAddNodeMenuOpen(false);
+      setPendingNodeConnection(undefined);
     };
     window.addEventListener('pointerdown', onPointerDown);
     return () => window.removeEventListener('pointerdown', onPointerDown);
@@ -425,11 +440,24 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     setGraphViewport(focusViewportOnNode(node, viewportRef.current, rect));
   }, [activeNodeIds, nodes, setGraphViewport]);
 
-  const addNodeAtCenter = (type: PipelineNodeType) => {
+  const addNodeAtCenter = (type: PipelineNodeType, connectFrom?: string) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     const position = rect
       ? screenToGraphPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }, rect, viewport)
       : { x: 120, y: 120 };
+    if (connectFrom) {
+      const targetNode = createNode(type, draft, position);
+      const previewPipeline = { ...draft, nodes: [...draft.nodes, targetNode] };
+      setPendingNodeConnection({
+        type,
+        position,
+        sourceId: connectFrom,
+        targetNode,
+        options: buildConnectionIntentOptions(previewPipeline, connectFrom, targetNode.id)
+      });
+      return;
+    }
+    setPendingNodeConnection(undefined);
     addNode(type, position);
   };
   const openActivityForNode = (nodeId?: string) => {
@@ -442,10 +470,10 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   };
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
-    <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><ActivityHud state={activityHud} onOpen={() => openActivityForNode()} /><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><VSCodeButton className="compact" icon="redo" onClick={redoLast} disabled={!canRedo} title="Redo last graph change">Redo</VSCodeButton><VSCodeButton className="compact" icon="copy" onClick={copySelection} disabled={!selectedId} title="Copy selected node">Copy</VSCodeButton><VSCodeButton className="compact" icon="files" onClick={pasteSelection} disabled={!canPaste} title="Paste copied node">Paste</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <button type="button" role="menuitem" key={type} onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>)}</section>)}</div>}</div></header>
+    <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><ActivityHud state={activityHud} onOpen={() => openActivityForNode()} /><VSCodeButton className="compact" icon="discard" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><VSCodeButton className="compact" icon="redo" onClick={redoLast} disabled={!canRedo} title="Redo last graph change">Redo</VSCodeButton><VSCodeButton className="compact" icon="copy" onClick={copySelection} disabled={!selectedId} title="Copy selected node">Copy</VSCodeButton><VSCodeButton className="compact" icon="files" onClick={pasteSelection} disabled={!canPaste} title="Paste copied node">Paste</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => addNodeAtCenter(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.type, pendingNodeConnection.position); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.type, pendingNodeConnection.position, pendingNodeConnection.sourceId, kind); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</div>}</div></header>
     <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
-    {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} /></aside>}
+    {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} onConnect={applyConnection} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
 }
@@ -780,7 +808,7 @@ function nodeFileSummary(node: PipelineNode): string {
   return node.id;
 }
 
-function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?: PipelineNode; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[]; findings: ValidationFinding[]; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void }) {
+function Inspector({ node, pipeline, toolOptions, findings, onChange, onConnect }: { node?: PipelineNode; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[]; findings: ValidationFinding[]; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void; onConnect: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void }) {
   if (!node) return <p>Select a node.</p>;
   const agents = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'agent' }> => item.type === 'agent' && item.id !== node.id);
   const branchTargets = pipeline.nodes.filter((item) => item.id !== node.id && (item.type === 'agent' || item.type === 'prompt' || item.type === 'gate' || item.type === 'handoff'));
@@ -822,6 +850,7 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
       <VSCodeInput label="Label" value={node.label} onChange={(event: any) => onChange(node.id, { label: event.target.value } as Partial<PipelineNode>)} />
       <VSCodeTextarea label="Description" value={node.description ?? ''} onChange={(event: any) => setOptionalString('description', event.target.value)} />
     </InspectorSection>
+    <InspectorSection id="connections" title="Connections" summary="guided edge creation"><GuidedConnectionPanel node={node} pipeline={pipeline} onConnect={onConnect} /></InspectorSection>
     {node.type === 'agent' && <InspectorSection id="run" title="Run behavior" summary={`${node.model || 'auto model'} · ${node.target || 'both environments'}`} defaultOpen><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Target<select value={node.target ?? ''} onChange={(event: any) => setOptionalString('target', event.target.value)}><option value="">Both environments</option><option value="vscode">VS Code</option><option value="github-copilot">GitHub Copilot</option></select></label><label className="inline-check"><input type="checkbox" checked={node.userInvocable ?? true} onChange={(event: any) => onChange(node.id, { userInvocable: event.target.checked ? undefined : false } as Partial<PipelineNode>)} /> User invocable</label><label className="inline-check"><input type="checkbox" checked={node.disableModelInvocation ?? false} onChange={(event: any) => onChange(node.id, { disableModelInvocation: event.target.checked || undefined } as Partial<PipelineNode>)} /> Disable model invocation</label></InspectorSection>}
     {(node.type === 'agent' || node.type === 'prompt') && <InspectorSection id="tools" title="Tools" summary={selectedToolSummaryText}><ToolSelectionSummary selected={node.tools ?? []} groups={toolOptions} unavailable={toolGroups.unavailable} /><ToolTree groups={toolOptions} selected={node.tools ?? []} unavailable={toolGroups.unavailable} onToggle={(tool, checked) => toggleListItem('tools', tool, checked)} /></InspectorSection>}
     {node.type === 'agent' && <InspectorSection id="routing" title="Routing" summary={`${node.handoffs?.length ?? 0} handoffs · ${node.calls?.length ?? 0} subagents`}><h4>Subagents</h4><div className="checks">{agents.map((agent) => <label key={agent.id}><input type="checkbox" checked={(node.calls ?? []).includes(agent.id)} onChange={(event: any) => toggleListItem('calls', agent.id, event.target.checked)} />{agent.label}</label>)}</div><HandoffEditor handoffs={node.handoffs ?? []} agents={agents} onChange={setHandoffs} /></InspectorSection>}
@@ -845,6 +874,7 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange }: { node?:
 
 const inspectorSectionClassNames: Record<string, string> = {
   artifacts: 'inspector-section-artifacts',
+  connections: 'inspector-section-connections',
   context: 'inspector-section-context',
   findings: 'inspector-section-findings',
   identity: 'inspector-section-identity',
@@ -869,6 +899,68 @@ function InspectorQuickActions({ hasAgent, hasArtifact, hasInstruction, node, on
     {node.type === 'agent' && <VSCodeButton className="compact" icon="arrow-up" disabled={!hasArtifact} onClick={onAddOutput}>Add output artifact</VSCodeButton>}
     {canReferenceInstructions && <VSCodeButton className="compact" icon="references" disabled={!hasInstruction} onClick={onAddInstruction}>Add instruction</VSCodeButton>}
     {node.type === 'agent' && <VSCodeButton className="compact" icon="arrow-swap" disabled={!hasAgent} onClick={onAddHandoff}>Add handoff</VSCodeButton>}
+  </div>;
+}
+
+function ConnectionIntentChooser({ onCancel, onCreateAndConnect, onCreateOnly, pending, source }: { onCancel: () => void; onCreateAndConnect: (kind: ConnectionIntentKind) => void; onCreateOnly: () => void; pending: PendingNodeConnection; source?: PipelineNode }) {
+  const firstEnabled = pending.options.find((option) => option.enabled);
+  const [intent, setIntent] = useState<ConnectionIntentKind | ''>(firstEnabled?.kind ?? '');
+  const selectedOption = pending.options.find((option) => option.kind === intent) ?? firstEnabled ?? pending.options[0];
+
+  useEffect(() => {
+    const stillValid = pending.options.some((option) => option.kind === intent && option.enabled);
+    if (!stillValid) setIntent(pending.options.find((option) => option.enabled)?.kind ?? '');
+  }, [intent, pending]);
+
+  return <section className="connection-intent-chooser" aria-label="Connection intent chooser">
+    <div className="connection-intent-heading">
+      <strong>Connect new node?</strong>
+      <small>{source?.label ?? pending.sourceId} -&gt; {pending.targetNode.label}</small>
+    </div>
+    <label>Intent<select value={intent} onChange={(event: any) => setIntent(event.target.value)}>{pending.options.map((option) => <option className={option.enabled ? undefined : 'invalid-connection-option'} disabled={!option.enabled} key={option.kind} value={option.kind}>{option.label}</option>)}</select></label>
+    {selectedOption && <ConnectionIntentPreview option={selectedOption} />}
+    <div className="connection-intent-actions">
+      <VSCodeButton className="compact" onClick={onCreateOnly}>Create without connection</VSCodeButton>
+      <VSCodeButton className="compact" icon="add" disabled={!selectedOption?.enabled} onClick={() => selectedOption && onCreateAndConnect(selectedOption.kind)}>Create and connect</VSCodeButton>
+      <VSCodeIconButton icon="close" title="Cancel connection" onClick={onCancel} />
+    </div>
+  </section>;
+}
+
+function GuidedConnectionPanel({ node, onConnect, pipeline }: { node: PipelineNode; onConnect: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; pipeline: AgentPipeline }) {
+  const targets = pipeline.nodes.filter((target) => target.id !== node.id);
+  const [targetId, setTargetId] = useState(targets[0]?.id ?? '');
+  const options = useMemo(() => buildConnectionIntentOptions(pipeline, node.id, targetId), [node.id, pipeline, targetId]);
+  const firstEnabled = options.find((option) => option.enabled);
+  const [intent, setIntent] = useState<ConnectionIntentKind | ''>(firstEnabled?.kind ?? '');
+  const selectedOption = options.find((option) => option.kind === intent) ?? firstEnabled ?? options[0];
+
+  useEffect(() => {
+    const nextOptions = buildConnectionIntentOptions(pipeline, node.id, targetId);
+    const stillValid = nextOptions.some((option) => option.kind === intent && option.enabled);
+    if (!stillValid) setIntent(nextOptions.find((option) => option.enabled)?.kind ?? '');
+  }, [intent, node.id, pipeline, targetId]);
+
+  if (!targets.length) return <p className="hint">Create another node before adding a connection.</p>;
+
+  return <div className="guided-connection-panel">
+    <label>Target<select value={targetId} onChange={(event: any) => setTargetId(event.target.value)}>{targets.map((target) => <option key={target.id} value={target.id}>{target.label} · {target.type}</option>)}</select></label>
+    <label>Intent<select value={intent} onChange={(event: any) => setIntent(event.target.value)}>{options.map((option) => <option className={option.enabled ? undefined : 'invalid-connection-option'} disabled={!option.enabled} key={option.kind} value={option.kind}>{option.label}</option>)}</select></label>
+    {selectedOption && <ConnectionIntentPreview option={selectedOption} />}
+    <VSCodeButton className="compact" icon="add" disabled={!selectedOption?.enabled} onClick={() => selectedOption && onConnect(node.id, targetId, selectedOption.kind)}>Add connection</VSCodeButton>
+  </div>;
+}
+
+function ConnectionIntentPreview({ option }: { option: ReturnType<typeof buildConnectionIntentOptions>[number] }) {
+  return <div className={`connection-intent-preview${option.enabled ? '' : ' invalid-connection-option'}`}>
+    <strong>Connection preview</strong>
+    <dl>
+      <dt>File</dt><dd>{option.preview.targetFile ?? 'Not persisted'}</dd>
+      <dt>Field</dt><dd>{option.preview.field}</dd>
+      <dt>Write</dt><dd>{option.preview.value}</dd>
+      {option.preview.placeholder && <><dt>placeholder token</dt><dd><code>{option.preview.placeholder}</code></dd></>}
+    </dl>
+    <p>{option.enabled ? option.description : option.reason}</p>
   </div>;
 }
 
