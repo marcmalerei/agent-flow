@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add graph reading levels for overview, data flow, references, run activity, and selected-path scanning.
 - Add a compact Now card to the activity HUD so live graph activity names the current node, action, file or target, and event timestamp.
 - Show inspector section field hints so task sections state which Markdown or frontmatter fields they edit.
 - Enable deterministic diagnostic quick fixes for missing output artifacts from the validation panel.

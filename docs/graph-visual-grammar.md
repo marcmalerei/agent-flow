@@ -23,6 +23,14 @@ This guide defines the shared visual rules for Agent Flow graph nodes, edges, ba
 - Support labels for artifact, instruction, role, skill, and reference edges use the shared `edgeLabelVisibilityClass` helper and are hidden until hover, focus, selection, or activity makes them useful.
 - Edge labels must be placed outside source and target node bounds and should not compete with node text, token badges, or activity chips.
 
+## Reading Levels
+
+- Overview keeps prompts, agents, handoffs, and gates primary while muting support nodes and support edges.
+- Data flow makes artifact nodes and read/write edges primary; write edges use stronger weight, and read edges use a distinct dash pattern.
+- References makes instruction, role, skill, prompt, hook, and MCP relationships primary and shows why-reference labels without requiring hover.
+- Run activity keeps live or selected nodes and activity edges primary while quieting static graph context.
+- Selected path keeps the selected node and its direct neighborhood bright while unrelated graph content dims.
+
 ## Activity States
 
 - Fresh activity is bright, temporary, and tied to the active edge or node.

@@ -272,6 +272,23 @@ describe('webview assets', () => {
     expect(css).toContain('.agentflow-node.diagnose-muted');
   });
 
+  test('adds graph reading level controls for complex flow scanning', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const readingLevelSource = readFileSync('src/webview/graphReadingLevels.ts', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('GraphReadingLevelSwitch');
+    expect(webviewSource).toContain('graphReadingLevels');
+    expect(webviewSource).toContain('sessionStorage');
+    expect(webviewSource).toContain('reading-level-selected-path');
+    expect(readingLevelSource).toContain('Data flow');
+    expect(readingLevelSource).toContain('reading-write');
+    expect(readingLevelSource).toContain('reading-read');
+    expect(css).toContain('.graph-reading-level-switch');
+    expect(css).toContain('.reading-level-selected-path');
+    expect(css).toContain('.graph-edge.reading-write');
+  });
+
   test('adds selected-node focus classes to mute unrelated graph content', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 

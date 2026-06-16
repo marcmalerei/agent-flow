@@ -47,6 +47,7 @@ import { deriveInspectorSyncStatus, type InspectorSyncStatus } from './inspector
 import { graphModePanelTarget, graphModes, type GraphMode } from './graphModes';
 import { artifactRelationshipSummary, graphNeighborhoodNodeIds, graphSearchResults, graphTypeFilterOptions, visibleGraphNodeIdsForTypes, type ArtifactRelationshipSummary as ArtifactRelationshipSummaryModel, type GraphSearchResult, type GraphTypeFilterOption } from './graphSearch';
 import { applyDiagnosticQuickFix } from './diagnosticQuickFixes';
+import { edgeReadingLevelClass, graphReadingLevels, nodeReadingLevelClass, type GraphReadingLevel } from './graphReadingLevels';
 
 interface State {
   stateVersion: number;
@@ -83,6 +84,14 @@ const graphModeClassNames: Record<GraphMode, string> = {
   run: 'graph-mode-run',
   diagnose: 'graph-mode-diagnose'
 };
+const graphReadingLevelStorageKey = 'agentflow.graphReadingLevel';
+const readingLevelClassNames: Record<GraphReadingLevel, string> = {
+  overview: 'reading-level-overview',
+  'data-flow': 'reading-level-data-flow',
+  references: 'reading-level-references',
+  'run-activity': 'reading-level-run-activity',
+  'selected-path': 'reading-level-selected-path'
+};
 
 interface RenderedNode {
   id: string;
@@ -111,6 +120,11 @@ interface PendingNodeConnection {
   sourceId: string;
   targetNode: PipelineNode;
   options: ReturnType<typeof buildConnectionIntentOptions>;
+}
+
+function initialGraphReadingLevel(): GraphReadingLevel {
+  const stored = window.sessionStorage?.getItem(graphReadingLevelStorageKey);
+  return graphReadingLevels.some((level) => level.id === stored) ? stored as GraphReadingLevel : 'overview';
 }
 
 function useResizablePanel({ axis, initialSize, invert = false, max, min, step = 24 }: ResizablePanelOptions) {
@@ -176,6 +190,7 @@ function App() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<BottomTab>('validation');
   const [graphMode, setGraphMode] = useState<GraphMode>('edit');
+  const [graphReadingLevel, setGraphReadingLevel] = useState<GraphReadingLevel>(initialGraphReadingLevel());
   const [activityClock, setActivityClock] = useState(Date.now());
   const [viewportSignal, setViewportSignal] = useState(0);
   const dirtyRef = useRef(false);
@@ -247,6 +262,10 @@ function App() {
     const timer = window.setInterval(() => setActivityClock(Date.now()), 2000);
     return () => window.clearInterval(timer);
   }, [state.activityEvents?.length]);
+
+  useEffect(() => {
+    window.sessionStorage?.setItem(graphReadingLevelStorageKey, graphReadingLevel);
+  }, [graphReadingLevel]);
 
   const commitDraft = useCallback((updater: (pipeline: AgentPipeline) => AgentPipeline, nextSelectedId?: string, dirtyNodeIds: string[] = []) => {
     setDraft((pipeline) => {
@@ -352,16 +371,19 @@ function App() {
     return loopIds;
   }, [draft.nodes, visibleEdges]);
   const edges: RenderedEdge[] = useMemo(() => visibleEdges.map((edge) => {
+    const edgeActive = activeEdges.has(edge.id);
+    const edgeSelected = Boolean(selectedId && (edge.source === selectedId || edge.target === selectedId));
     const classNames = [
-      activeEdges.has(edge.id) ? 'activity-edge' : undefined,
-      activeEdges.has(edge.id) ? activeEdgeClass(edge) : undefined,
+      edgeActive ? 'activity-edge' : undefined,
+      edgeActive ? activeEdgeClass(edge) : undefined,
+      edgeReadingLevelClass(edge, graphReadingLevel, { active: edgeActive, selected: edgeSelected }),
       loopEdgeIds.has(edge.id) ? 'loop-edge' : undefined,
       edge.data.kind === 'error' ? 'error-edge' : undefined
     ].filter(Boolean).join(' ');
-    return activeEdges.has(edge.id)
+    return edgeActive
       ? { ...edge, animated: true, className: classNames, style: { ...(edge.style ?? {}), strokeWidth: 3, opacity: 1 } }
       : { ...edge, className: classNames || undefined };
-  }), [activeEdges, loopEdgeIds, visibleEdges]);
+  }), [activeEdges, graphReadingLevel, loopEdgeIds, selectedId, visibleEdges]);
 
   const updateNode = (nodeId: string, patch: Partial<PipelineNode>) => {
     if (Object.prototype.hasOwnProperty.call(patch, 'label')) {
@@ -417,10 +439,10 @@ function App() {
   const cancelLocalEdit = useCallback(() => {
     if (editingConflict) applyConflictPipeline(editingConflict.incomingPipeline, editingConflict.nodeId);
   }, [applyConflictPipeline, editingConflict]);
-  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} editingConflict={editingConflict} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} onApplyExternalChanges={applyExternalChanges} onKeepLocalEdit={keepLocalEdit} onOpenConflictDiff={openConflictDiff} onCancelLocalEdit={cancelLocalEdit} onApplyValidationQuickFix={applyValidationQuickFix} />;
+  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} graphReadingLevel={graphReadingLevel} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} editingConflict={editingConflict} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setGraphReadingLevel={setGraphReadingLevel} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} onApplyExternalChanges={applyExternalChanges} onKeepLocalEdit={keepLocalEdit} onOpenConflictDiff={openConflictDiff} onCancelLocalEdit={cancelLocalEdit} onApplyValidationQuickFix={applyValidationQuickFix} />;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, graphMode, inspectorOpen, viewportSignal, editingConflict, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setGraphMode, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit, onApplyValidationQuickFix }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void; onApplyValidationQuickFix: (action: ValidationAction | undefined) => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, graphMode, graphReadingLevel, inspectorOpen, viewportSignal, editingConflict, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setGraphMode, setGraphReadingLevel, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit, onApplyValidationQuickFix }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; graphReadingLevel: GraphReadingLevel; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setGraphReadingLevel: (level: GraphReadingLevel) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void; onApplyValidationQuickFix: (action: ValidationAction | undefined) => void }) {
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
@@ -685,7 +707,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     }
   }, [setActiveTab, setBottomOpen, setGraphMode]);
 
-  return <div className={`app ${graphModeClassNames[graphMode]} ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`} style={appStyle}>
+  return <div className={`app ${graphModeClassNames[graphMode]} ${readingLevelClassNames[graphReadingLevel]} ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`} style={appStyle}>
     <header className="toolbar">
       <strong>Agent Flow</strong>
       <span>{draft.name}</span>
@@ -701,7 +723,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       <div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => addNodeAtCenter(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.type, pendingNodeConnection.position); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.type, pendingNodeConnection.position, pendingNodeConnection.sourceId, kind); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</div>}</div>
     </header>
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
-    <NativeGraph graphMode={graphMode} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
+    <NativeGraph graphMode={graphMode} graphReadingLevel={graphReadingLevel} onGraphReadingLevelChange={setGraphReadingLevel} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} conflict={editingConflict} onChange={updateNode} onConnect={applyConnection} onApplyExternalChanges={onApplyExternalChanges} onKeepLocalEdit={onKeepLocalEdit} onOpenConflictDiff={onOpenConflictDiff} onCancelLocalEdit={onCancelLocalEdit} /></aside>}
@@ -791,6 +813,19 @@ function GraphTypeFilters({ onChange, options, selectedTypes }: { onChange: (typ
   </div>;
 }
 
+function GraphReadingLevelSwitch({ level, onChange }: { level: GraphReadingLevel; onChange: (level: GraphReadingLevel) => void }) {
+  return <div className="graph-reading-level-switch" role="group" aria-label="Graph reading level">
+    {graphReadingLevels.map((option) => <button
+      type="button"
+      key={option.id}
+      className={level === option.id ? 'active' : ''}
+      aria-pressed={level === option.id}
+      title={option.description}
+      onClick={() => onChange(option.id)}
+    ><Codicon name={option.icon} /><span>{option.label}</span></button>)}
+  </div>;
+}
+
 function ArtifactRelationshipSummary({ onSelectNode, summary }: { onSelectNode: (nodeId: string) => void; summary: ArtifactRelationshipSummaryModel }) {
   return <aside className="artifact-relationship-summary" aria-label="Artifact relationships">
     <header><Codicon name="file" /><strong>{summary.path}</strong></header>
@@ -817,6 +852,7 @@ interface NativeGraphProps {
   graphBounds: GraphBounds;
   graphFilterEmpty: boolean;
   graphMode: GraphMode;
+  graphReadingLevel: GraphReadingLevel;
   nodes: RenderedNode[];
   problemNodeIds: string[];
   recoveryState: GraphRecoveryState;
@@ -834,6 +870,7 @@ interface NativeGraphProps {
   onDeleteSelected: () => void;
   onFit: () => void;
   onFitSelectedNeighborhood: () => void;
+  onGraphReadingLevelChange: (level: GraphReadingLevel) => void;
   onJumpActive: () => void;
   onJumpProblem: () => void;
   onJumpSelected: () => void;
@@ -849,7 +886,7 @@ interface NativeGraphProps {
   onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void;
 }
 
-function NativeGraph({ canvasRef, graphMode, nodes, edges, selectedId, selectedNode, activeNodeIds, problemNodeIds, activityTrail, viewport, graphBounds, emptyState, recoveryState, searchQuery, searchMatches, searchIndex, typeFilterOptions, selectedGraphTypes, graphFilterEmpty, artifactSummary, onActivitySelect, onViewportChange, onFit, onFitSelectedNeighborhood, onJumpActive, onJumpProblem, onJumpSelected, onJumpStart, onOpenDiagnostics, onNodeClick, onSelectNode, onClearFocus, onTypeFilterChange, onOpenSelected, onCanvasClick, onDeleteSelected, onSearchChange, onSearchClear, onSearchStep }: NativeGraphProps) {
+function NativeGraph({ canvasRef, graphMode, graphReadingLevel, nodes, edges, selectedId, selectedNode, activeNodeIds, problemNodeIds, activityTrail, viewport, graphBounds, emptyState, recoveryState, searchQuery, searchMatches, searchIndex, typeFilterOptions, selectedGraphTypes, graphFilterEmpty, artifactSummary, onActivitySelect, onViewportChange, onFit, onFitSelectedNeighborhood, onGraphReadingLevelChange, onJumpActive, onJumpProblem, onJumpSelected, onJumpStart, onOpenDiagnostics, onNodeClick, onSelectNode, onClearFocus, onTypeFilterChange, onOpenSelected, onCanvasClick, onDeleteSelected, onSearchChange, onSearchClear, onSearchStep }: NativeGraphProps) {
   const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const activeNodeSet = useMemo(() => new Set(activeNodeIds), [activeNodeIds]);
@@ -867,7 +904,7 @@ function NativeGraph({ canvasRef, graphMode, nodes, edges, selectedId, selectedN
   const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement | null;
-    if (target?.closest('.agentflow-node, .native-controls, .graph-overview, .graph-navigation-landmarks, .graph-search-control, .graph-type-filters, .graph-focus-chip, .artifact-relationship-summary, .graph-filter-empty')) return;
+    if (target?.closest('.agentflow-node, .native-controls, .graph-overview, .graph-navigation-landmarks, .graph-search-control, .graph-type-filters, .graph-reading-level-switch, .graph-focus-chip, .artifact-relationship-summary, .graph-filter-empty')) return;
     onCanvasClick();
     panStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, viewport };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -923,8 +960,9 @@ function NativeGraph({ canvasRef, graphMode, nodes, edges, selectedId, selectedN
     }
   };
 
-  return <main className={`canvas native-graph ${graphModeClassNames[graphMode]}`} ref={canvasRef} tabIndex={0} aria-label="Agent Flow graph canvas" aria-describedby="agentflow-keyboard-shortcuts" aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Enter Escape F Backspace Delete" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endPan} onPointerCancel={endPan} onWheel={onWheel} onKeyDown={onKeyDown}>
+  return <main className={`canvas native-graph ${graphModeClassNames[graphMode]} ${readingLevelClassNames[graphReadingLevel]}`} ref={canvasRef} tabIndex={0} aria-label="Agent Flow graph canvas" aria-describedby="agentflow-keyboard-shortcuts" aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Enter Escape F Backspace Delete" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endPan} onPointerCancel={endPan} onWheel={onWheel} onKeyDown={onKeyDown}>
     <GraphSearchControl query={searchQuery} matches={searchMatches} searchIndex={searchIndex} onChange={onSearchChange} onClear={onSearchClear} onStep={onSearchStep} />
+    <GraphReadingLevelSwitch level={graphReadingLevel} onChange={onGraphReadingLevelChange} />
     <GraphTypeFilters options={typeFilterOptions} selectedTypes={selectedGraphTypes} onChange={onTypeFilterChange} />
     {selectedId && selectedNode && <div className="graph-focus-chip" aria-live="polite"><Codicon name="target" /><span>Focused: {selectedNode.label}</span><button type="button" title="Clear graph focus" aria-label="Clear graph focus" onClick={onClearFocus}><Codicon name="close" /></button></div>}
     {artifactSummary && <ArtifactRelationshipSummary summary={artifactSummary} onSelectNode={onSelectNode} />}
@@ -950,7 +988,7 @@ function NativeGraph({ canvasRef, graphMode, nodes, edges, selectedId, selectedN
         {nodes.map((node) => <button
           type="button"
           key={node.id}
-          className={`agentflow-node${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}${problemNodeSet.has(node.id) ? ' problem-node' : ''}${graphMode === 'diagnose' && problemNodeSet.size > 0 && !problemNodeSet.has(node.id) ? ' diagnose-muted' : ''}${selectedId && !focusNodeSet.has(node.id) ? ' focus-muted' : ''}${selectedId && focusNodeSet.has(node.id) && node.id !== selectedId ? ' focus-related' : ''}`}
+          className={`agentflow-node ${nodeReadingLevelClass(node.data.type as PipelineNodeType, graphReadingLevel, { active: activeNodeSet.has(node.id), related: focusNodeSet.has(node.id), selected: node.id === selectedId })}${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}${problemNodeSet.has(node.id) ? ' problem-node' : ''}${graphMode === 'diagnose' && problemNodeSet.size > 0 && !problemNodeSet.has(node.id) ? ' diagnose-muted' : ''}${selectedId && !focusNodeSet.has(node.id) ? ' focus-muted' : ''}${selectedId && focusNodeSet.has(node.id) && node.id !== selectedId ? ' focus-related' : ''}`}
           data-node-id={node.id}
           style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: node.height }}
           aria-label={`Graph node ${node.data.fullLabel ?? node.data.label}, ${node.data.type} node`}
@@ -1062,7 +1100,8 @@ function GraphEdge({ edge, nodesById, selectedId }: { edge: RenderedEdge; nodesB
   const strokeWidth = typeof edge.style?.strokeWidth === 'number' ? edge.style.strokeWidth : 1.8;
   const selectedEdge = Boolean(selectedId && (edge.source === selectedId || edge.target === selectedId));
   const title = edgeTooltip(edge, source.data.fullLabel ?? source.data.label, target.data.fullLabel ?? target.data.label);
-  const labelVisibility = edgeLabelVisibilityClass(edge, { active: Boolean(edge.animated || edge.className?.includes('activity-edge')), selected: selectedEdge });
+  const readingProminent = Boolean(edge.className?.includes('reading-primary') && !edge.className?.includes('reading-muted'));
+  const labelVisibility = edgeLabelVisibilityClass(edge, { active: Boolean(edge.animated || edge.className?.includes('activity-edge') || readingProminent), selected: selectedEdge });
   return <g className={`graph-edge ${labelVisibility}${edge.className ? ` ${edge.className}` : ''}${edge.animated ? ' animated' : ''}${isSupportEdge(edge) ? ' support-edge' : ''}${selectedId && !selectedEdge ? ' focus-muted' : ''}${selectedEdge ? ' focus-edge' : ''}`} data-edge-id={edge.id} style={{ color }}>
     <title>{title}</title>
     <path className="graph-edge-path" d={points.path} stroke={color} strokeWidth={strokeWidth} strokeDasharray={typeof edge.style?.strokeDasharray === 'string' ? edge.style.strokeDasharray : undefined} opacity={opacity} markerEnd={`url(#${edgeMarkerId(edge.id)})`} />
