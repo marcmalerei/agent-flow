@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make materialized handoff nodes read-only graph projections that use standard node sizing, open the source agent routing editor on click, and no longer appear in the Add Node palette.
+- Refresh the README and Marketplace preview media to show the current graph controls, activity HUD, inspector, node creation flow, and diagnostics surface.
 - Add Start Guided Demo and Reset Guided Demo commands for non-destructive in-product tutorial playback.
 - Add a Fit meaningful flow graph action that centers primary execution nodes before secondary support nodes.
 - Add first-run sample language and a dismissible default-pipeline guide for learning core graph actions.
