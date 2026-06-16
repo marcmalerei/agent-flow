@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Prioritize the meaningful starter flow when auto-fitting the first graph viewport so default pipelines open at a readable scale.
 - Shorten the VS Code smoke-test user-data and extensions paths so `npm run test:smoke` stays reliable from deep checkout directories on macOS.
 - Make materialized handoff nodes read-only graph projections that use standard node sizing, open the source agent routing editor on click, and no longer appear in the Add Node palette.
 - Refresh the README and Marketplace preview media to show the current graph controls, activity HUD, inspector, node creation flow, and diagnostics surface.

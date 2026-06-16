@@ -51,7 +51,7 @@ import { applyDiagnosticQuickFix } from './diagnosticQuickFixes';
 import { edgeReadingLevelClass, graphReadingLevels, nodeReadingLevelClass, type GraphReadingLevel } from './graphReadingLevels';
 import { edgeVisualPriorityClass, nodeVisualPriorityClass } from './visualPriority';
 import { isDefaultSamplePipeline } from './firstRunGuide';
-import { meaningfulFlowNodeIds } from './meaningfulFlow';
+import { initialViewportNodeIds, meaningfulFlowNodeIds } from './meaningfulFlow';
 
 interface State {
   stateVersion: number;
@@ -631,11 +631,15 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   const fitViewport = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect || rect.width < 20 || rect.height < 20 || !visibleNodes.length) return;
-    const next = fitNativeGraphViewport(graphBounds, rect);
+    const initialViewportIds = new Set(initialViewportNodeIds(draft, visibleNodes.map((item) => item.id)));
+    const initialViewportNodes = visibleNodes.filter((node) => initialViewportIds.has(node.id));
+    const next = lastFitSignature.current
+      ? fitNativeGraphViewport(graphBounds, rect)
+      : fitGraphNodesViewport(initialViewportNodes, viewportRef.current, rect);
     lastFitSignature.current = flowNodeSignature;
     userViewportInteracted.current = false;
     setGraphViewport(next);
-  }, [flowNodeSignature, graphBounds, setGraphViewport, visibleNodes.length]);
+  }, [draft, flowNodeSignature, graphBounds, setGraphViewport, visibleNodes]);
 
   useEffect(() => {
     const report = (reason: string) => {

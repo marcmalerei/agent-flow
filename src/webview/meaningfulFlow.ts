@@ -6,3 +6,10 @@ export function meaningfulFlowNodeIds(pipeline: AgentPipeline): string[] {
   const primary = pipeline.nodes.filter((node) => primaryMeaningfulFlowTypes.has(node.type)).map((node) => node.id);
   return primary.length ? primary : pipeline.nodes.map((node) => node.id);
 }
+
+export function initialViewportNodeIds(pipeline: AgentPipeline, visibleNodeIds: readonly string[]): string[] {
+  const visible = new Set(visibleNodeIds);
+  const meaningfulVisible = meaningfulFlowNodeIds(pipeline).filter((nodeId) => visible.has(nodeId));
+  if (!meaningfulVisible.length) return [...visibleNodeIds];
+  return meaningfulVisible.length === visibleNodeIds.length ? [...visibleNodeIds] : meaningfulVisible;
+}
