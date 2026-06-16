@@ -19,6 +19,12 @@ describe('webview state updates', () => {
 
   it('does not replace the local draft when a remote state update arrives during editing', () => {
     const currentRuntime = deriveNodeRuntimeState(currentPipeline, []);
+    const incomingDirtyPipeline: AgentPipeline = {
+      version: 1,
+      name: 'Incoming scan',
+      nodes: [{ id: 'other', type: 'agent', label: 'externally added', tools: [], calls: [], outputs: [] }],
+      edges: []
+    };
     const incomingRuntime = deriveNodeRuntimeState(currentPipeline, [
       { id: 'activity-1', sessionId: 's', timestamp: '2026-06-13T18:00:00.000Z', phase: 'file', nodeId: 'agent', nodeFile: '.github/agents/agent.agent.md', summary: 'Updated file' }
     ]);
@@ -33,7 +39,7 @@ describe('webview state updates', () => {
       },
       currentDraft: currentPipeline,
       incomingState: {
-        pipeline: incomingPipeline,
+        pipeline: incomingDirtyPipeline,
         findings: [],
         risk: { score: 0, reasons: [] },
         generatedFiles: [],
@@ -44,6 +50,7 @@ describe('webview state updates', () => {
     });
 
     expect(result.applyDraft).toBe(false);
+    expect(result.reason).toBe('local-dirty');
     expect(result.state.pipeline).toBe(currentPipeline);
     expect(result.state.findings).toEqual([{ severity: 'warning', ruleId: 'local', message: 'Local finding' }]);
     expect(result.state.activityEvents).toHaveLength(1);
@@ -78,6 +85,7 @@ describe('webview state updates', () => {
     });
 
     expect(result.applyDraft).toBe(false);
+    expect(result.reason).toBe('external-conflict');
     expect(result.draft).toBe(currentPipeline);
     expect(result.conflict).toEqual({
       filePath: '.github/agents/agent.agent.md',
@@ -114,6 +122,7 @@ describe('webview state updates', () => {
     });
 
     expect(result.applyDraft).toBe(true);
+    expect(result.reason).toBe('applied');
     expect(result.draft).toBe(nextPipeline);
     expect(result.state.pipeline).toBe(nextPipeline);
   });
@@ -139,6 +148,7 @@ describe('webview state updates', () => {
     });
 
     expect(result.applyDraft).toBe(false);
+    expect(result.reason).toBe('stale-view');
     expect(result.draft).toBe(currentPipeline);
     expect(result.state.pipeline).toBe(currentPipeline);
     expect(result.state.activityEvents).toHaveLength(1);
@@ -181,6 +191,7 @@ describe('webview state updates', () => {
     });
 
     expect(result.applyDraft).toBe(false);
+    expect(result.reason).toBe('stale-view');
     expect(result.draft).toBe(current);
     expect(result.state.pipeline).toBe(current);
     expect(result.state.activityEvents).toHaveLength(1);

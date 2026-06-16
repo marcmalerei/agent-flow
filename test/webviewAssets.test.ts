@@ -275,6 +275,24 @@ describe('webview assets', () => {
     expect(css).toContain('.inspector-conflict-banner');
   });
 
+  test('surfaces graph sync state and stale-view recovery in the toolbar', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const panelSource = readFileSync('src/webview/panel.ts', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('SyncStatusIndicator');
+    expect(webviewSource).toContain('SyncTrustBanner');
+    expect(webviewSource).toContain('syncStatusForRemoteMerge');
+    expect(webviewSource).toContain('merged.reason');
+    expect(webviewSource).toContain('Stale view kept');
+    expect(webviewSource).toContain('External changes detected');
+    expect(webviewSource).toContain('Reload graph');
+    expect(webviewSource).toContain('Open diagnostics');
+    expect(panelSource).toContain('reason, state:');
+    expect(css).toContain('.autosave-status.sync-status-stale-view');
+    expect(css).toContain('.sync-trust-banner');
+  });
+
   test('previews node renames before autosave rewrites files and references', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');

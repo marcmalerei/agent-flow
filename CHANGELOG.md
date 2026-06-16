@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Surface graph sync state with toolbar status, stale-view recovery, and external-change actions.
 - Define explicit graph visual priority classes for selected nodes, live activity, status badges, static labels, and support-edge labels.
 - Add semantic graph focus modes for full graph, selected neighborhood, active run, and execution path views.
 - Add an activity playback layer with short active pulses, replay/pause controls, active edge tracers, and a 30-second subdued recent window.
