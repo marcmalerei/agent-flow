@@ -13,6 +13,7 @@
 - Add a live activity HUD, recent activity trail, and reduced-motion handling for temporary graph activity visuals.
 - Split fresh activity animation from softer recent node status so stale activity no longer animates edges.
 - Reorganize the inspector into task-oriented sections with quick actions, sticky file context, and selected-tool summaries.
+- Add actionable validation diagnostics with ready-to-run status, entity metadata, filters, and node/file actions.
 
 ## 0.0.1
 
