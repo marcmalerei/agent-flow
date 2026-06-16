@@ -1195,7 +1195,7 @@ function Bottom({ onSelectNode, state, activeTab, setActiveTab }: { onSelectNode
   const title = ({ activity: 'Activity timeline', metrics: 'Run metrics', attention: 'File attention', validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
   return <div className="diagnostics">
     <nav>{tabs.map((tab) => <VSCodeButton key={tab} variant="ghost" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}><span>{tab}</span>{tabCounts[tab] !== undefined && <span className="diagnostic-tab-count">{tabCounts[tab]}</span>}</VSCodeButton>)}</nav>
-    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} sources={state.activitySources ?? []} onSelectNode={onSelectNode} />}{activeTab === 'metrics' && <MetricsDiagnostics metrics={metrics} onSelectNode={onSelectNode} />}{activeTab === 'attention' && <FileAttentionDiagnostics entries={fileAttention} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
+    <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} sources={state.activitySources ?? []} onSelectNode={onSelectNode} />}{activeTab === 'metrics' && <MetricsDiagnostics metrics={metrics} onSelectNode={onSelectNode} />}{activeTab === 'attention' && <FileAttentionDiagnostics entries={fileAttention} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} toolOptions={state.toolOptions} onSelectNode={onSelectNode} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
   </div>;
 }
 
@@ -1331,13 +1331,89 @@ function unique(values: string[]): string[] {
   return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
 
-function ValidationDiagnostics({ findings, pipeline }: { findings: ValidationFinding[]; pipeline: AgentPipeline }) {
-  if (!findings.length) return <EmptyDiagnostics icon="pass" title="No findings" detail="The inferred flow has no validation warnings right now." />;
-  const nodeLabels = new Map(pipeline.nodes.map((node) => [node.id, node.label]));
-  return <div className="diagnostic-list">{findings.map((finding, index) => <div key={`${finding.ruleId}-${index}`} className={`diagnostic-card ${finding.severity}`}>
-    <Codicon name={finding.severity === 'error' ? 'error' : finding.severity === 'warning' ? 'warning' : finding.severity === 'risk' ? 'flame' : 'info'} />
-    <div><div className="diagnostic-card-title"><span>{finding.severity}</span>{finding.nodeId && <code>{nodeLabels.get(finding.nodeId) ?? finding.nodeId}</code>}</div><p>{finding.message}</p><small>{finding.ruleId}</small></div>
-  </div>)}</div>;
+type ActionableDiagnostic = {
+  entity: string;
+  entityPath?: string;
+  entityType: PipelineNodeType | 'pipeline' | 'file' | 'tool' | 'node' | 'source';
+  finding: ValidationFinding;
+  fix: string;
+  normalizedTools?: string[];
+  registeredTools?: string[];
+  savedTools?: string[];
+  sectionId?: string;
+  title: string;
+  why: string;
+};
+
+function ValidationDiagnostics({ findings, onSelectNode, pipeline, toolOptions }: { findings: ValidationFinding[]; onSelectNode: (nodeId: string) => void; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[] }) {
+  const [severityFilter, setSeverityFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const actionable = findings.map((finding) => buildActionableDiagnostic(finding, pipeline, toolOptions));
+  const filtered = actionable.filter((item) => (!severityFilter || item.finding.severity === severityFilter) && (!typeFilter || item.entityType === typeFilter));
+  if (!findings.length) return <><ReadyToRunSummary findings={[]} /><EmptyDiagnostics icon="pass" title="No findings" detail="The inferred flow has no validation warnings right now." /></>;
+  return <div className="validation-workflow">
+    <ReadyToRunSummary findings={findings} />
+    <DiagnosticFilters severityFilter={severityFilter} typeFilter={typeFilter} entityTypes={unique(actionable.map((item) => item.entityType))} onSeverityChange={setSeverityFilter} onTypeChange={setTypeFilter} />
+    <div className="diagnostic-list">{filtered.map((finding, index) => <ActionableDiagnosticCard key={`${finding.finding.ruleId}-${index}`} finding={finding} onFocusNode={() => finding.finding.nodeId && openInspectorSection(finding.finding.nodeId, finding.sectionId, onSelectNode)} />)}</div>
+  </div>;
+}
+
+function ReadyToRunSummary({ findings }: { findings: ValidationFinding[] }) {
+  const errors = findings.filter((finding) => finding.severity === 'error').length;
+  const warnings = findings.filter((finding) => finding.severity === 'warning').length;
+  const risks = findings.filter((finding) => finding.severity === 'risk').length;
+  const state = errors ? 'fail' : warnings || risks ? 'warn' : 'pass';
+  const title = state === 'pass' ? 'Ready to run' : state === 'warn' ? 'Ready with warnings' : 'Not ready to run';
+  return <section className={`validation-ready-summary ${state}`}><Codicon name={state === 'pass' ? 'pass' : state === 'warn' ? 'warning' : 'error'} /><div><strong>{title}</strong><span>{errors} errors · {warnings} warnings · {risks} risks</span></div></section>;
+}
+
+function DiagnosticFilters({ entityTypes, onSeverityChange, onTypeChange, severityFilter, typeFilter }: { entityTypes: string[]; onSeverityChange: (value: string) => void; onTypeChange: (value: string) => void; severityFilter: string; typeFilter: string }) {
+  return <div className="validation-filter-bar"><ActivityFilter label="Severity" value={severityFilter} options={['error', 'warning', 'risk', 'info']} onChange={onSeverityChange} /><ActivityFilter label="Entity" value={typeFilter} options={entityTypes} onChange={onTypeChange} /></div>;
+}
+
+function ActionableDiagnosticCard({ finding, onFocusNode }: { finding: ActionableDiagnostic; onFocusNode: () => void }) {
+  const validation = finding.finding;
+  return <div className={`diagnostic-card diagnostic-workflow-card ${validation.severity}`}>
+    <Codicon name={validation.severity === 'error' ? 'error' : validation.severity === 'warning' ? 'warning' : validation.severity === 'risk' ? 'flame' : 'info'} />
+    <div>
+      <div className="diagnostic-card-title"><span>{finding.title}</span><code>{finding.entity}</code><code>{validation.ruleId}</code></div>
+      <p>{validation.message}</p>
+      <dl className="diagnostic-explainer"><dt>Why it matters</dt><dd>{finding.why}</dd><dt>Suggested fix</dt><dd>{finding.fix}</dd></dl>
+      {finding.savedTools && <div className="diagnostic-tool-details"><span>Saved tool ids <code>{finding.savedTools.join(', ') || 'none'}</code></span><span>Normalized tool ids <code>{finding.normalizedTools?.join(', ') || 'none'}</code></span><span>VS Code registered <code>{finding.registeredTools?.join(', ') || 'none'}</code></span></div>}
+      <div className="diagnostic-actions">
+        <VSCodeButton className="compact" icon="target" disabled={!validation.nodeId} onClick={onFocusNode}>Focus node</VSCodeButton>
+        <VSCodeButton className="compact" icon="go-to-file" disabled={!finding.entityPath} onClick={() => finding.entityPath && vscode?.postMessage({ command: 'openWorkspaceFile', path: finding.entityPath })}>Open file</VSCodeButton>
+        <VSCodeButton className="compact" icon="sparkle" disabled title="Quick fixes are shown when Agent Flow can make a safe deterministic edit.">Apply quick fix</VSCodeButton>
+      </div>
+    </div>
+  </div>;
+}
+
+function openInspectorSection(nodeId: string, sectionId: string | undefined, onSelectNode: (nodeId: string) => void): void {
+  onSelectNode(nodeId);
+  if (sectionId) window.setTimeout(() => document.querySelector<HTMLElement>(`.inspector-section-${sectionId}`)?.scrollIntoView({ block: 'nearest' }), 0);
+}
+
+function buildActionableDiagnostic(finding: ValidationFinding, pipeline: AgentPipeline, toolOptions: ToolOptionGroup[]): ActionableDiagnostic {
+  const node = finding.nodeId ? pipeline.nodes.find((item) => item.id === finding.nodeId) : undefined;
+  const savedTools = node && (node.type === 'agent' || node.type === 'prompt') ? node.tools ?? [] : undefined;
+  const normalizedTools = savedTools ? normalizeConfiguredToolsForOptions(savedTools, toolOptions) : undefined;
+  const registeredToolSet = new Set(flattenToolOptionValues(toolOptions));
+  const registeredTools = normalizedTools?.filter((tool) => registeredToolSet.has(tool));
+  const entityPath = finding.entity?.filePath ?? (node ? nodeFileSummary(node) : extractFindingPath(finding.message));
+  const entityType = node?.type ?? finding.entity?.kind ?? (entityPath ? 'file' : 'pipeline');
+  const entity = finding.entity?.label ?? (node ? node.label : entityPath ?? 'Pipeline');
+  const base = { entity, entityPath, entityType, finding, normalizedTools, registeredTools, savedTools } satisfies Partial<ActionableDiagnostic>;
+  if (finding.ruleId === 'broad-apply-to' || finding.ruleId === 'markdown-apply-to') return { ...base, title: 'Broad instruction scope', why: 'This instruction can silently apply to many Copilot customization files and consume context where it is not intended.', fix: `Narrow applyTo on ${entityPath ?? 'the instruction'} to the target folder or file pattern.`, sectionId: 'context' } as ActionableDiagnostic;
+  if (finding.ruleId === 'agent-no-output') return { ...base, title: 'Missing output artifact', why: 'The next agent or prompt has no explicit handoff file to read, so work can disappear into chat context.', fix: 'Create or select an output artifact and describe what this node should write to it.', sectionId: 'artifacts' } as ActionableDiagnostic;
+  if (finding.ruleId.includes('tool') || finding.ruleId.includes('command') || finding.ruleId.includes('edit')) return { ...base, title: 'Tool access needs review', why: 'Tool permissions define what Copilot can read, write, execute, or delegate from this node.', fix: 'Review the selected tools and add a command/edit safety policy when broad tools are required.', sectionId: 'tools' } as ActionableDiagnostic;
+  if (finding.ruleId.includes('artifact')) return { ...base, title: 'Artifact boundary issue', why: 'Artifact read/write edges are how the flow preserves context between nodes.', fix: 'Add the missing producer or consumer, or remove the unused artifact reference.', sectionId: 'artifacts' } as ActionableDiagnostic;
+  if (finding.ruleId.includes('subagent') || finding.ruleId.includes('agent')) return { ...base, title: 'Routing reference issue', why: 'Broken agent references stop the flow from reaching the intended target node.', fix: 'Select an existing target agent or rename the reference to match the target file.', sectionId: 'routing' } as ActionableDiagnostic;
+  return { ...base, title: 'Validation finding', why: 'This finding can affect pipeline correctness, maintainability, or runtime behavior.', fix: 'Review the referenced node or file and update the configuration before publishing.', sectionId: node ? 'identity' : undefined } as ActionableDiagnostic;
+}
+
+function extractFindingPath(message: string): string | undefined {
+  return message.match(/`([^`]+)`/)?.[1];
 }
 
 function FileDiagnostics({ files }: { files: State['generatedFiles'] }) {

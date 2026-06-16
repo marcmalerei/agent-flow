@@ -371,6 +371,25 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .diagnostic-card-title code { padding: 1px 4px; border-radius: var(--agentflow-control-radius); background: var(--vscode-textCodeBlock-background, transparent); color: var(--vscode-descriptionForeground); font-size: 11px; font-weight: 400; text-transform: none; }
 .diagnostic-card p { margin: 0; color: var(--vscode-foreground); line-height: 1.35; }
 .diagnostic-card small, .diagnostic-muted { color: var(--vscode-descriptionForeground); font-size: 12px; }
+.validation-workflow { display: grid; gap: 10px; max-width: 1120px; }
+.validation-ready-summary { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
+.validation-ready-summary.pass { border-color: color-mix(in srgb, var(--vscode-charts-green, #89d185) 60%, var(--agentflow-border)); }
+.validation-ready-summary.warn { border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #fde68a) 60%, var(--agentflow-border)); }
+.validation-ready-summary.fail { border-color: color-mix(in srgb, var(--vscode-errorForeground, #fca5a5) 60%, var(--agentflow-border)); }
+.validation-ready-summary .codicon { color: var(--vscode-charts-green, #89d185); font-size: 18px; }
+.validation-ready-summary.warn .codicon { color: var(--vscode-editorWarning-foreground, #fde68a); }
+.validation-ready-summary.fail .codicon { color: var(--vscode-errorForeground, #fca5a5); }
+.validation-ready-summary strong { display: block; color: var(--vscode-foreground); }
+.validation-ready-summary span { color: var(--vscode-descriptionForeground); font-size: 12px; }
+.validation-filter-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.diagnostic-workflow-card { padding: 9px 10px; }
+.diagnostic-explainer { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 4px 10px; margin: 8px 0 0; }
+.diagnostic-explainer dt { color: var(--vscode-descriptionForeground); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.diagnostic-explainer dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--vscode-foreground); }
+.diagnostic-tool-details { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.diagnostic-tool-details span { display: inline-flex; max-width: 100%; gap: 5px; align-items: center; padding: 2px 6px; border: 1px solid var(--agentflow-border); border-radius: 999px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.diagnostic-tool-details code { max-width: 220px; overflow: hidden; color: var(--vscode-foreground); text-overflow: ellipsis; white-space: nowrap; }
+.diagnostic-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .diagnostic-file-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; max-width: 1100px; }
 .diagnostic-file-group { border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
 .diagnostic-file-group h4 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 7px 9px; border-bottom: 1px solid var(--agentflow-border); text-transform: capitalize; }

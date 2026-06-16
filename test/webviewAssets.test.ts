@@ -205,6 +205,23 @@ describe('webview assets', () => {
     expect(css).toContain('.inspector-section-summary');
   });
 
+  test('turns validation diagnostics into actionable workflows', () => {
+    const source = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(source).toContain('Ready to run');
+    expect(source).toContain('validation-filter-bar');
+    expect(source).toContain('diagnostic-workflow-card');
+    expect(source).toContain('Focus node');
+    expect(source).toContain('Apply quick fix');
+    expect(source).toContain('openInspectorSection');
+    expect(source).toContain('finding.entity');
+    expect(css).toContain('.validation-ready-summary');
+    expect(css).toContain('.validation-filter-bar');
+    expect(css).toContain('.diagnostic-workflow-card');
+    expect(css).toContain('.diagnostic-actions');
+  });
+
   test('reserves node header space so badges do not overlap labels', () => {
     const css = readFileSync('src/webview/styles.css', 'utf8');
 

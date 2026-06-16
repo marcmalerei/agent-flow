@@ -198,11 +198,35 @@ export interface GeneratedFile {
 }
 
 export type FindingSeverity = 'error' | 'warning' | 'risk' | 'info';
+export type ValidationEntityKind = 'pipeline' | 'node' | 'file' | 'tool' | 'source';
+
+export interface ValidationEntity {
+  kind: ValidationEntityKind;
+  id: string;
+  label?: string;
+  filePath?: string;
+}
+
+export interface ValidationAction {
+  kind: 'focusNode' | 'openFile' | 'openInspectorSection' | 'quickFix';
+  label: string;
+  nodeId?: string;
+  filePath?: string;
+  sectionId?: string;
+  quickFixId?: string;
+}
+
 export interface ValidationFinding {
   severity: FindingSeverity;
   message: string;
   nodeId?: string;
   ruleId: string;
+  title?: string;
+  entity?: ValidationEntity;
+  why?: string;
+  suggestedFix?: string;
+  actions?: ValidationAction[];
+  details?: Record<string, string>;
 }
 
 export interface RiskScore {
