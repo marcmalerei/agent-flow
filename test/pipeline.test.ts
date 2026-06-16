@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { createDefaultPipeline } from '../src/pipeline/defaultPipeline';
+import { createDefaultPipeline, createDefaultPipelineDemoScript } from '../src/pipeline/defaultPipeline';
 import { parsePipelineJson, stringifyPipeline } from '../src/pipeline/parser';
 import { generateAgentMarkdown, generateFiles, generateInstructionMarkdown, generatePromptMarkdown, generateRoleMarkdown, generateSkillMarkdown } from '../src/pipeline/generators';
 import { validatePipeline } from '../src/pipeline/validator';
@@ -159,6 +159,23 @@ describe('default pipeline', () => {
     expect(visibleEdges.some((edge) => edge.data.kind === 'handoff')).toBe(true);
     expect(visibleEdges.some((edge) => edge.data.derivedFrom.includes('artifact'))).toBe(true);
     expect(visibleEdges.some((edge) => edge.data.derivedFrom.includes('instructionRefs'))).toBe(true);
+  });
+
+  it('provides a guided product demo script for first-run and Marketplace capture', () => {
+    const steps = createDefaultPipelineDemoScript();
+
+    expect(steps.map((step) => step.id)).toEqual([
+      'create-default-pipeline',
+      'read-overview',
+      'create-context-node',
+      'edit-reference',
+      'replay-demo-activity'
+    ]);
+    expect(steps.find((step) => step.id === 'create-default-pipeline')?.command).toBe('agentflow.createDefaultPipeline');
+    expect(steps.find((step) => step.id === 'replay-demo-activity')?.command).toBe('agentflow.playDemoActivity');
+    expect(steps.map((step) => `${step.action} ${step.expectedOutcome}`).join('\n')).toContain('node creation');
+    expect(steps.map((step) => `${step.action} ${step.expectedOutcome}`).join('\n')).toContain('reference editing');
+    expect(steps.map((step) => `${step.action} ${step.expectedOutcome}`).join('\n')).toContain('resulting edges');
   });
 });
 

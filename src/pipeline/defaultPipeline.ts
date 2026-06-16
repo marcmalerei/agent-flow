@@ -20,6 +20,15 @@ const editTool = 'edit/editFiles';
 const executeTool = 'execute/run_in_terminal';
 const defaultTools = [readTool, searchTool];
 
+export interface DefaultPipelineDemoStep {
+  action: string;
+  command?: 'agentflow.createDefaultPipeline' | 'agentflow.playDemoActivity';
+  expectedOutcome: string;
+  focusNodeId?: string;
+  id: string;
+  title: string;
+}
+
 function toolsForAgent(options: Partial<AgentNode>): string[] {
   const tools = [...(options.tools ?? defaultTools)];
   if (((options.outputs?.length ?? 0) > 0 || options.artifactUsages?.some((usage) => usage.action === 'write' || usage.action === 'append')) && !tools.includes(editTool)) tools.push(editTool);
@@ -179,4 +188,44 @@ export function createDefaultPipeline(): AgentPipeline {
   ];
 
   return { version: PIPELINE_VERSION, name: 'default agent pipeline', nodes, edges };
+}
+
+export function createDefaultPipelineDemoScript(): DefaultPipelineDemoStep[] {
+  return [
+    {
+      id: 'create-default-pipeline',
+      title: 'Create the guided pipeline',
+      command: 'agentflow.createDefaultPipeline',
+      action: 'Run Agent Flow: Create Default Pipeline in a fresh workspace.',
+      expectedOutcome: 'The start prompt, router, implementer, reviewer, fixer, three artifacts, and two instructions appear without critical diagnostics.'
+    },
+    {
+      id: 'read-overview',
+      title: 'Read the whole workflow at once',
+      focusNodeId: 'start-implementation',
+      action: 'Fit the graph and scan the prompt, handoff, artifact, and instruction edge types.',
+      expectedOutcome: 'The full default pipeline fits in one overview and every resulting edge teaches prompt start, handoff, read/write artifact flow, or reference context.'
+    },
+    {
+      id: 'create-context-node',
+      title: 'Show node creation',
+      action: 'Use Add Node for node creation and place a new instruction or agent near the implementer lane.',
+      expectedOutcome: 'The new node appears in the same compact visual grammar and can be selected without hiding the default pipeline story.'
+    },
+    {
+      id: 'edit-reference',
+      title: 'Show reference editing',
+      focusNodeId: 'implementer',
+      action: 'Select implementer and use reference editing to attach project guidelines, test strategy, or the result artifact.',
+      expectedOutcome: 'The inspector previews the write target and the graph shows the resulting edges for the edited reference.'
+    },
+    {
+      id: 'replay-demo-activity',
+      title: 'Replay activity',
+      command: 'agentflow.playDemoActivity',
+      focusNodeId: 'router',
+      action: 'Run Agent Flow: Play Demo Activity after the graph is visible.',
+      expectedOutcome: 'Temporary activity badges and handoff activity explain the route without changing the graph layout.'
+    }
+  ];
 }

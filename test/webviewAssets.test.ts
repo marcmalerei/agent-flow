@@ -473,11 +473,17 @@ describe('webview assets', () => {
   test('documents a release UX smoke checklist with a fixture workspace', () => {
     const docs = readFileSync('docs/development.md', 'utf8');
     const checklist = readFileSync('docs/ux-smoke-checklist.md', 'utf8');
+    const defaultDemo = readFileSync('docs/default-pipeline-demo.md', 'utf8');
     const fixturePrompt = readFileSync('examples/ux-smoke-workspace/.github/prompts/start-implementation.prompt.md', 'utf8');
     const fixtureRouter = readFileSync('examples/ux-smoke-workspace/.github/agents/router.agent.md', 'utf8');
     const fixtureInstruction = readFileSync('examples/ux-smoke-workspace/.github/instructions/project-guidelines.instructions.md', 'utf8');
 
     expect(docs).toContain('ux-smoke-checklist.md');
+    expect(docs).toContain('default-pipeline-demo.md');
+    expect(checklist).toContain('default-pipeline-demo.md');
+    expect(defaultDemo).toContain('node creation');
+    expect(defaultDemo).toContain('reference editing');
+    expect(defaultDemo).toContain('resulting edges');
     expect(checklist).toContain('Expected visual outcome');
     expect(checklist).toContain('Blocking release issues');
     expect(checklist).toContain('Cosmetic issues');
