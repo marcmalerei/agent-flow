@@ -25,6 +25,14 @@ describe('webview assets', () => {
     expect(webviewSource).not.toContain('className="node-buttons"');
   });
 
+  test('waits for Add Node palette headings with selector-based capture checks', () => {
+    const captureScript = readFileSync('scripts/capture-preview-gif.mjs', 'utf8');
+
+    expect(captureScript).toContain("await waitForSelectorText(cdp, '.node-palette-group h3', 'Execution');");
+    expect(captureScript).toContain("await waitForSelectorText(cdp, '.node-creation-preview span', 'Generated file');");
+    expect(captureScript).toContain('async function waitForSelectorText(cdp, selector, text) {');
+  });
+
   test('previews file-first node creation before mutating the pipeline', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const builderSource = readFileSync('src/webview/builderMutations.ts', 'utf8');
