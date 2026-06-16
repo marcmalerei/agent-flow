@@ -23,7 +23,7 @@ import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges, type VisibleFlowEdge } from './graph';
-import { clamp, edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphOverviewMetrics, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
+import { clamp, edgePathBetweenNodes, fitGraphNodesViewport, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphOverviewMetrics, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
 import { activeEdgeIds, deriveActivityHudState, freshActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, type ActivityHudState, type ActivityTrailItem } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
@@ -45,6 +45,7 @@ import { activeEdgeClass, edgeTooltip } from './edgeClasses';
 import { shouldFocusLiveActivity } from './activityFocus';
 import { deriveInspectorSyncStatus, type InspectorSyncStatus } from './inspectorStatus';
 import { graphModePanelTarget, graphModes, type GraphMode } from './graphModes';
+import { graphNeighborhoodNodeIds, graphSearchResults, type GraphSearchResult } from './graphSearch';
 
 interface State {
   stateVersion: number;
@@ -384,6 +385,8 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [followLiveActivity, setFollowLiveActivity] = useState(false);
   const [pendingNodeConnection, setPendingNodeConnection] = useState<PendingNodeConnection | undefined>(undefined);
+  const [graphSearchQuery, setGraphSearchQuery] = useState('');
+  const [graphSearchIndex, setGraphSearchIndex] = useState(0);
   const [viewport, setViewport] = useState<GraphViewport>({ x: 0, y: 0, zoom: 1 });
   const inspectorResize = useResizablePanel({ axis: 'x', initialSize: 390, invert: true, min: 300, max: 720 });
   const diagnosticsResize = useResizablePanel({ axis: 'y', initialSize: 250, invert: true, min: 180, max: 560 });
@@ -398,6 +401,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   } as React.CSSProperties;
   const flowNodeSignature = useMemo(() => nodes.map((node) => `${node.id}@${Math.round(node.position.x)},${Math.round(node.position.y)}`).join('|'), [nodes]);
   const graphBounds = useMemo(() => measuredGraphBounds(nodes), [nodes]);
+  const graphSearchMatches = useMemo(() => graphSearchResults(draft, graphSearchQuery), [draft, graphSearchQuery]);
   const emptyState = useMemo(() => deriveFlowEmptyState(nodes.length, state.workspaceFiles), [nodes.length, state.workspaceFiles]);
   const problemNodeIds = useMemo(() => [...new Set(state.findings.filter((finding) => finding.nodeId).map((finding) => finding.nodeId as string))], [state.findings]);
   const recoveryState = useMemo(() => deriveGraphRecoveryState({
@@ -582,6 +586,30 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       setBottomOpen(true);
     }
   }, [focusGraphNode, problemNodeIds]);
+  const updateGraphSearch = useCallback((query: string) => {
+    setGraphSearchQuery(query);
+    setGraphSearchIndex(0);
+    const first = graphSearchResults(draft, query)[0];
+    if (first) focusGraphNode(first.nodeId);
+  }, [draft, focusGraphNode]);
+  const stepGraphSearch = useCallback((direction: 1 | -1) => {
+    if (!graphSearchMatches.length) return;
+    const nextIndex = (graphSearchIndex + direction + graphSearchMatches.length) % graphSearchMatches.length;
+    setGraphSearchIndex(nextIndex);
+    focusGraphNode(graphSearchMatches[nextIndex]?.nodeId);
+  }, [focusGraphNode, graphSearchIndex, graphSearchMatches]);
+  const clearGraphSearch = useCallback(() => {
+    setGraphSearchQuery('');
+    setGraphSearchIndex(0);
+  }, []);
+  const fitSelectedNeighborhood = useCallback(() => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect || rect.width < 20 || rect.height < 20) return;
+    const relatedIds = new Set(graphNeighborhoodNodeIds(draft, selectedId));
+    const relatedNodes = nodes.filter((node) => relatedIds.has(node.id));
+    if (!relatedNodes.length) return;
+    setGraphViewport(fitGraphNodesViewport(relatedNodes, viewportRef.current, rect), true);
+  }, [draft, nodes, selectedId, setGraphViewport]);
   const changeGraphMode = useCallback((mode: GraphMode) => {
     setGraphMode(mode);
     const targetTab = graphModePanelTarget(mode);
@@ -611,7 +639,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       <div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => addNodeAtCenter(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.type, pendingNodeConnection.position); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.type, pendingNodeConnection.position, pendingNodeConnection.sourceId, kind); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</div>}</div>
     </header>
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
-    <NativeGraph graphMode={graphMode} canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
+    <NativeGraph graphMode={graphMode} canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} onConnect={applyConnection} /></aside>}
@@ -665,7 +693,20 @@ function GraphModeSwitch({ mode, onChange }: { mode: GraphMode; onChange: (mode:
   </div>;
 }
 
-function NativeGraph({ canvasRef, graphMode, nodes, edges, selectedId, activeNodeIds, problemNodeIds, activityTrail, viewport, graphBounds, emptyState, recoveryState, onActivitySelect, onViewportChange, onFit, onJumpActive, onJumpProblem, onJumpSelected, onJumpStart, onOpenDiagnostics, onNodeClick, onSelectNode, onOpenSelected, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; graphMode: GraphMode; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; activeNodeIds: string[]; problemNodeIds: string[]; activityTrail: ActivityTrailItem[]; viewport: GraphViewport; graphBounds: GraphBounds; emptyState: FlowEmptyState; recoveryState: GraphRecoveryState; onActivitySelect: (item: ActivityTrailItem) => void; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onJumpActive: () => void; onJumpProblem: () => void; onJumpSelected: () => void; onJumpStart: () => void; onOpenDiagnostics: () => void; onNodeClick: (nodeId: string) => void; onSelectNode: (nodeId: string) => void; onOpenSelected: () => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
+function GraphSearchControl({ matches, onChange, onClear, onStep, query, searchIndex }: { matches: GraphSearchResult[]; onChange: (query: string) => void; onClear: () => void; onStep: (direction: 1 | -1) => void; query: string; searchIndex: number }) {
+  const active = matches[searchIndex];
+  return <div className="graph-search-control" role="search">
+    <VSCodeInput label="Search graph" placeholder="Node, file, type, or tool" value={query} onChange={(event: any) => onChange(event.target.value)} />
+    {query && <div className="graph-search-results" aria-live="polite">
+      <span>{matches.length ? `Search results ${searchIndex + 1}/${matches.length}: ${active?.label ?? ''}` : 'Search results 0/0'}</span>
+      <button type="button" title="Previous graph search result" aria-label="Previous graph search result" disabled={!matches.length} onClick={() => onStep(-1)}><Codicon name="chevron-up" /></button>
+      <button type="button" title="Next graph search result" aria-label="Next graph search result" disabled={!matches.length} onClick={() => onStep(1)}><Codicon name="chevron-down" /></button>
+      <button type="button" title="Clear graph search" aria-label="Clear graph search" onClick={onClear}><Codicon name="close" /></button>
+    </div>}
+  </div>;
+}
+
+function NativeGraph({ canvasRef, graphMode, nodes, edges, selectedId, activeNodeIds, problemNodeIds, activityTrail, viewport, graphBounds, emptyState, recoveryState, searchQuery, searchMatches, searchIndex, onActivitySelect, onViewportChange, onFit, onFitSelectedNeighborhood, onJumpActive, onJumpProblem, onJumpSelected, onJumpStart, onOpenDiagnostics, onNodeClick, onSelectNode, onOpenSelected, onCanvasClick, onDeleteSelected, onSearchChange, onSearchClear, onSearchStep }: { canvasRef: React.RefObject<HTMLElement>; graphMode: GraphMode; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; activeNodeIds: string[]; problemNodeIds: string[]; activityTrail: ActivityTrailItem[]; viewport: GraphViewport; graphBounds: GraphBounds; emptyState: FlowEmptyState; recoveryState: GraphRecoveryState; searchQuery: string; searchMatches: GraphSearchResult[]; searchIndex: number; onActivitySelect: (item: ActivityTrailItem) => void; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onFitSelectedNeighborhood: () => void; onJumpActive: () => void; onJumpProblem: () => void; onJumpSelected: () => void; onJumpStart: () => void; onOpenDiagnostics: () => void; onNodeClick: (nodeId: string) => void; onSelectNode: (nodeId: string) => void; onOpenSelected: () => void; onCanvasClick: () => void; onDeleteSelected: () => void; onSearchChange: (query: string) => void; onSearchClear: () => void; onSearchStep: (direction: 1 | -1) => void }) {
   const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const activeNodeSet = useMemo(() => new Set(activeNodeIds), [activeNodeIds]);
@@ -683,7 +724,7 @@ function NativeGraph({ canvasRef, graphMode, nodes, edges, selectedId, activeNod
   const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement | null;
-    if (target?.closest('.agentflow-node, .native-controls, .graph-overview, .graph-navigation-landmarks')) return;
+    if (target?.closest('.agentflow-node, .native-controls, .graph-overview, .graph-navigation-landmarks, .graph-search-control')) return;
     onCanvasClick();
     panStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, viewport };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -735,6 +776,7 @@ function NativeGraph({ canvasRef, graphMode, nodes, edges, selectedId, activeNod
   };
 
   return <main className={`canvas native-graph ${graphModeClassNames[graphMode]}`} ref={canvasRef} tabIndex={0} aria-label="Agent Flow graph canvas" aria-describedby="agentflow-keyboard-shortcuts" aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Enter F Backspace Delete" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endPan} onPointerCancel={endPan} onWheel={onWheel} onKeyDown={onKeyDown}>
+    <GraphSearchControl query={searchQuery} matches={searchMatches} searchIndex={searchIndex} onChange={onSearchChange} onClear={onSearchClear} onStep={onSearchStep} />
     <div className="graph-viewport" style={{ transform: graphTransform(viewport), width: graphBounds.width, height: graphBounds.height }}>
       <svg className="graph-edge-layer" width={graphBounds.width} height={graphBounds.height} viewBox={`0 0 ${graphBounds.width} ${graphBounds.height}`} aria-hidden="true">
         <defs>{edges.map((edge) => {
@@ -784,6 +826,7 @@ function NativeGraph({ canvasRef, graphMode, nodes, edges, selectedId, activeNod
       <button type="button" title="Jump to start" aria-label="Jump to start" disabled={!nodes.length} onClick={onJumpStart}><Codicon name="debug-start" /></button>
       <button type="button" title="Jump to active node" aria-label="Jump to active node" disabled={!activeNodeIds.length} onClick={onJumpActive}><Codicon name="pulse" /></button>
       <button type="button" title="Jump to selected node" aria-label="Jump to selected node" disabled={!selectedId} onClick={onJumpSelected}><Codicon name="target" /></button>
+      <button type="button" title="Fit selected neighborhood" aria-label="Fit selected neighborhood" disabled={!selectedId} onClick={onFitSelectedNeighborhood}><Codicon name="symbol-interface" /></button>
       <button type="button" title="Jump to first problem" aria-label="Jump to first problem" disabled={!problemNodeIds.length} onClick={onJumpProblem}><Codicon name="warning" /></button>
       <button type="button" title="Fit graph" aria-label="Fit all graph nodes" onClick={onFit}><Codicon name="screen-full" /></button>
     </div>

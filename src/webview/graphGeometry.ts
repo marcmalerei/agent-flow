@@ -95,6 +95,20 @@ export function fitNativeGraphViewport(bounds: GraphBounds, size: GraphCanvasSiz
   };
 }
 
+export function fitGraphNodesViewport(nodes: readonly GraphGeometryNode[], current: GraphViewport, size: GraphCanvasSize): GraphViewport {
+  if (!nodes.length) return current;
+  const bounds = measuredNodeGroupBounds(nodes, 48);
+  const availableWidth = Math.max(40, size.width - 80);
+  const availableHeight = Math.max(40, size.height - 80);
+  const fitZoom = Math.min(availableWidth / bounds.width, availableHeight / bounds.height);
+  const zoom = clamp(Math.min(current.zoom, fitZoom), nativeGraphMinZoom, nativeGraphMaxZoom);
+  return {
+    x: size.width / 2 - (bounds.x + bounds.width / 2) * zoom,
+    y: size.height / 2 - (bounds.y + bounds.height / 2) * zoom,
+    zoom
+  };
+}
+
 export function focusViewportOnNode(node: GraphGeometryNode, current: GraphViewport, size: GraphCanvasSize): GraphViewport {
   const center = nodeCenter(node);
   return {
@@ -218,6 +232,19 @@ function nodeWidth(node: GraphGeometryNode): number {
 
 function nodeHeight(node: GraphGeometryNode): number {
   return node.height ?? graphNodeHeight;
+}
+
+function measuredNodeGroupBounds(nodes: readonly GraphGeometryNode[], padding: number): GraphBounds {
+  const minX = Math.min(...nodes.map((node) => node.position.x));
+  const minY = Math.min(...nodes.map((node) => node.position.y));
+  const maxX = Math.max(...nodes.map((node) => node.position.x + nodeWidth(node)));
+  const maxY = Math.max(...nodes.map((node) => node.position.y + nodeHeight(node)));
+  return {
+    x: minX - padding,
+    y: minY - padding,
+    width: Math.max(1, maxX - minX + padding * 2),
+    height: Math.max(1, maxY - minY + padding * 2)
+  };
 }
 
 function rectsOverlap(a: { left: number; right: number; top: number; bottom: number }, b: { left: number; right: number; top: number; bottom: number }): boolean {

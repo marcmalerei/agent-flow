@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { edgePathBetweenNodes, findSpatialNeighborNodeId, fitNativeGraphViewport, focusViewportOnNode, graphNodeHeight, graphNodeSizeForType, graphNodeWidth, graphOverviewMetrics, measuredGraphBounds, normalizeGraphNodePositions, shouldAutoFitGraph, type GraphGeometryNode, type GraphViewport } from '../src/webview/graphGeometry';
+import { edgePathBetweenNodes, findSpatialNeighborNodeId, fitGraphNodesViewport, fitNativeGraphViewport, focusViewportOnNode, graphNodeHeight, graphNodeSizeForType, graphNodeWidth, graphOverviewMetrics, measuredGraphBounds, normalizeGraphNodePositions, shouldAutoFitGraph, type GraphGeometryNode, type GraphViewport } from '../src/webview/graphGeometry';
 
 const source: GraphGeometryNode = { id: 'source', position: { x: 0, y: 40 } };
 const target: GraphGeometryNode = { id: 'target', position: { x: 320, y: 40 } };
@@ -72,6 +72,28 @@ describe('native graph geometry', () => {
 
     expect(viewport.zoom).toBeGreaterThan(0.5);
     expect(viewport.zoom).toBeLessThanOrEqual(1);
+  });
+
+  it('fits selected neighborhoods while preserving current zoom when practical', () => {
+    const nodes: GraphGeometryNode[] = [
+      { id: 'selected', position: { x: 100, y: 80 }, width: 100, height: 80 },
+      { id: 'neighbor', position: { x: 260, y: 90 }, width: 100, height: 80 }
+    ];
+    const viewport = fitGraphNodesViewport(nodes, { x: 0, y: 0, zoom: 0.75 }, { width: 900, height: 500 });
+
+    expect(viewport.zoom).toBe(0.75);
+    expect(viewport.x + 230 * viewport.zoom).toBeCloseTo(450);
+    expect(viewport.y + 125 * viewport.zoom).toBeCloseTo(250);
+  });
+
+  it('zooms out only as much as needed when a selected neighborhood is wider than the viewport', () => {
+    const viewport = fitGraphNodesViewport([
+      { id: 'left', position: { x: 0, y: 120 }, width: 190, height: 96 },
+      { id: 'right', position: { x: 1200, y: 120 }, width: 190, height: 96 }
+    ], { x: 0, y: 0, zoom: 1 }, { width: 900, height: 500 });
+
+    expect(viewport.zoom).toBeLessThan(1);
+    expect(viewport.zoom).toBeGreaterThan(0.5);
   });
 
   it('maps graph and viewport bounds into a compact overview rectangle', () => {

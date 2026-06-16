@@ -172,6 +172,22 @@ describe('webview assets', () => {
     expect(css).toContain('.overview-viewport');
   });
 
+  test('adds graph search and selected-neighborhood fitting controls', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('GraphSearchControl');
+    expect(webviewSource).toContain('graphSearchResults');
+    expect(webviewSource).toContain('graphNeighborhoodNodeIds');
+    expect(webviewSource).toContain('fitGraphNodesViewport');
+    expect(webviewSource).toContain('Search graph');
+    expect(webviewSource).toContain('Fit selected neighborhood');
+    expect(webviewSource).toContain('Search results');
+    expect(webviewSource).toContain('Clear graph search');
+    expect(css).toContain('.graph-search-control');
+    expect(css).toContain('.graph-search-results');
+  });
+
   test('previews node renames before autosave rewrites files and references', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
