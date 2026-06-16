@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Tighten Agent Flow command palette titles and Explorer context menu scopes to supported `.github` files.
 - Add graph type filters, visible focus clearing, and artifact relationship summaries for graph reading.
 - Shrink graph arrowheads again so directional markers stay subtle near compact node ports.
 - Add graph search and selected-neighborhood fitting controls for large pipeline navigation.
