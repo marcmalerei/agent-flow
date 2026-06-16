@@ -37,7 +37,7 @@ import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } 
 import { applyNodePatch } from './nodeMarkdownSync';
 import { mergeRemoteStateUpdate } from './stateUpdates';
 import { deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
-import { edgeGradientId, edgeMarkerColor, graphNodeDisplayLabel, nodeTypeColor, nodeTypeColors } from './nodeDisplay';
+import { edgeGradientId, edgeMarkerColor, graphNodeDisplayLabel, graphNodeFullLabel, nodeTypeColor, nodeTypeColors } from './nodeDisplay';
 import { deriveFlowEmptyState, type EmptyStateAction, type FlowEmptyState, type WorkspaceFileSummary } from './emptyState';
 import { spatialNeighborNodeId, type SpatialArrowKey } from './keyboardNavigation';
 import { deriveGraphRecoveryState, type GraphRecoveryState } from './graphRecoveryState';
@@ -262,7 +262,7 @@ function App() {
       position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
       width: size.width,
       height: size.height,
-      data: { label: `${risky.has(node.id) ? '! ' : ''}${graphNodeDisplayLabel(node)}`, type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: nodeTypeColor(node.type), activity: activityByNode.get(node.id), runtimeStatus: state.nodeRuntime?.[node.id]?.status, dirty: state.nodeRuntime?.[node.id]?.dirty, ...handlePositions },
+      data: { label: graphNodeDisplayLabel(node), fullLabel: graphNodeFullLabel(node), type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: nodeTypeColor(node.type), activity: activityByNode.get(node.id), runtimeStatus: state.nodeRuntime?.[node.id]?.status, dirty: state.nodeRuntime?.[node.id]?.dirty, attention: risky.has(node.id), ...handlePositions },
       style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: size.width }
     };
   })).nodes, [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
@@ -622,7 +622,7 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activ
           className={`agentflow-node${node.id === selectedId ? ' selected' : ''}${activeNodeSet.has(node.id) ? ' active' : ''}${selectedId && !focusNodeSet.has(node.id) ? ' focus-muted' : ''}${selectedId && focusNodeSet.has(node.id) && node.id !== selectedId ? ' focus-related' : ''}`}
           data-node-id={node.id}
           style={{ ...node.style, transform: `translate(${node.position.x}px, ${node.position.y}px)`, height: node.height }}
-          aria-label={`Graph node ${node.data.label}, ${node.data.type} node`}
+          aria-label={`Graph node ${node.data.fullLabel ?? node.data.label}, ${node.data.type} node`}
           aria-current={node.id === selectedId ? 'true' : undefined}
           onClick={(event) => { event.stopPropagation(); onNodeClick(node.id); }}
         >

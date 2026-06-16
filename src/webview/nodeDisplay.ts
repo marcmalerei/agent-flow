@@ -18,8 +18,13 @@ export function graphNodeDisplayLabel(node: PipelineNode): string {
   return artifactDisplayPath(node.path);
 }
 
+export function graphNodeFullLabel(node: PipelineNode): string {
+  if (node.type === 'artifact') return node.path;
+  return node.label;
+}
+
 export function artifactDisplayPath(path: string): string {
-  return path.replace(/^\.github\/artifacts\//, '');
+  return path.replace(/\\/g, '/').replace(/^\.github\/artifacts\//, '');
 }
 
 export function nodeTypeColor(type: PipelineNodeType | string): string {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reserve explicit node header/body/status regions for token counts, identity, diagnostics, stale state, and activity chips so graph labels remain readable.
 - Add graph startup and recovery states for render delays, invisible nodes, render failures, retry actions, and debug snapshot copying.
 - Simplify the default pipeline for first-run comprehension with lowercase names, canonical tool ids, explicit handoffs, fewer nodes, and readable compact layout.
 - Improve graph accessibility with keyboard node navigation, shortcut help, ARIA labels, reduced-motion handling, and high-contrast styles.
