@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add explicit graph workflow modes for editing, running, and diagnosing flows.
 - Further reduce graph arrowhead size so directional edges stay secondary to node labels and ports.
 - Add searchable VS Code-style tool selection with group selection counts and empty search feedback.
 - Preview node renames before autosave, including normalized labels, renamed files, and reference rewrite counts.

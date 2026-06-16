@@ -201,6 +201,24 @@ describe('webview assets', () => {
     expect(css).toContain('.tool-group-count');
   });
 
+  test('adds explicit graph workflow modes for edit, run, and diagnose', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('GraphModeSwitch');
+    expect(webviewSource).toContain('graphModes');
+    expect(webviewSource).toContain('graphModePanelTarget');
+    expect(webviewSource).toContain('graph-mode-switch');
+    expect(webviewSource).toContain('graph-mode-diagnose');
+    expect(webviewSource).toContain('diagnose-muted');
+    expect(webviewSource).toContain("setActiveTab('activity')");
+    expect(webviewSource).toContain("setActiveTab('validation')");
+    expect(css).toContain('.graph-mode-switch');
+    expect(css).toContain('.app.graph-mode-run');
+    expect(css).toContain('.app.graph-mode-diagnose');
+    expect(css).toContain('.agentflow-node.diagnose-muted');
+  });
+
   test('adds selected-node focus classes to mute unrelated graph content', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 
