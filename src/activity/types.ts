@@ -37,6 +37,7 @@ export interface NodeActivitySummary {
   summary: string;
   count: number;
   updatedAt: string;
+  freshness?: 'fresh' | 'recent';
   toolName?: string;
   artifactPath?: string;
   severity?: ActivitySeverity;

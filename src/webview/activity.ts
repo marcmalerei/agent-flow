@@ -26,6 +26,9 @@ export interface ActivityTrailItem {
   artifactPath?: string;
 }
 
+export const freshActivityTtlMs = 15_000;
+export const recentActivityTtlMs = 120_000;
+
 export function summarizeNodeActivity(events: AgentFlowActivityEvent[]): Map<string, NodeActivitySummary> {
   const summaries = new Map<string, NodeActivitySummary>();
   for (const event of events) {
@@ -45,22 +48,32 @@ export function summarizeNodeActivity(events: AgentFlowActivityEvent[]): Map<str
   return summaries;
 }
 
-export function recentActivityEvents(events: AgentFlowActivityEvent[], now = Date.now(), ttlMs = 120_000): AgentFlowActivityEvent[] {
+export function recentActivityEvents(events: AgentFlowActivityEvent[], now = Date.now(), ttlMs = recentActivityTtlMs): AgentFlowActivityEvent[] {
   return events.filter((event) => {
     const timestamp = Date.parse(event.timestamp);
     return !Number.isNaN(timestamp) && now - timestamp <= ttlMs;
   });
 }
 
-export function recentNodeActivitySummaries(events: AgentFlowActivityEvent[], now = Date.now(), ttlMs = 120_000): Map<string, NodeActivitySummary> {
-  return summarizeNodeActivity(recentActivityEvents(events, now, ttlMs));
+export function freshActivityEvents(events: AgentFlowActivityEvent[], now = Date.now(), ttlMs = freshActivityTtlMs): AgentFlowActivityEvent[] {
+  return recentActivityEvents(events, now, ttlMs);
+}
+
+export function recentNodeActivitySummaries(events: AgentFlowActivityEvent[], now = Date.now(), ttlMs = recentActivityTtlMs): Map<string, NodeActivitySummary> {
+  const summaries = summarizeNodeActivity(recentActivityEvents(events, now, ttlMs));
+  for (const [nodeId, summary] of summaries) {
+    const updatedAt = Date.parse(summary.updatedAt);
+    const freshness = !Number.isNaN(updatedAt) && now - updatedAt <= freshActivityTtlMs ? 'fresh' : 'recent';
+    summaries.set(nodeId, { ...summary, freshness });
+  }
+  return summaries;
 }
 
 export function deriveActivityHudState(events: AgentFlowActivityEvent[], sources: ActivitySourceRuntimeState[] = [], now = Date.now()): ActivityHudState {
   const sorted = [...events].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
   const last = sorted.at(-1);
-  const fresh = recentActivityEvents(events, now, 15_000);
-  const recent = recentActivityEvents(events, now, 120_000);
+  const fresh = freshActivityEvents(events, now);
+  const recent = recentActivityEvents(events, now);
   const watchingSources = sources.filter((source) => source.state === 'watching');
   const degradedSources = sources.filter((source) => source.state === 'degraded' || source.state === 'error');
   const canReportReads = watchingSources.some((source) => source.canReportReads);
@@ -80,7 +93,7 @@ export function deriveActivityHudState(events: AgentFlowActivityEvent[], sources
 }
 
 export function recentActivityTrail(events: AgentFlowActivityEvent[], now = Date.now(), limit = 6): ActivityTrailItem[] {
-  return recentActivityEvents(events, now, 120_000)
+  return recentActivityEvents(events, now)
     .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
     .slice(0, limit)
     .map((event) => ({

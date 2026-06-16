@@ -152,12 +152,20 @@ describe('webview assets', () => {
   test('animates node-level file and artifact activity', () => {
     const tokenNodeSource = readFileSync('src/webview/TokenNode.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 
     expect(tokenNodeSource).toContain('has-activity');
     expect(tokenNodeSource).toContain('activity-node-');
+    expect(tokenNodeSource).toContain('activity-freshness-');
     expect(tokenNodeSource).toContain('runtime-');
     expect(tokenNodeSource).toContain('runtime-badge');
+    expect(webviewSource).toContain('freshActivityEvents');
+    expect(webviewSource).toContain('ActivityHud');
+    expect(webviewSource).toContain('activityTrail');
+    expect(webviewSource).toContain('canReportReads');
     expect(css).toContain('.flow-node.has-activity');
+    expect(css).toContain('.flow-node.activity-freshness-fresh');
+    expect(css).toContain('.flow-node.activity-freshness-recent');
     expect(css).toContain('.flow-node.runtime-error');
     expect(css).toContain('.activity-file');
     expect(css).toContain('.activity-artifact');

@@ -24,7 +24,7 @@ import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges, type VisibleFlowEdge } from './graph';
 import { clamp, edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
-import { activeEdgeIds, deriveActivityHudState, recentActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, type ActivityHudState, type ActivityTrailItem } from './activity';
+import { activeEdgeIds, deriveActivityHudState, freshActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, type ActivityHudState, type ActivityTrailItem } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
 import { flattenToolOptionValues, normalizeConfiguredToolsForOptions, partitionConfiguredTools, toolOptionSelectionState, type ToolOption, type ToolOptionGroup } from './toolOptions';
@@ -240,11 +240,11 @@ function App() {
   const risky = new Set(state.findings.filter((finding) => finding.nodeId).map((finding) => finding.nodeId));
   const layoutPositions = useMemo(() => layoutFlowNodes(draft, state.flowLayout), [draft, state.flowLayout]);
   const handlePositions = useMemo(() => flowHandlePositions(state.flowLayout), [state.flowLayout]);
-  const visualActivity = useMemo(() => recentActivityEvents(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
+  const freshActivity = useMemo(() => freshActivityEvents(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
   const activityByNode = useMemo(() => recentNodeActivitySummaries(state.activityEvents ?? [], activityClock), [activityClock, state.activityEvents]);
   const activityHud = useMemo(() => deriveActivityHudState(state.activityEvents ?? [], state.activitySources ?? [], activityClock), [activityClock, state.activityEvents, state.activitySources]);
   const activityTrail = useMemo(() => recentActivityTrail(state.activityEvents ?? [], activityClock, 6), [activityClock, state.activityEvents]);
-  const activeEdges = useMemo(() => new Set(activeEdgeIds(draft, visualActivity)), [draft, visualActivity]);
+  const activeEdges = useMemo(() => new Set(activeEdgeIds(draft, freshActivity)), [draft, freshActivity]);
   const nodes: RenderedNode[] = useMemo(() => normalizeGraphNodePositions(draft.nodes.map((node) => {
     const size = graphNodeSizeForType(node.type);
     return {
@@ -256,7 +256,7 @@ function App() {
       style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: size.width }
     };
   })).nodes, [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
-  const activeNodeIds = useMemo(() => [...activityByNode.keys()], [activityByNode]);
+  const activeNodeIds = useMemo(() => [...activityByNode.values()].filter((activity) => activity.freshness === 'fresh').map((activity) => activity.nodeId), [activityByNode]);
   const visibleEdges = useMemo(() => deriveVisibleFlowEdges(draft), [draft]);
   const loopEdgeIds = useMemo(() => {
     const loopIds = new Set<string>();
@@ -453,11 +453,12 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
 function ActivityHud({ onOpen, state }: { onOpen: () => void; state: ActivityHudState }) {
   const icon = state.mode === 'live' ? 'pulse' : state.mode === 'recent' ? 'history' : state.mode === 'degraded' ? 'warning' : 'circle-outline';
   const label = state.mode === 'live' ? 'Live activity' : state.mode === 'recent' ? 'Recent activity' : state.mode === 'degraded' ? 'Activity setup needed' : 'No activity';
+  const capability = state.canReportReads && state.canReportWrites ? 'reads + writes' : state.canReportWrites ? 'writes only' : state.canReportReads ? 'reads only' : 'no live read/write source';
   const detail = state.lastSummary ? `${state.lastSummary}${state.activeSessionId ? ` · ${state.activeSessionId}` : ''}` : state.sourceSummary;
   return <button type="button" className={`activity-hud activity-hud-${state.mode}`} onClick={onOpen} title={`${label}. ${detail}`}>
     <Codicon name={icon} />
     <span>{label}</span>
-    <small>{state.recentCount ? `${state.recentCount} recent` : state.sourceSummary}</small>
+    <small>{state.recentCount ? `${state.recentCount} recent · ${capability}` : `${state.sourceSummary} · ${capability}`}</small>
   </button>;
 }
 
