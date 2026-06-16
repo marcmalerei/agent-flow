@@ -74,6 +74,13 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .activity-trail button { max-width: 132px; min-height: 28px; padding: 3px 7px; border-color: var(--agentflow-border); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 92%, transparent); color: var(--vscode-foreground); }
 .activity-trail button:first-child { border-color: var(--vscode-charts-green); box-shadow: inset 2px 0 0 var(--vscode-charts-green); }
 .activity-trail span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shortcut-help { position: fixed; top: 64px; right: 14px; z-index: 24; box-sizing: border-box; width: min(340px, calc(100vw - 28px)); padding: 10px; border: 1px solid var(--vscode-editorWidget-border, var(--agentflow-border)); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); color: var(--vscode-editorWidget-foreground, var(--vscode-foreground)); box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0,0,0,.35)); }
+.keyboard-shortcuts-popover { max-height: calc(100vh - 88px); overflow: auto; }
+.shortcut-help header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.shortcut-help header button { width: 24px; height: 24px; padding: 0; border-color: transparent; background: transparent; }
+.shortcut-help dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; margin: 0; }
+.shortcut-help dt { padding: 1px 5px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-keybindingLabel-background, var(--vscode-editor-background)); color: var(--vscode-keybindingLabel-foreground, var(--vscode-foreground)); font-family: var(--vscode-editor-font-family, ui-monospace, monospace); font-size: 11px; white-space: nowrap; }
+.shortcut-help dd { min-width: 0; margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.35; }
 .graph-edge-path { fill: none; stroke-linecap: round; }
 .graph-edge.support-edge .graph-edge-path { opacity: .5; }
 .graph-edge.focus-muted .graph-edge-path, .graph-edge.focus-muted .graph-edge-label { opacity: .18; }
@@ -93,6 +100,14 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 @media (prefers-reduced-motion: reduce) {
   .flow-node.has-activity, .activity-badge.activity-freshness-fresh.activity-started, .activity-badge.activity-freshness-fresh.activity-thinking, .activity-badge.activity-freshness-fresh.activity-tool, .activity-badge.activity-freshness-fresh.activity-file, .activity-badge.activity-freshness-fresh.activity-artifact { animation: none; }
   .graph-edge.animated .graph-edge-path { animation: none; }
+  .graph-edge-tracer { display: none; }
+}
+@media (forced-colors: active) {
+  .agentflow-node { border-color: CanvasText !important; forced-color-adjust: auto; }
+  .agentflow-node.selected { outline: 2px solid Highlight; outline-offset: 2px; }
+  .graph-edge-path { stroke: CanvasText !important; }
+  .graph-edge-label rect, .shortcut-help, .native-controls { border: 1px solid CanvasText; }
+  .token-badge, .activity-badge, .runtime-badge { border: 1px solid CanvasText; background: Canvas; color: CanvasText; }
 }
 .debug-overlay { position: fixed; right: 12px; bottom: 52px; z-index: 30; box-sizing: border-box; width: min(360px, calc(100vw - 24px)); max-height: min(460px, calc(100vh - 80px)); overflow: auto; padding: 10px 12px; border: 1px solid var(--vscode-editorWidget-border, var(--agentflow-border)); border-radius: var(--agentflow-control-radius); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 94%, transparent); color: var(--vscode-editorWidget-foreground, var(--vscode-foreground)); box-shadow: 0 6px 18px var(--vscode-widget-shadow, rgba(0,0,0,.35)); font: 11px/1.35 var(--vscode-editor-font-family, ui-monospace, Menlo, monospace); pointer-events: none; }
 .debug-overlay strong { display: block; margin-bottom: 6px; font-family: var(--vscode-font-family, system-ui); font-size: 12px; }

@@ -242,6 +242,35 @@ describe('webview assets', () => {
     expect(css).toContain('.connection-intent-preview');
   });
 
+  test('documents and exposes keyboard accessible graph controls', () => {
+    const source = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+    const docs = readFileSync('docs/development.md', 'utf8');
+    const readme = readFileSync('README.md', 'utf8');
+
+    expect(source).toContain('ShortcutsHelp');
+    expect(source).toContain('KeyboardShortcutsPopover');
+    expect(source).toContain('spatialNeighborNodeId');
+    expect(source).toContain('ArrowLeft');
+    expect(source).toContain('ArrowRight');
+    expect(source).toContain('ArrowUp');
+    expect(source).toContain('ArrowDown');
+    expect(source).toContain("event.key.toLowerCase() === 'f'");
+    expect(source).toContain("event.key === 'Enter'");
+    expect(source).toContain('aria-label={`Graph node ${node.data.label}');
+    expect(source).toContain('aria-label="Zoom in graph"');
+    expect(source).toContain('aria-keyshortcuts');
+    expect(css).toContain('.shortcut-help');
+    expect(css).toContain('.keyboard-shortcuts-popover');
+    expect(css).toContain('@media (forced-colors: active)');
+    expect(docs).toContain('Keyboard shortcuts');
+    expect(docs).toContain('Arrow keys');
+    expect(docs).toContain('Backspace/Delete');
+    expect(readme).toContain('Keyboard shortcuts');
+    expect(readme).toContain('Arrow keys');
+    expect(readme).toContain('Backspace');
+  });
+
   test('reserves node header space so badges do not overlap labels', () => {
     const css = readFileSync('src/webview/styles.css', 'utf8');
 

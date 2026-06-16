@@ -53,6 +53,16 @@ Agent Flow Studio preserves frontmatter where possible and omits optional YAML f
 - Use role nodes for reusable role descriptions that can be referenced from Markdown.
 - Use diagnostics when you need validation details, a file inventory, tool coverage, or a context risk summary.
 
+## Keyboard shortcuts
+
+- `Arrow keys`: move selection to the nearest node.
+- `Enter`: open the selected node.
+- `F`: fit the graph.
+- `Backspace/Delete`: remove the selected node.
+- `Cmd/Ctrl+C` and `Cmd/Ctrl+V`: copy and duplicate nodes.
+- `Cmd/Ctrl+Z` and `Cmd/Ctrl+Y`: undo and redo.
+- `?`: show the shortcut reference.
+
 ## Documentation
 
 - [Customization frontmatter](docs/customization-frontmatter.md)
