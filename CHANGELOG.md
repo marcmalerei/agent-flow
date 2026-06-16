@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Improve graph accessibility with keyboard node navigation, shortcut help, ARIA labels, reduced-motion handling, and high-contrast styles.
 - Require every pull request to update `CHANGELOG.md` before CI can pass.
 - Add a pull request template that asks for verification commands, release notes, and documentation status.
 - Document release hygiene for keeping Marketplace documentation and changelog entries current.

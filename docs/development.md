@@ -74,6 +74,19 @@ In the Extension Development Host window, open the Command Palette and run:
 
 Use a disposable workspace for `Agent Flow: Generate Files` while testing. The command shows a generated-file preview and asks for confirmation before writing files.
 
+## Keyboard shortcuts
+
+The graph canvas is keyboard accessible when it has focus:
+
+- `Arrow keys`: select the nearest node in the pressed direction.
+- `Enter`: open the selected node in the inspector.
+- `F`: fit the graph to the current viewport.
+- `Backspace/Delete`: remove the selected node with undo support.
+- `Cmd/Ctrl+C`: copy the selected node.
+- `Cmd/Ctrl+V`: paste a duplicate of the copied node.
+- `Cmd/Ctrl+Z` and `Cmd/Ctrl+Y`: undo and redo graph edits.
+- `?`: show or hide the keyboard shortcut reference.
+
 ## Webview Example
 
 The webview can be tested in a browser with fixture data:

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, graphNodeHeight, graphNodeSizeForType, graphNodeWidth, measuredGraphBounds, normalizeGraphNodePositions, shouldAutoFitGraph, type GraphGeometryNode, type GraphViewport } from '../src/webview/graphGeometry';
+import { edgePathBetweenNodes, findSpatialNeighborNodeId, fitNativeGraphViewport, focusViewportOnNode, graphNodeHeight, graphNodeSizeForType, graphNodeWidth, measuredGraphBounds, normalizeGraphNodePositions, shouldAutoFitGraph, type GraphGeometryNode, type GraphViewport } from '../src/webview/graphGeometry';
 
 const source: GraphGeometryNode = { id: 'source', position: { x: 0, y: 40 } };
 const target: GraphGeometryNode = { id: 'target', position: { x: 320, y: 40 } };
@@ -72,6 +72,23 @@ describe('native graph geometry', () => {
 
     expect(viewport.zoom).toBeGreaterThan(0.5);
     expect(viewport.zoom).toBeLessThanOrEqual(1);
+  });
+
+  it('finds spatial keyboard navigation neighbors by direction', () => {
+    const nodes: GraphGeometryNode[] = [
+      { id: 'center', position: { x: 100, y: 100 }, width: 100, height: 80 },
+      { id: 'left', position: { x: -100, y: 105 }, width: 100, height: 80 },
+      { id: 'right', position: { x: 330, y: 120 }, width: 100, height: 80 },
+      { id: 'up', position: { x: 120, y: -140 }, width: 100, height: 80 },
+      { id: 'down', position: { x: 115, y: 320 }, width: 100, height: 80 },
+      { id: 'diagonal', position: { x: 250, y: 250 }, width: 100, height: 80 }
+    ];
+
+    expect(findSpatialNeighborNodeId(nodes, 'center', 'left')).toBe('left');
+    expect(findSpatialNeighborNodeId(nodes, 'center', 'right')).toBe('right');
+    expect(findSpatialNeighborNodeId(nodes, 'center', 'up')).toBe('up');
+    expect(findSpatialNeighborNodeId(nodes, 'center', 'down')).toBe('down');
+    expect(findSpatialNeighborNodeId(nodes, 'missing', 'right')).toBeUndefined();
   });
 });
 

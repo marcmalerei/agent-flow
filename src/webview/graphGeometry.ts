@@ -96,6 +96,26 @@ export function focusViewportOnNode(node: GraphGeometryNode, current: GraphViewp
   };
 }
 
+export function findSpatialNeighborNodeId(nodes: readonly GraphGeometryNode[], selectedId: string, direction: 'left' | 'right' | 'up' | 'down'): string | undefined {
+  const selected = nodes.find((node) => node.id === selectedId);
+  if (!selected) return undefined;
+  const center = nodeCenter(selected);
+  const horizontal = direction === 'left' || direction === 'right';
+  const sign = direction === 'left' || direction === 'up' ? -1 : 1;
+  let best: { id: string; score: number } | undefined;
+  for (const node of nodes) {
+    if (node.id === selectedId) continue;
+    const candidate = nodeCenter(node);
+    const primaryDelta = horizontal ? candidate.x - center.x : candidate.y - center.y;
+    if (Math.sign(primaryDelta) !== sign) continue;
+    const secondaryDelta = horizontal ? candidate.y - center.y : candidate.x - center.x;
+    if (Math.abs(primaryDelta) * 1.4 < Math.abs(secondaryDelta)) continue;
+    const score = Math.abs(primaryDelta) + Math.abs(secondaryDelta) * 4;
+    if (!best || score < best.score) best = { id: node.id, score };
+  }
+  return best?.id;
+}
+
 export function shouldAutoFitGraph({ previousSignature, nextSignature, userInteracted, reason }: { previousSignature?: string; nextSignature: string; userInteracted: boolean; reason: 'activity' | 'resize' | 'structure' }): boolean {
   if (previousSignature !== nextSignature) return true;
   if (reason === 'activity') return false;
