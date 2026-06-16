@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Anchor graph edges at visible node ports and hide low-priority support labels until hover, focus, or live activity.
 - Reserve explicit node header/body/status regions for token counts, identity, diagnostics, stale state, and activity chips so graph labels remain readable.
 - Add graph startup and recovery states for render delays, invisible nodes, render failures, retry actions, and debug snapshot copying.
 - Simplify the default pipeline for first-run comprehension with lowercase names, canonical tool ids, explicit handoffs, fewer nodes, and readable compact layout.

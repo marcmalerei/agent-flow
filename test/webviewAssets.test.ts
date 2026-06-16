@@ -80,6 +80,8 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('edgePathBetweenNodes');
     expect(webviewSource).toContain('graph-edge-tracer');
     expect(webviewSource).toContain('animateMotion');
+    expect(webviewSource).toContain('edgeTooltip(edge');
+    expect(webviewSource).toContain('activeEdgeClass(edge)');
     expect(webviewSource).toContain('fitNativeGraphViewport');
     expect(webviewSource).toContain('focusViewportOnNode');
     expect(webviewSource).toContain('normalizeGraphNodePositions');
@@ -103,7 +105,12 @@ describe('webview assets', () => {
     expect(css).toContain('.native-graph');
     expect(css).toContain('.graph-edge-path');
     expect(css).toContain('.graph-edge.activity-edge');
+    expect(css).toContain('.graph-edge.active-read');
+    expect(css).toContain('.graph-edge.active-write');
+    expect(css).toContain('.graph-edge.active-handoff');
     expect(css).toContain('.graph-edge.support-edge');
+    expect(css).toContain('.graph-edge.support-edge:not(.activity-edge):not(.focus-edge) .graph-edge-label');
+    expect(css).toContain('.graph-edge:hover .graph-edge-label');
     expect(css).toContain('.graph-edge.focus-muted');
     expect(css).toContain('.agentflow-node.focus-muted');
     expect(css).toContain('.graph-edge.loop-edge');

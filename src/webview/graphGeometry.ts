@@ -38,6 +38,7 @@ const graphPadding = 120;
 const defaultEdgeLabelWidth = 56;
 const defaultEdgeLabelHeight = 20;
 const edgeLabelGap = 12;
+const nodePortAnchorOffset = 5;
 
 export function normalizeGraphNodePositions<T extends GraphGeometryNode>(nodes: readonly T[]): { nodes: T[]; bounds: GraphBounds } {
   if (!nodes.length) return { nodes: [], bounds: { x: 0, y: 0, width: 240, height: 240 } };
@@ -61,11 +62,11 @@ export function edgePathBetweenNodes(source: GraphGeometryNode, target: GraphGeo
   const targetCenter = nodeCenter(target);
   const horizontal = Math.abs(targetCenter.x - sourceCenter.x) >= Math.abs(targetCenter.y - sourceCenter.y);
   const start = horizontal
-    ? { x: sourceCenter.x <= targetCenter.x ? source.position.x + nodeWidth(source) : source.position.x, y: sourceCenter.y }
-    : { x: sourceCenter.x, y: sourceCenter.y <= targetCenter.y ? source.position.y + nodeHeight(source) : source.position.y };
+    ? { x: sourceCenter.x <= targetCenter.x ? source.position.x + nodeWidth(source) + nodePortAnchorOffset : source.position.x - nodePortAnchorOffset, y: sourceCenter.y }
+    : { x: sourceCenter.x, y: sourceCenter.y <= targetCenter.y ? source.position.y + nodeHeight(source) + nodePortAnchorOffset : source.position.y - nodePortAnchorOffset };
   const end = horizontal
-    ? { x: sourceCenter.x <= targetCenter.x ? target.position.x : target.position.x + nodeWidth(target), y: targetCenter.y }
-    : { x: targetCenter.x, y: sourceCenter.y <= targetCenter.y ? target.position.y : target.position.y + nodeHeight(target) };
+    ? { x: sourceCenter.x <= targetCenter.x ? target.position.x - nodePortAnchorOffset : target.position.x + nodeWidth(target) + nodePortAnchorOffset, y: targetCenter.y }
+    : { x: targetCenter.x, y: sourceCenter.y <= targetCenter.y ? target.position.y - nodePortAnchorOffset : target.position.y + nodeHeight(target) + nodePortAnchorOffset };
   const distance = horizontal ? Math.abs(end.x - start.x) : Math.abs(end.y - start.y);
   const bend = Math.max(56, distance * 0.42);
   const path = horizontal
