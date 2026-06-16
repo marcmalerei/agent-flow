@@ -355,9 +355,12 @@ describe('webview assets', () => {
     expect(tokenNodeSource).toContain('runtime-badge');
     expect(webviewSource).toContain('freshActivityEvents');
     expect(webviewSource).toContain('ActivityHud');
+    expect(webviewSource).toContain('activity-now-card');
+    expect(webviewSource).toContain('data-event-id');
     expect(webviewSource).toContain('activityTrail');
     expect(webviewSource).toContain('canReportReads');
     expect(css).toContain('.follow-live-toggle.active');
+    expect(css).toContain('.activity-now-card');
     expect(css).toContain('.flow-node.has-activity');
     expect(css).toContain('.flow-node.activity-freshness-fresh');
     expect(css).toContain('.flow-node.activity-freshness-recent');

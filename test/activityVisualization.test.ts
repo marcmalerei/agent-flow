@@ -123,4 +123,24 @@ describe('activity visualization helpers', () => {
       expect.objectContaining({ id: 'write', label: 'artifact', nodeId: 'router', artifactPath: '.github/artifacts/plan.md' })
     ]);
   });
+
+  it('shows a now card for the newest fresh activity only', () => {
+    const events: AgentFlowActivityEvent[] = [
+      { id: 'read', timestamp: '2026-06-12T09:59:50.000Z', sessionId: 'run-1', nodeId: 'worker', phase: 'tool', summary: 'Read context', toolName: 'read_file' },
+      { id: 'write', timestamp: '2026-06-12T09:59:58.000Z', sessionId: 'run-1', nodeId: 'router', phase: 'artifact', summary: 'Wrote plan', artifactPath: '.github/artifacts/plan.md' }
+    ];
+
+    expect(deriveActivityHudState(events, [], Date.parse(now)).now).toEqual({
+      eventId: 'write',
+      nodeId: 'router',
+      title: 'Now: router',
+      action: 'artifact',
+      detail: '.github/artifacts/plan.md',
+      timestamp: '2026-06-12T09:59:58.000Z'
+    });
+
+    expect(deriveActivityHudState([
+      { id: 'stale', timestamp: '2026-06-12T09:59:30.000Z', sessionId: 'run-1', nodeId: 'router', phase: 'tool', summary: 'Stale read', toolName: 'read_file' }
+    ], [], Date.parse(now)).now).toBeUndefined();
+  });
 });

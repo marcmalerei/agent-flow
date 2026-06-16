@@ -11,9 +11,20 @@ export interface ActivityHudState {
   activeSessionId?: string;
   lastSummary?: string;
   lastTimestamp?: string;
+  now?: ActivityNowCard;
   sourceSummary: string;
   canReportReads: boolean;
   canReportWrites: boolean;
+}
+
+export interface ActivityNowCard {
+  eventId: string;
+  nodeId?: string;
+  targetNodeId?: string;
+  title: string;
+  action: string;
+  detail: string;
+  timestamp: string;
 }
 
 export interface ActivityTrailItem {
@@ -86,9 +97,24 @@ export function deriveActivityHudState(events: AgentFlowActivityEvent[], sources
     activeSessionId: last?.sessionId,
     lastSummary: last?.summary,
     lastTimestamp: last?.timestamp,
+    now: deriveActivityNowCard(events, now),
     sourceSummary: sourceSummary(watchingSources, degradedSources),
     canReportReads,
     canReportWrites
+  };
+}
+
+export function deriveActivityNowCard(events: AgentFlowActivityEvent[], now = Date.now()): ActivityNowCard | undefined {
+  const event = freshActivityEvents(events, now).sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp)).at(-1);
+  if (!event) return undefined;
+  return {
+    eventId: event.id,
+    nodeId: event.nodeId,
+    targetNodeId: event.targetNodeId,
+    title: event.nodeId ? `Now: ${event.nodeId}` : 'Now',
+    action: event.toolName ? compactToolName(event.toolName) : event.phase,
+    detail: activityNowDetail(event),
+    timestamp: event.timestamp
   };
 }
 
@@ -187,6 +213,14 @@ function sourceSummary(watchingSources: ActivitySourceRuntimeState[], degradedSo
   }
   if (degradedSources.length) return `${degradedSources.length} source${degradedSources.length === 1 ? '' : 's'} need setup`;
   return 'No active sources';
+}
+
+function activityNowDetail(event: AgentFlowActivityEvent): string {
+  if (event.artifactPath) return event.artifactPath;
+  if (event.nodeFile) return event.nodeFile;
+  if (event.targetNodeId) return `to ${event.targetNodeId}`;
+  if (event.toolName) return event.summary;
+  return event.summary;
 }
 
 function compactToolName(toolName: string): string {
