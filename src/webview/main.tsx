@@ -35,7 +35,7 @@ import { createPipelineNode, duplicatePipelineSelection, previewNodeCreation, ty
 import { optionalTextValue, referenceInstructionTextValue } from './formState';
 import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } from './components';
 import { applyNodePatch } from './nodeMarkdownSync';
-import { mergeRemoteStateUpdate, type EditingConflict } from './stateUpdates';
+import { mergeRemoteStateUpdate, type EditingConflict, type RemoteStateMergeResult } from './stateUpdates';
 import { deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, type NodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
 import { edgeGradientId, edgeMarkerColor, graphNodeDisplayLabel, graphNodeFullLabel, nodeTypeColor, nodeTypeColors } from './nodeDisplay';
 import { deriveFlowEmptyState, type EmptyStateAction, type FlowEmptyState, type WorkspaceFileSummary } from './emptyState';
@@ -66,6 +66,21 @@ interface State {
 }
 
 type BottomTab = 'activity' | 'metrics' | 'attention' | 'validation' | 'files' | 'tools' | 'risk';
+type SyncStatusKind = 'synced' | 'saving' | 'reading-workspace' | 'external-change' | 'parse-issue' | 'stale-view';
+
+interface SyncStatusState {
+  detail: string;
+  icon: string;
+  kind: SyncStatusKind;
+  label: string;
+}
+
+interface SyncTrustBannerState {
+  detail: string;
+  icon: string;
+  kind: 'external-change' | 'stale-view';
+  title: string;
+}
 
 declare global { interface Window { __AGENTFLOW_STATE__: State; __AGENTFLOW_APP_BOOTED__?: boolean; __AGENTFLOW_VSCODE_API__?: { postMessage(message: unknown): void }; acquireVsCodeApi?: () => { postMessage(message: unknown): void } } }
 
@@ -203,6 +218,8 @@ function App() {
   const [activityPaused, setActivityPaused] = useState(false);
   const [replayEventId, setReplayEventId] = useState<string | undefined>(undefined);
   const [viewportSignal, setViewportSignal] = useState(0);
+  const [syncStatus, setSyncStatus] = useState<SyncStatusState>(syncStatusState('synced'));
+  const [syncBanner, setSyncBanner] = useState<SyncTrustBannerState | undefined>(undefined);
   const dirtyRef = useRef(false);
   const draftRef = useRef(draft);
   const selectedIdRef = useRef(selectedId);
@@ -238,6 +255,9 @@ function App() {
             dirty: dirtyRef.current,
             selectedId: selectedIdRef.current
           });
+          const reason = typeof event.data.reason === 'string' ? event.data.reason : 'workspace refresh';
+          setSyncStatus(syncStatusForRemoteMerge(merged.reason, reason));
+          setSyncBanner(syncBannerForRemoteMerge(merged.reason, reason));
           if (merged.conflict) {
             setEditingConflict(merged.conflict);
           }
@@ -285,6 +305,8 @@ function App() {
       undoStack.current = [...undoStack.current.slice(-49), pipeline];
       redoStack.current = [];
       dirtyRef.current = true;
+      setSyncStatus(syncStatusState('saving'));
+      setSyncBanner(undefined);
       setState((previous) => {
         const derived = deriveState(next, previous);
         return dirtyNodeIds.length ? { ...derived, nodeRuntime: markNodeRuntimeDirty(derived.nodeRuntime, dirtyNodeIds) } : derived;
@@ -300,6 +322,7 @@ function App() {
       if (!dirtyRef.current) return;
       dirtyRef.current = false;
       vscode?.postMessage({ command: 'persistPipeline', pipeline: draft, selectedId });
+      setSyncStatus(syncStatusState('synced'));
     }, 500);
     return () => window.clearTimeout(timer);
   }, [draft, selectedId]);
@@ -469,10 +492,10 @@ function App() {
   const cancelLocalEdit = useCallback(() => {
     if (editingConflict) applyConflictPipeline(editingConflict.incomingPipeline, editingConflict.nodeId);
   }, [applyConflictPipeline, editingConflict]);
-  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activityPlayback={activityPlayback} activityPaused={activityPaused} replayEventId={replayEventId} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} graphReadingLevel={graphReadingLevel} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} editingConflict={editingConflict} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActivityPaused={setActivityPaused} setReplayEventId={setReplayEventId} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setGraphReadingLevel={setGraphReadingLevel} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} onApplyExternalChanges={applyExternalChanges} onKeepLocalEdit={keepLocalEdit} onOpenConflictDiff={openConflictDiff} onCancelLocalEdit={cancelLocalEdit} onApplyValidationQuickFix={applyValidationQuickFix} />;
+  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activityPlayback={activityPlayback} activityPaused={activityPaused} replayEventId={replayEventId} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} graphReadingLevel={graphReadingLevel} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} editingConflict={editingConflict} syncStatus={syncStatus} syncBanner={syncBanner} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActivityPaused={setActivityPaused} setReplayEventId={setReplayEventId} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setGraphReadingLevel={setGraphReadingLevel} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} setSyncBanner={setSyncBanner} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} onApplyExternalChanges={applyExternalChanges} onKeepLocalEdit={keepLocalEdit} onOpenConflictDiff={openConflictDiff} onCancelLocalEdit={cancelLocalEdit} onApplyValidationQuickFix={applyValidationQuickFix} />;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activityPlayback, activityPaused, replayEventId, activeTab, bottomOpen, graphMode, graphReadingLevel, inspectorOpen, viewportSignal, editingConflict, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActivityPaused, setReplayEventId, setActiveTab, setBottomOpen, setGraphMode, setGraphReadingLevel, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit, onApplyValidationQuickFix }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activityPlayback: ReturnType<typeof deriveActivityPlaybackState>; activityPaused: boolean; replayEventId?: string; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; graphReadingLevel: GraphReadingLevel; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActivityPaused: React.Dispatch<React.SetStateAction<boolean>>; setReplayEventId: React.Dispatch<React.SetStateAction<string | undefined>>; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setGraphReadingLevel: (level: GraphReadingLevel) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (node: PipelineNode, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void; onApplyValidationQuickFix: (action: ValidationAction | undefined) => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activityPlayback, activityPaused, replayEventId, activeTab, bottomOpen, graphMode, graphReadingLevel, inspectorOpen, viewportSignal, editingConflict, syncStatus, syncBanner, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActivityPaused, setReplayEventId, setActiveTab, setBottomOpen, setGraphMode, setGraphReadingLevel, setInspectorOpen, setSelectedId, setSyncBanner, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit, onApplyValidationQuickFix }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activityPlayback: ReturnType<typeof deriveActivityPlaybackState>; activityPaused: boolean; replayEventId?: string; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; graphReadingLevel: GraphReadingLevel; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; syncStatus: SyncStatusState; syncBanner?: SyncTrustBannerState; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActivityPaused: React.Dispatch<React.SetStateAction<boolean>>; setReplayEventId: React.Dispatch<React.SetStateAction<string | undefined>>; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setGraphReadingLevel: (level: GraphReadingLevel) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; setSyncBanner: React.Dispatch<React.SetStateAction<SyncTrustBannerState | undefined>>; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (node: PipelineNode, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void; onApplyValidationQuickFix: (action: ValidationAction | undefined) => void }) {
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
@@ -779,11 +802,12 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       <VSCodeButton className="compact" icon="redo" aria-keyshortcuts="Control+Y Meta+Y" onClick={redoLast} disabled={!canRedo} title="Redo last graph change">Redo</VSCodeButton>
       <VSCodeButton className="compact" icon="copy" aria-keyshortcuts="Control+C Meta+C" onClick={copySelection} disabled={!selectedId} title="Copy selected node">Copy</VSCodeButton>
       <VSCodeButton className="compact" icon="files" aria-keyshortcuts="Control+V Meta+V" onClick={pasteSelection} disabled={!canPaste} title="Paste copied node">Paste</VSCodeButton>
-      <span className="autosave-status"><Codicon name="sync" /> Auto-save</span>
+      <SyncStatusIndicator status={syncStatus} />
       {creationFeedback && <span className="creation-feedback" role="status"><Codicon name="pass" />{creationFeedback}</span>}
       <div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => { setAddNodeMenuOpen((open) => !open); setPendingNodeConnection(undefined); }}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeCreationDraft && nodeCreationPreview ? <NodeCreationForm draft={nodeCreationDraft} preview={nodeCreationPreview} connectFromLabel={nodeCreationDraft.connectFrom ? draft.nodes.find((node) => node.id === nodeCreationDraft.connectFrom)?.label : undefined} onCancel={() => setNodeCreationDraft(undefined)} onChange={setNodeCreationDraft} onCreate={confirmNodeCreation} /> : <>{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => beginNodeCreation(type)}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => beginNodeCreation(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.targetNode); setCreationFeedback(`Created ${nodeFileSummary(pendingNodeConnection.targetNode)}`); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.targetNode, pendingNodeConnection.sourceId, kind); setCreationFeedback(`Created ${nodeFileSummary(pendingNodeConnection.targetNode)}`); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</>}</div>}</div>
     </header>
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
+    {syncBanner && <SyncTrustBanner banner={syncBanner} onDismiss={() => setSyncBanner(undefined)} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onReloadGraph={() => vscode?.postMessage({ command: 'runCommand', name: 'agentflow.scanWorkspace' })} onReviewChanges={() => editingConflict ? onOpenConflictDiff() : (setBottomOpen(true), setActiveTab('files'))} />}
     <NativeGraph graphMode={graphMode} graphReadingLevel={graphReadingLevel} graphFocusMode={graphFocusMode} onGraphReadingLevelChange={setGraphReadingLevel} onGraphFocusModeChange={setGraphFocusMode} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} replayEventId={replayEventId} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => { setReplayEventId(item.id); openActivityForNode(item.nodeId ?? item.targetNodeId); }} onViewportChange={setGraphViewport} onFit={fitViewport} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
@@ -794,6 +818,57 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
 
 function ShortcutsHelp({ onClose }: { onClose: () => void }) {
   return <KeyboardShortcutsPopover onClose={onClose} />;
+}
+
+function syncStatusState(kind: SyncStatusKind, detail?: string): SyncStatusState {
+  if (kind === 'saving') return { kind, label: 'Saving', icon: 'sync', detail: detail ?? 'Writing webview edits to workspace files.' };
+  if (kind === 'reading-workspace') return { kind, label: 'Reading workspace', icon: 'search', detail: detail ?? 'Refreshing graph data from workspace files.' };
+  if (kind === 'external-change') return { kind, label: 'External changes', icon: 'repo-pull', detail: detail ?? 'Workspace files changed outside this webview.' };
+  if (kind === 'parse-issue') return { kind, label: 'Parse issue', icon: 'warning', detail: detail ?? 'A workspace refresh reported parse or graph issues.' };
+  if (kind === 'stale-view') return { kind, label: 'Stale view', icon: 'history', detail: detail ?? 'Keeping the last known graph because a refresh looked incomplete.' };
+  return { kind, label: 'Synced', icon: 'pass', detail: detail ?? 'Graph and workspace files are in sync.' };
+}
+
+function syncStatusForRemoteMerge(reason: RemoteStateMergeResult<State>['reason'], sourceReason: string): SyncStatusState {
+  if (reason === 'stale-view') return syncStatusState('stale-view', `Kept the last known graph after ${sourceReason}.`);
+  if (reason === 'external-conflict') return syncStatusState('external-change', `External changes touched the selected node during local editing.`);
+  if (reason === 'local-dirty') return syncStatusState('external-change', `Kept local edits while ${sourceReason} arrived.`);
+  return syncStatusState('synced', `Applied ${sourceReason}.`);
+}
+
+function syncBannerForRemoteMerge(reason: RemoteStateMergeResult<State>['reason'], sourceReason: string): SyncTrustBannerState | undefined {
+  if (reason === 'stale-view') return {
+    kind: 'stale-view',
+    icon: 'history',
+    title: 'Stale view kept',
+    detail: `A ${sourceReason} returned fewer graph nodes, so Agent Flow kept the last known graph instead of showing an empty canvas.`
+  };
+  if (reason === 'external-conflict' || reason === 'local-dirty') return {
+    kind: 'external-change',
+    icon: 'repo-pull',
+    title: 'External changes detected',
+    detail: reason === 'external-conflict'
+      ? 'The selected node changed outside Agent Flow while you had local edits.'
+      : `Workspace changes arrived from ${sourceReason}; your local graph edit is still preserved.`
+  };
+  return undefined;
+}
+
+function SyncStatusIndicator({ status }: { status: SyncStatusState }) {
+  return <span className={`autosave-status sync-status-${status.kind}`} title={status.detail}><Codicon name={status.icon} />{status.label}</span>;
+}
+
+function SyncTrustBanner({ banner, onDismiss, onOpenDiagnostics, onReloadGraph, onReviewChanges }: { banner: SyncTrustBannerState; onDismiss: () => void; onOpenDiagnostics: () => void; onReloadGraph: () => void; onReviewChanges: () => void }) {
+  return <section className={`sync-trust-banner sync-trust-${banner.kind}`} role="status" aria-live="polite">
+    <Codicon name={banner.icon} />
+    <div><strong>{banner.title}</strong><p>{banner.detail}</p></div>
+    <div className="sync-trust-actions">
+      <VSCodeButton className="compact" icon="diff" onClick={onReviewChanges}>Review changes</VSCodeButton>
+      <VSCodeButton className="compact" icon="refresh" onClick={onReloadGraph}>Reload graph</VSCodeButton>
+      <VSCodeButton className="compact" icon="list-selection" onClick={onOpenDiagnostics}>Open diagnostics</VSCodeButton>
+      <VSCodeIconButton type="button" icon="close" title="Dismiss sync notice" aria-label="Dismiss sync notice" onClick={onDismiss} />
+    </div>
+  </section>;
 }
 
 function KeyboardShortcutsPopover({ onClose }: { onClose: () => void }) {

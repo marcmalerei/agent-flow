@@ -18,6 +18,10 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .toolbar strong { font-size: 14px; }
 .toolbar > span { flex: 1; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toolbar .autosave-status { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: 12px; }
+.autosave-status.sync-status-synced { color: var(--vscode-charts-green, #89d185); }
+.autosave-status.sync-status-saving, .autosave-status.sync-status-reading-workspace { color: var(--vscode-charts-blue, var(--vscode-focusBorder)); }
+.autosave-status.sync-status-external-change, .autosave-status.sync-status-stale-view { color: var(--vscode-editorWarning-foreground, #cca700); }
+.autosave-status.sync-status-parse-issue { color: var(--vscode-errorForeground, #fca5a5); }
 .creation-feedback { display: inline-flex; align-items: center; gap: 5px; max-width: 250px; color: var(--vscode-charts-green); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-hud { display: grid; grid-template-columns: 14px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 6px; row-gap: 0; max-width: 270px; min-height: 34px; padding: 3px 8px; border-color: var(--agentflow-border); background: var(--vscode-editorWidget-background, transparent); text-align: left; }
 .activity-hud .codicon { grid-row: 1 / 3; align-self: center; }
@@ -59,6 +63,11 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .flow-recovery-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .flow-recovery-render-failed .flow-recovery-card { border-left-color: var(--vscode-editorWarning-foreground, #cca700); }
 .flow-recovery-render-failed .flow-recovery-card > .codicon { color: var(--vscode-editorWarning-foreground, #cca700); }
+.sync-trust-banner { position: absolute; left: 12px; right: 12px; top: 68px; z-index: 9; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 10px; box-sizing: border-box; max-width: min(880px, calc(100vw - 24px)); margin: 0 auto; padding: 9px 10px; border: 1px solid var(--agentflow-border); border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 97%, transparent); box-shadow: 0 8px 22px var(--vscode-widget-shadow, rgba(0,0,0,.32)); }
+.sync-trust-banner > .codicon { color: var(--vscode-editorWarning-foreground, #cca700); font-size: 17px; }
+.sync-trust-banner strong { display: block; color: var(--vscode-foreground); font-size: 12px; }
+.sync-trust-banner p { margin: 2px 0 0; color: var(--vscode-descriptionForeground); line-height: 1.35; }
+.sync-trust-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .graph-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .graph-edge-layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .graph-node-layer { position: absolute; left: 0; top: 0; }

@@ -16,6 +16,7 @@ export interface RemoteStateMergeResult<TState extends WebviewStateLike> {
   draft: AgentPipeline;
   applyDraft: boolean;
   conflict?: EditingConflict;
+  reason: 'applied' | 'external-conflict' | 'local-dirty' | 'stale-view';
 }
 
 export interface EditingConflict {
@@ -44,7 +45,8 @@ export function mergeRemoteStateUpdate<TState extends WebviewStateLike>(input: {
         nodeRuntime
       } as TState,
       draft: input.currentDraft,
-      applyDraft: false
+      applyDraft: false,
+      reason: 'stale-view'
     };
   }
 
@@ -55,7 +57,8 @@ export function mergeRemoteStateUpdate<TState extends WebviewStateLike>(input: {
         nodeRuntime: mergeNodeRuntimeState(input.currentState.nodeRuntime, input.incomingState.nodeRuntime, input.incomingState.pipeline)
       } as TState,
       draft: input.incomingState.pipeline,
-      applyDraft: true
+      applyDraft: true,
+      reason: 'applied'
     };
   }
 
@@ -72,7 +75,8 @@ export function mergeRemoteStateUpdate<TState extends WebviewStateLike>(input: {
     } as TState,
     draft: input.currentDraft,
     applyDraft: false,
-    conflict
+    conflict,
+    reason: conflict ? 'external-conflict' : 'local-dirty'
   };
 }
 

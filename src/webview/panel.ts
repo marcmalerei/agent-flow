@@ -112,7 +112,7 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
   };
   const postStateUpdated = async (reason: string, _refit = false): Promise<void> => {
     const version = markStateForPost(reason);
-    panel.webview.postMessage({ command: 'stateUpdated', state: await buildState(workspace, pipeline, activityStore, version), selectedId });
+    panel.webview.postMessage({ command: 'stateUpdated', reason, state: await buildState(workspace, pipeline, activityStore, version), selectedId });
   };
   const initialStateVersion = markStateForPost('opened');
   const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('agentflow.pipeline', 'Agent Flow Pipeline', vscode.ViewColumn.One, {
