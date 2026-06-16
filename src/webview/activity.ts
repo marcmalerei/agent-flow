@@ -37,8 +37,33 @@ export interface ActivityTrailItem {
   artifactPath?: string;
 }
 
-export const freshActivityTtlMs = 15_000;
-export const recentActivityTtlMs = 120_000;
+export const freshActivityTtlMs = 2_000;
+export const recentActivityTtlMs = 30_000;
+
+export interface ActivityPlaybackState {
+  mode: 'idle' | 'live' | 'recent' | 'paused' | 'replay';
+  activeEvents: AgentFlowActivityEvent[];
+  recentEvents: AgentFlowActivityEvent[];
+  replayEventId?: string;
+  coalescedNodes: Array<{ nodeId: string; count: number; latestEventId: string }>;
+}
+
+export function deriveActivityPlaybackState(events: AgentFlowActivityEvent[], options: { now?: number; paused?: boolean; replayEventId?: string } = {}): ActivityPlaybackState {
+  const now = options.now ?? Date.now();
+  const ordered = [...events].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+  const recentEvents = recentActivityEvents(ordered, now);
+  const liveEvents = options.paused ? [] : freshActivityEvents(ordered, now);
+  const replayEvent = options.replayEventId ? ordered.find((event) => event.id === options.replayEventId) : undefined;
+  const activeEvents = replayEvent ? [replayEvent] : liveEvents;
+  const mode: ActivityPlaybackState['mode'] = replayEvent ? 'replay' : options.paused ? 'paused' : activeEvents.length ? 'live' : recentEvents.length ? 'recent' : 'idle';
+  return {
+    mode,
+    activeEvents,
+    recentEvents,
+    replayEventId: replayEvent?.id,
+    coalescedNodes: coalescedActivityNodes(replayEvent ? [replayEvent] : recentEvents)
+  };
+}
 
 export function summarizeNodeActivity(events: AgentFlowActivityEvent[]): Map<string, NodeActivitySummary> {
   const summaries = new Map<string, NodeActivitySummary>();
@@ -64,6 +89,24 @@ export function recentActivityEvents(events: AgentFlowActivityEvent[], now = Dat
     const timestamp = Date.parse(event.timestamp);
     return !Number.isNaN(timestamp) && now - timestamp <= ttlMs;
   });
+}
+
+function coalescedActivityNodes(events: AgentFlowActivityEvent[]): Array<{ nodeId: string; count: number; latestEventId: string }> {
+  const byNode = new Map<string, { nodeId: string; count: number; latestEventId: string; latestTimestamp: number }>();
+  for (const event of events) {
+    if (!event.nodeId) continue;
+    const timestamp = Date.parse(event.timestamp);
+    const current = byNode.get(event.nodeId);
+    byNode.set(event.nodeId, {
+      nodeId: event.nodeId,
+      count: (current?.count ?? 0) + 1,
+      latestEventId: !current || timestamp >= current.latestTimestamp ? event.id : current.latestEventId,
+      latestTimestamp: !current || timestamp >= current.latestTimestamp ? timestamp : current.latestTimestamp
+    });
+  }
+  return [...byNode.values()]
+    .sort((a, b) => b.latestTimestamp - a.latestTimestamp)
+    .map(({ latestTimestamp: _latestTimestamp, ...item }) => item);
 }
 
 export function freshActivityEvents(events: AgentFlowActivityEvent[], now = Date.now(), ttlMs = freshActivityTtlMs): AgentFlowActivityEvent[] {

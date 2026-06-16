@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeEdgeIds, deriveActivityHudState, freshActivityEvents, recentActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, summarizeNodeActivity } from '../src/webview/activity';
+import { activeEdgeIds, deriveActivityHudState, deriveActivityPlaybackState, freshActivityEvents, recentActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, summarizeNodeActivity } from '../src/webview/activity';
 import { AgentFlowActivityEvent } from '../src/activity/types';
 import { AgentPipeline } from '../src/pipeline/types';
 
@@ -101,6 +101,39 @@ describe('activity visualization helpers', () => {
     const summaries = recentNodeActivitySummaries(events, Date.parse(now));
     expect(summaries.get('router')).toMatchObject({ summary: 'Fresh write', freshness: 'fresh' });
     expect(activeEdgeIds(pipeline, freshActivityEvents(events, Date.parse(now)))).toEqual(['ref:artifact-output:router:plan']);
+  });
+
+  it('uses short active pulses and subdued recent playback windows', () => {
+    const events: AgentFlowActivityEvent[] = [
+      { id: 'recent', timestamp: '2026-06-12T09:59:35.000Z', sessionId: 's', nodeId: 'router', phase: 'tool', summary: 'Recent' },
+      { id: 'active', timestamp: '2026-06-12T09:59:59.000Z', sessionId: 's', nodeId: 'worker', phase: 'artifact', summary: 'Active write', artifactPath: '.github/artifacts/plan.md' }
+    ];
+
+    expect(freshActivityEvents(events, Date.parse(now)).map((event) => event.id)).toEqual(['active']);
+    expect(recentActivityEvents(events, Date.parse(now)).map((event) => event.id)).toEqual(['recent', 'active']);
+  });
+
+  it('derives replay playback state without making stale events permanently live', () => {
+    const events: AgentFlowActivityEvent[] = [
+      { id: 'stale', timestamp: '2026-06-12T09:59:20.000Z', sessionId: 's', nodeId: 'router', targetNodeId: 'worker', phase: 'handoff', summary: 'Stale handoff' },
+      { id: 'recent', timestamp: '2026-06-12T09:59:45.000Z', sessionId: 's', nodeId: 'worker', phase: 'tool', summary: 'Recent tool', toolName: 'read_file' }
+    ];
+
+    expect(deriveActivityPlaybackState(events, { now: Date.parse(now) })).toMatchObject({
+      mode: 'recent',
+      activeEvents: [],
+      replayEventId: undefined
+    });
+    expect(deriveActivityPlaybackState(events, { now: Date.parse(now), replayEventId: 'stale' })).toMatchObject({
+      mode: 'replay',
+      activeEvents: [expect.objectContaining({ id: 'stale' })],
+      replayEventId: 'stale'
+    });
+    expect(deriveActivityPlaybackState(events, { now: Date.parse(now), paused: true })).toMatchObject({
+      mode: 'paused',
+      activeEvents: [],
+      recentEvents: [expect.objectContaining({ id: 'recent' })]
+    });
   });
 
   it('derives a compact live HUD state and recent traceable activity trail', () => {
