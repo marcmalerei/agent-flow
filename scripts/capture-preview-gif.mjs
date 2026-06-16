@@ -80,10 +80,10 @@ try {
 
   await caption(cdp, 'Create nodes from the Add Node palette; handoffs stay derived from agents');
   await evalPage(cdp, `clickAddNodeButton()`);
-  await waitForText(cdp, 'Execution');
+  await waitForSelectorText(cdp, '.node-palette-group h3', 'Execution');
   await capture(10);
   await evalPage(cdp, `clickAddNodeType('artifact')`);
-  await waitForText(cdp, 'Generated file');
+  await waitForSelectorText(cdp, '.node-creation-preview span', 'Generated file');
   await capture(8);
 
   await caption(cdp, 'New nodes preview their id and generated file path before writing');
@@ -195,6 +195,13 @@ async function waitForText(cdp, text) {
     const result = await evalPage(cdp, `document.body.innerText.includes(${JSON.stringify(text)})`);
     return Boolean(result);
   }, 10_000, text);
+}
+
+async function waitForSelectorText(cdp, selector, text) {
+  await waitForCondition(async () => {
+    const result = await evalPage(cdp, `Array.from(document.querySelectorAll(${JSON.stringify(selector)})).some((node) => node.textContent?.includes(${JSON.stringify(text)}))`);
+    return Boolean(result);
+  }, 10_000, `${selector} contains ${text}`);
 }
 
 async function waitForCondition(predicate, timeoutMs, label) {
