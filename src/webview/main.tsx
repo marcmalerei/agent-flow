@@ -23,7 +23,7 @@ import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges, type VisibleFlowEdge } from './graph';
-import { clamp, edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
+import { clamp, edgePathBetweenNodes, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphOverviewMetrics, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
 import { activeEdgeIds, deriveActivityHudState, freshActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, type ActivityHudState, type ActivityTrailItem } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
@@ -392,6 +392,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   const flowNodeSignature = useMemo(() => nodes.map((node) => `${node.id}@${Math.round(node.position.x)},${Math.round(node.position.y)}`).join('|'), [nodes]);
   const graphBounds = useMemo(() => measuredGraphBounds(nodes), [nodes]);
   const emptyState = useMemo(() => deriveFlowEmptyState(nodes.length, state.workspaceFiles), [nodes.length, state.workspaceFiles]);
+  const problemNodeIds = useMemo(() => [...new Set(state.findings.filter((finding) => finding.nodeId).map((finding) => finding.nodeId as string))], [state.findings]);
   const recoveryState = useMemo(() => deriveGraphRecoveryState({
     nodeCount: nodes.length,
     edgeCount: edges.length,
@@ -550,11 +551,35 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     setActiveTab('activity');
     setBottomOpen(true);
   };
+  const focusGraphNode = useCallback((nodeId: string | undefined) => {
+    if (!nodeId) return;
+    const node = nodes.find((item) => item.id === nodeId);
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!node || !rect || rect.width < 20 || rect.height < 20) return;
+    setSelectedId(nodeId);
+    setGraphViewport(focusViewportOnNode(node, viewportRef.current, rect), true);
+  }, [nodes, setSelectedId, setGraphViewport]);
+  const jumpToStart = useCallback(() => {
+    focusGraphNode(draft.nodes.find((node) => node.type === 'prompt')?.id ?? nodes[0]?.id);
+  }, [draft.nodes, focusGraphNode, nodes]);
+  const jumpToActive = useCallback(() => {
+    focusGraphNode(activeNodeIds[0]);
+  }, [activeNodeIds, focusGraphNode]);
+  const jumpToSelected = useCallback(() => {
+    focusGraphNode(selectedId);
+  }, [focusGraphNode, selectedId]);
+  const jumpToProblem = useCallback(() => {
+    focusGraphNode(problemNodeIds[0]);
+    if (problemNodeIds[0]) {
+      setActiveTab('validation');
+      setBottomOpen(true);
+    }
+  }, [focusGraphNode, problemNodeIds]);
 
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`} style={appStyle}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><ActivityHud state={activityHud} onOpen={() => openActivityForNode()} /><VSCodeButton className={`compact follow-live-toggle${followLiveActivity ? ' active' : ''}`} icon="target" aria-pressed={followLiveActivity} onClick={() => setFollowLiveActivity((enabled) => { if (!enabled) userViewportInteracted.current = false; return !enabled; })} title="Follow live activity without changing zoom">Follow live</VSCodeButton><VSCodeButton className="compact" icon="question" aria-keyshortcuts="?" onClick={() => setShortcutsOpen((open) => !open)} title="Keyboard shortcuts">Shortcuts</VSCodeButton><VSCodeButton className="compact" icon="discard" aria-keyshortcuts="Control+Z Meta+Z" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><VSCodeButton className="compact" icon="redo" aria-keyshortcuts="Control+Y Meta+Y" onClick={redoLast} disabled={!canRedo} title="Redo last graph change">Redo</VSCodeButton><VSCodeButton className="compact" icon="copy" aria-keyshortcuts="Control+C Meta+C" onClick={copySelection} disabled={!selectedId} title="Copy selected node">Copy</VSCodeButton><VSCodeButton className="compact" icon="files" aria-keyshortcuts="Control+V Meta+V" onClick={pasteSelection} disabled={!canPaste} title="Paste copied node">Paste</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => addNodeAtCenter(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.type, pendingNodeConnection.position); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.type, pendingNodeConnection.position, pendingNodeConnection.sourceId, kind); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</div>}</div></header>
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
-    <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
+    <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} onConnect={applyConnection} /></aside>}
@@ -595,7 +620,7 @@ function ActivityHud({ onOpen, state }: { onOpen: () => void; state: ActivityHud
   </button>;
 }
 
-function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activityTrail, viewport, graphBounds, emptyState, recoveryState, onActivitySelect, onViewportChange, onFit, onOpenDiagnostics, onNodeClick, onSelectNode, onOpenSelected, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; activeNodeIds: string[]; activityTrail: ActivityTrailItem[]; viewport: GraphViewport; graphBounds: GraphBounds; emptyState: FlowEmptyState; recoveryState: GraphRecoveryState; onActivitySelect: (item: ActivityTrailItem) => void; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onOpenDiagnostics: () => void; onNodeClick: (nodeId: string) => void; onSelectNode: (nodeId: string) => void; onOpenSelected: () => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
+function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, problemNodeIds, activityTrail, viewport, graphBounds, emptyState, recoveryState, onActivitySelect, onViewportChange, onFit, onJumpActive, onJumpProblem, onJumpSelected, onJumpStart, onOpenDiagnostics, onNodeClick, onSelectNode, onOpenSelected, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; activeNodeIds: string[]; problemNodeIds: string[]; activityTrail: ActivityTrailItem[]; viewport: GraphViewport; graphBounds: GraphBounds; emptyState: FlowEmptyState; recoveryState: GraphRecoveryState; onActivitySelect: (item: ActivityTrailItem) => void; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onJumpActive: () => void; onJumpProblem: () => void; onJumpSelected: () => void; onJumpStart: () => void; onOpenDiagnostics: () => void; onNodeClick: (nodeId: string) => void; onSelectNode: (nodeId: string) => void; onOpenSelected: () => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
   const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const activeNodeSet = useMemo(() => new Set(activeNodeIds), [activeNodeIds]);
@@ -612,7 +637,7 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activ
   const onPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement | null;
-    if (target?.closest('.agentflow-node, .native-controls')) return;
+    if (target?.closest('.agentflow-node, .native-controls, .graph-overview, .graph-navigation-landmarks')) return;
     onCanvasClick();
     panStart.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, viewport };
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -709,7 +734,36 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activ
       <button type="button" title="Zoom out" aria-label="Zoom out graph" onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom / 1.18, nativeGraphMinZoom, nativeGraphMaxZoom) }, true)}><Codicon name="dash" /></button>
       <button type="button" title="Fit graph" aria-label="Fit graph" aria-keyshortcuts="F" onClick={onFit}><Codicon name="screen-full" /></button>
     </div>
+    <div className="graph-navigation-landmarks" aria-label="Graph navigation landmarks">
+      <button type="button" title="Jump to start" aria-label="Jump to start" disabled={!nodes.length} onClick={onJumpStart}><Codicon name="debug-start" /></button>
+      <button type="button" title="Jump to active node" aria-label="Jump to active node" disabled={!activeNodeIds.length} onClick={onJumpActive}><Codicon name="pulse" /></button>
+      <button type="button" title="Jump to selected node" aria-label="Jump to selected node" disabled={!selectedId} onClick={onJumpSelected}><Codicon name="target" /></button>
+      <button type="button" title="Jump to first problem" aria-label="Jump to first problem" disabled={!problemNodeIds.length} onClick={onJumpProblem}><Codicon name="warning" /></button>
+      <button type="button" title="Fit graph" aria-label="Fit all graph nodes" onClick={onFit}><Codicon name="screen-full" /></button>
+    </div>
+    <GraphOverview canvasRef={canvasRef} graphBounds={graphBounds} nodes={nodes} selectedId={selectedId} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} viewport={viewport} onFit={onFit} />
   </main>;
+}
+
+function GraphOverview({ activeNodeIds, canvasRef, graphBounds, nodes, onFit, problemNodeIds, selectedId, viewport }: { activeNodeIds: string[]; canvasRef: React.RefObject<HTMLElement>; graphBounds: GraphBounds; nodes: RenderedNode[]; onFit: () => void; problemNodeIds: string[]; selectedId: string; viewport: GraphViewport }) {
+  const rect = canvasRef.current?.getBoundingClientRect();
+  const canvasSize = { width: Math.max(1, Math.round(rect?.width ?? 900)), height: Math.max(1, Math.round(rect?.height ?? 520)) };
+  const overview = graphOverviewMetrics(graphBounds, viewport, canvasSize, { width: 168, height: 96 });
+  const activeSet = new Set(activeNodeIds);
+  const problemSet = new Set(problemNodeIds);
+  return <button type="button" className="graph-overview" aria-label="Graph overview" title="Fit graph overview" onClick={onFit}>
+    <svg width={overview.width} height={overview.height} viewBox={`0 0 ${overview.width} ${overview.height}`} aria-hidden="true">
+      <rect className="overview-bounds" x="0" y="0" width={overview.width} height={overview.height} rx="2" />
+      {nodes.map((node) => {
+        const x = Math.max(1, node.position.x * overview.scale);
+        const y = Math.max(1, node.position.y * overview.scale);
+        const width = Math.max(3, node.width * overview.scale);
+        const height = Math.max(3, node.height * overview.scale);
+        return <rect key={node.id} className={`overview-node${node.id === selectedId ? ' selected' : ''}${activeSet.has(node.id) ? ' active' : ''}${problemSet.has(node.id) ? ' problem' : ''}`} x={x} y={y} width={width} height={height} rx="1" />;
+      })}
+      <rect className="overview-viewport" x={overview.viewport.x} y={overview.viewport.y} width={overview.viewport.width} height={overview.viewport.height} rx="2" />
+    </svg>
+  </button>;
 }
 
 function FlowRecoveryStateView({ onOpenDiagnostics, onRetry, state }: { onOpenDiagnostics: () => void; onRetry: () => void; state: GraphRecoveryState }) {

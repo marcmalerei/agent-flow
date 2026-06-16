@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a compact graph overview and navigation landmarks for start, active, selected, and fit targets.
 - Reduce graph arrowhead size so active edges keep direction clear without visually overpowering node ports.
 - Fix the browser webview example so the local UX preview renders activity sources with the runtime-compatible data shape.
 - Make the configuration inspector and diagnostics panel resizable, and wrap long debug-log diagnostics so details stay readable.
