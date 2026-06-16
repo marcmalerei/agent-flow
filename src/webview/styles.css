@@ -18,6 +18,12 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .canvas { position: relative; min-width: 0; min-height: var(--agentflow-canvas-min-height); width: 100%; height: 100%; overflow: hidden; background: var(--vscode-editor-background); }
 .native-graph { touch-action: none; background-image: radial-gradient(color-mix(in srgb, var(--vscode-editor-foreground) 42%, transparent) 1px, transparent 1px); background-size: 24px 24px; cursor: grab; }
 .native-graph:active { cursor: grabbing; }
+.flow-empty-state { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: 28px; pointer-events: none; }
+.flow-empty-card { box-sizing: border-box; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; width: min(560px, 100%); padding: 16px; border: 1px solid var(--vscode-editorWidget-border, var(--agentflow-border)); border-radius: var(--agentflow-control-radius); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--agentflow-panel)) 96%, transparent); color: var(--vscode-editorWidget-foreground, var(--vscode-foreground)); box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0,0,0,.32)); pointer-events: auto; }
+.flow-empty-card > .codicon { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editor-background); color: var(--vscode-focusBorder); font-size: 18px; }
+.flow-empty-card h2 { margin: 0 0 6px; color: var(--vscode-foreground); font-size: 16px; line-height: 1.3; }
+.flow-empty-card p { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.45; }
+.flow-empty-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .graph-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .graph-edge-layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .graph-node-layer { position: absolute; left: 0; top: 0; }

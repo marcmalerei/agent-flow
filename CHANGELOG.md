@@ -8,6 +8,7 @@
 - Fix the README preview GIF URL so Marketplace renders the asset from `main`.
 - Add an optional Claude Code hook activity adapter that imports sanitized JSON/JSONL tool events from a configured local folder.
 - Add grouped builder palette sections, graph copy/paste, redo support, editable gate branches, error-path edges, and loop edge highlighting.
+- Add recoverable first-run and empty-canvas states with actions for creating a default pipeline, scanning, setup checks, and docs.
 
 ## 0.0.1
 
