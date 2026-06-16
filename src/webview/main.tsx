@@ -40,6 +40,7 @@ import { deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, ty
 import { edgeGradientId, edgeMarkerColor, graphNodeDisplayLabel, nodeTypeColor, nodeTypeColors } from './nodeDisplay';
 import { deriveFlowEmptyState, type EmptyStateAction, type FlowEmptyState, type WorkspaceFileSummary } from './emptyState';
 import { spatialNeighborNodeId, type SpatialArrowKey } from './keyboardNavigation';
+import { deriveGraphRecoveryState, type GraphRecoveryState } from './graphRecoveryState';
 
 interface State {
   stateVersion: number;
@@ -332,6 +333,14 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   const flowNodeSignature = useMemo(() => nodes.map((node) => `${node.id}@${Math.round(node.position.x)},${Math.round(node.position.y)}`).join('|'), [nodes]);
   const graphBounds = useMemo(() => measuredGraphBounds(nodes), [nodes]);
   const emptyState = useMemo(() => deriveFlowEmptyState(nodes.length, state.workspaceFiles), [nodes.length, state.workspaceFiles]);
+  const recoveryState = useMemo(() => deriveGraphRecoveryState({
+    nodeCount: nodes.length,
+    edgeCount: edges.length,
+    renderedNodeCount: renderStatus?.renderedNodeCount,
+    visibleNodeCount: renderStatus?.visibleNodeCount,
+    emptyStateKind: emptyState.kind,
+    reason: renderStatus?.reason
+  }), [edges.length, emptyState.kind, nodes.length, renderStatus?.reason, renderStatus?.renderedNodeCount, renderStatus?.visibleNodeCount]);
   const setGraphViewport = useCallback((next: GraphViewport, userInteracted = false) => {
     if (userInteracted) userViewportInteracted.current = true;
     viewportRef.current = next;
@@ -480,7 +489,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><ActivityHud state={activityHud} onOpen={() => openActivityForNode()} /><VSCodeButton className="compact" icon="question" aria-keyshortcuts="?" onClick={() => setShortcutsOpen((open) => !open)} title="Keyboard shortcuts">Shortcuts</VSCodeButton><VSCodeButton className="compact" icon="discard" aria-keyshortcuts="Control+Z Meta+Z" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><VSCodeButton className="compact" icon="redo" aria-keyshortcuts="Control+Y Meta+Y" onClick={redoLast} disabled={!canRedo} title="Redo last graph change">Redo</VSCodeButton><VSCodeButton className="compact" icon="copy" aria-keyshortcuts="Control+C Meta+C" onClick={copySelection} disabled={!selectedId} title="Copy selected node">Copy</VSCodeButton><VSCodeButton className="compact" icon="files" aria-keyshortcuts="Control+V Meta+V" onClick={pasteSelection} disabled={!canPaste} title="Paste copied node">Paste</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => addNodeAtCenter(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.type, pendingNodeConnection.position); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.type, pendingNodeConnection.position, pendingNodeConnection.sourceId, kind); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</div>}</div></header>
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
-    <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
+    <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} onConnect={applyConnection} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
@@ -520,7 +529,7 @@ function ActivityHud({ onOpen, state }: { onOpen: () => void; state: ActivityHud
   </button>;
 }
 
-function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activityTrail, viewport, graphBounds, emptyState, onActivitySelect, onViewportChange, onFit, onNodeClick, onSelectNode, onOpenSelected, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; activeNodeIds: string[]; activityTrail: ActivityTrailItem[]; viewport: GraphViewport; graphBounds: GraphBounds; emptyState: FlowEmptyState; onActivitySelect: (item: ActivityTrailItem) => void; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onNodeClick: (nodeId: string) => void; onSelectNode: (nodeId: string) => void; onOpenSelected: () => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
+function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activityTrail, viewport, graphBounds, emptyState, recoveryState, onActivitySelect, onViewportChange, onFit, onOpenDiagnostics, onNodeClick, onSelectNode, onOpenSelected, onCanvasClick, onDeleteSelected }: { canvasRef: React.RefObject<HTMLElement>; nodes: RenderedNode[]; edges: RenderedEdge[]; selectedId: string; activeNodeIds: string[]; activityTrail: ActivityTrailItem[]; viewport: GraphViewport; graphBounds: GraphBounds; emptyState: FlowEmptyState; recoveryState: GraphRecoveryState; onActivitySelect: (item: ActivityTrailItem) => void; onViewportChange: (viewport: GraphViewport, userInteracted?: boolean) => void; onFit: () => void; onOpenDiagnostics: () => void; onNodeClick: (nodeId: string) => void; onSelectNode: (nodeId: string) => void; onOpenSelected: () => void; onCanvasClick: () => void; onDeleteSelected: () => void }) {
   const panStart = useRef<{ pointerId: number; x: number; y: number; viewport: GraphViewport } | undefined>(undefined);
   const nodesById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const activeNodeSet = useMemo(() => new Set(activeNodeIds), [activeNodeIds]);
@@ -622,6 +631,7 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activ
       </div>
     </div>
     {emptyState.kind !== 'none' && <FlowEmptyStateView state={emptyState} />}
+    {emptyState.kind === 'none' && recoveryState.kind !== 'none' && <FlowRecoveryStateView state={recoveryState} onRetry={onFit} onOpenDiagnostics={onOpenDiagnostics} />}
     {activityTrail.length > 0 && <div className="activity-trail" aria-label="Recent activity trail">
       {activityTrail.map((item) => <button type="button" key={item.id} title={item.summary} onClick={() => onActivitySelect(item)}>
         <Codicon name={item.label === 'handoff' ? 'arrow-swap' : item.artifactPath ? 'file' : 'pulse'} />
@@ -634,6 +644,29 @@ function NativeGraph({ canvasRef, nodes, edges, selectedId, activeNodeIds, activ
       <button type="button" title="Fit graph" aria-label="Fit graph" aria-keyshortcuts="F" onClick={onFit}><Codicon name="screen-full" /></button>
     </div>
   </main>;
+}
+
+function FlowRecoveryStateView({ onOpenDiagnostics, onRetry, state }: { onOpenDiagnostics: () => void; onRetry: () => void; state: GraphRecoveryState }) {
+  const copyDebugSnapshot = () => vscode?.postMessage({ command: 'copyDebugSnapshot' });
+  const runAction = (label: string) => {
+    if (label === 'Retry render' || label === 'Fit graph') onRetry();
+    if (label === 'Copy debug snapshot') copyDebugSnapshot();
+    if (label === 'Open diagnostics') onOpenDiagnostics();
+    if (label === 'Scan Workspace') vscode?.postMessage({ command: 'runCommand', name: 'agentflow.scanWorkspace' });
+  };
+  const icon = state.kind === 'render-failed' ? 'warning' : state.kind === 'no-visible-nodes' ? 'screen-full' : 'sync';
+  return <section className={`flow-recovery-state flow-recovery-${state.kind}`} aria-live="polite">
+    <div className="flow-recovery-card">
+      <Codicon name={icon} />
+      <div>
+        <strong>{state.title}</strong>
+        <p>{state.detail}</p>
+      </div>
+      {state.actionLabels.length > 0 && <div className="flow-recovery-actions">
+        {state.actionLabels.map((label) => <VSCodeButton key={label} className="compact" icon={label === 'Copy debug snapshot' ? 'copy' : label === 'Open diagnostics' ? 'list-selection' : 'refresh'} onClick={() => runAction(label)}>{label}</VSCodeButton>)}
+      </div>}
+    </div>
+  </section>;
 }
 
 function FlowEmptyStateView({ state }: { state: FlowEmptyState }) {

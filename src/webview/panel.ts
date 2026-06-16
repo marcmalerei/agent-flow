@@ -294,6 +294,10 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
           await vscode.commands.executeCommand(message.name);
         }
       }
+      if (message?.command === 'copyDebugSnapshot') {
+        log('copying webview requested debug snapshot');
+        await vscode.commands.executeCommand('agentflow.copyDebugSnapshot');
+      }
     } catch (error) {
       log(`error while handling ${String(message?.command ?? 'unknown')} message: ${(error as Error).stack ?? (error as Error).message}`);
       vscode.window.showErrorMessage(`Agent Flow failed to update files: ${(error as Error).message}`);

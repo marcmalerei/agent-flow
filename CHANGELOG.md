@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add graph startup and recovery states for render delays, invisible nodes, render failures, retry actions, and debug snapshot copying.
 - Simplify the default pipeline for first-run comprehension with lowercase names, canonical tool ids, explicit handoffs, fewer nodes, and readable compact layout.
 - Improve graph accessibility with keyboard node navigation, shortcut help, ARIA labels, reduced-motion handling, and high-contrast styles.
 - Simplify the generated default pipeline to a smaller first-run flow with lowercase nodes, valid handoffs, artifact references, and instruction references.
