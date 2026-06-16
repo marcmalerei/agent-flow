@@ -11,6 +11,7 @@
 - Add recoverable first-run and empty-canvas states with actions for creating a default pipeline, scanning, setup checks, and docs.
 - Improve graph readability with semantic compact layout lanes, quieter support edges, and selected-node focus highlighting.
 - Add a live activity HUD, recent activity trail, and reduced-motion handling for temporary graph activity visuals.
+- Split fresh activity animation from softer recent node status so stale activity no longer animates edges.
 
 ## 0.0.1
 
