@@ -256,6 +256,26 @@ describe('webview assets', () => {
     expect(css).toContain('.inspector-section-summary');
   });
 
+  test('lets users resize inspector and diagnostics without clipping long debug details', () => {
+    const source = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(source).toContain('useResizablePanel');
+    expect(source).toContain('inspectorResize');
+    expect(source).toContain('diagnosticsResize');
+    expect(source).toContain('Resize configuration panel');
+    expect(source).toContain('Resize diagnostics panel');
+    expect(source).toContain('--agentflow-inspector-width');
+    expect(source).toContain('--agentflow-bottom-height');
+    expect(css).toContain('grid-template-columns: minmax(0, 1fr) var(--agentflow-inspector-width)');
+    expect(css).toContain('grid-template-rows: 56px minmax(var(--agentflow-canvas-min-height), 1fr) var(--agentflow-bottom-height)');
+    expect(css).toContain('.panel-resize-handle');
+    expect(css).toContain('cursor: col-resize');
+    expect(css).toContain('cursor: row-resize');
+    expect(css).toContain('.diagnostic-chip {');
+    expect(css).toContain('overflow-wrap: anywhere;');
+  });
+
   test('turns validation diagnostics into actionable workflows', () => {
     const source = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');

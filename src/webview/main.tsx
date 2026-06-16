@@ -86,6 +86,16 @@ interface RenderedNode {
 }
 
 type RenderedEdge = VisibleFlowEdge & { className?: string };
+type ResizeAxis = 'x' | 'y';
+
+interface ResizablePanelOptions {
+  axis: ResizeAxis;
+  initialSize: number;
+  invert?: boolean;
+  max: number;
+  min: number;
+  step?: number;
+}
 
 interface PendingNodeConnection {
   type: PipelineNodeType;
@@ -93,6 +103,44 @@ interface PendingNodeConnection {
   sourceId: string;
   targetNode: PipelineNode;
   options: ReturnType<typeof buildConnectionIntentOptions>;
+}
+
+function useResizablePanel({ axis, initialSize, invert = false, max, min, step = 24 }: ResizablePanelOptions) {
+  const [size, setSize] = useState(initialSize);
+  const drag = useRef<{ pointerId: number; size: number; start: number } | undefined>(undefined);
+  const applyDelta = useCallback((delta: number) => {
+    setSize((current) => clamp(current + (invert ? -delta : delta), min, max));
+  }, [invert, max, min]);
+  const onPointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0) return;
+    drag.current = { pointerId: event.pointerId, size, start: axis === 'x' ? event.clientX : event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  }, [axis, size]);
+  const onPointerMove = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    const current = drag.current;
+    if (!current || current.pointerId !== event.pointerId) return;
+    const pointer = axis === 'x' ? event.clientX : event.clientY;
+    const delta = pointer - current.start;
+    setSize(clamp(current.size + (invert ? -delta : delta), min, max));
+    event.preventDefault();
+  }, [axis, invert, max, min]);
+  const endDrag = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (drag.current?.pointerId === event.pointerId) drag.current = undefined;
+  }, []);
+  const onKeyDown = useCallback((event: React.KeyboardEvent<HTMLElement>) => {
+    const negativeKey = axis === 'x' ? 'ArrowLeft' : 'ArrowUp';
+    const positiveKey = axis === 'x' ? 'ArrowRight' : 'ArrowDown';
+    if (event.key !== negativeKey && event.key !== positiveKey) return;
+    event.preventDefault();
+    applyDelta(event.key === negativeKey ? -step : step);
+  }, [applyDelta, axis, step]);
+  return {
+    max,
+    min,
+    resizeHandleProps: { onKeyDown, onPointerCancel: endDrag, onPointerDown, onPointerMove, onPointerUp: endDrag },
+    size
+  };
 }
 
 function deriveState(pipeline: AgentPipeline, previous: State): State {
@@ -330,11 +378,17 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
   const [followLiveActivity, setFollowLiveActivity] = useState(false);
   const [pendingNodeConnection, setPendingNodeConnection] = useState<PendingNodeConnection | undefined>(undefined);
   const [viewport, setViewport] = useState<GraphViewport>({ x: 0, y: 0, zoom: 1 });
+  const inspectorResize = useResizablePanel({ axis: 'x', initialSize: 390, invert: true, min: 300, max: 720 });
+  const diagnosticsResize = useResizablePanel({ axis: 'y', initialSize: 250, invert: true, min: 180, max: 560 });
   const viewportRef = useRef(viewport);
   const userViewportInteracted = useRef(false);
   const lastFitSignature = useRef<string | undefined>(undefined);
   const lastFocusedActivityNode = useRef<string | undefined>(undefined);
   const [renderStatus, setRenderStatus] = useState<FlowRenderStatus | undefined>(undefined);
+  const appStyle = {
+    '--agentflow-inspector-width': `${inspectorResize.size}px`,
+    '--agentflow-bottom-height': `${diagnosticsResize.size}px`
+  } as React.CSSProperties;
   const flowNodeSignature = useMemo(() => nodes.map((node) => `${node.id}@${Math.round(node.position.x)},${Math.round(node.position.y)}`).join('|'), [nodes]);
   const graphBounds = useMemo(() => measuredGraphBounds(nodes), [nodes]);
   const emptyState = useMemo(() => deriveFlowEmptyState(nodes.length, state.workspaceFiles), [nodes.length, state.workspaceFiles]);
@@ -497,13 +551,14 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     setBottomOpen(true);
   };
 
-  return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`}>
+  return <div className={`app ${bottomOpen ? 'bottom-open' : 'bottom-collapsed'} ${inspectorOpen ? 'inspector-open' : 'inspector-closed'}`} style={appStyle}>
     <header className="toolbar"><strong>Agent Flow</strong><span>{draft.name}</span><ActivityHud state={activityHud} onOpen={() => openActivityForNode()} /><VSCodeButton className={`compact follow-live-toggle${followLiveActivity ? ' active' : ''}`} icon="target" aria-pressed={followLiveActivity} onClick={() => setFollowLiveActivity((enabled) => { if (!enabled) userViewportInteracted.current = false; return !enabled; })} title="Follow live activity without changing zoom">Follow live</VSCodeButton><VSCodeButton className="compact" icon="question" aria-keyshortcuts="?" onClick={() => setShortcutsOpen((open) => !open)} title="Keyboard shortcuts">Shortcuts</VSCodeButton><VSCodeButton className="compact" icon="discard" aria-keyshortcuts="Control+Z Meta+Z" onClick={undoLast} disabled={!canUndo} title="Undo last graph change">Undo</VSCodeButton><VSCodeButton className="compact" icon="redo" aria-keyshortcuts="Control+Y Meta+Y" onClick={redoLast} disabled={!canRedo} title="Redo last graph change">Redo</VSCodeButton><VSCodeButton className="compact" icon="copy" aria-keyshortcuts="Control+C Meta+C" onClick={copySelection} disabled={!selectedId} title="Copy selected node">Copy</VSCodeButton><VSCodeButton className="compact" icon="files" aria-keyshortcuts="Control+V Meta+V" onClick={pasteSelection} disabled={!canPaste} title="Paste copied node">Paste</VSCodeButton><span className="autosave-status"><Codicon name="sync" /> Auto-save</span><div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => addNodeAtCenter(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.type, pendingNodeConnection.position); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.type, pendingNodeConnection.position, pendingNodeConnection.sourceId, kind); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</div>}</div></header>
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
     <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
+    {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
     {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} onConnect={applyConnection} /></aside>}
-    <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
+    <section className="bottom">{bottomOpen && <div className="panel-resize-handle diagnostics-resize-handle" role="separator" aria-label="Resize diagnostics panel" aria-orientation="horizontal" aria-valuemin={diagnosticsResize.min} aria-valuemax={diagnosticsResize.max} aria-valuenow={diagnosticsResize.size} tabIndex={0} {...diagnosticsResize.resizeHandleProps} />}<VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
 }
 
