@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeEdgeIds, deriveActivityHudState, recentActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, summarizeNodeActivity } from '../src/webview/activity';
+import { activeEdgeIds, deriveActivityHudState, freshActivityEvents, recentActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, summarizeNodeActivity } from '../src/webview/activity';
 import { AgentFlowActivityEvent } from '../src/activity/types';
 import { AgentPipeline } from '../src/pipeline/types';
 
@@ -87,6 +87,20 @@ describe('activity visualization helpers', () => {
 
     expect(summaries.has('router')).toBe(false);
     expect(summaries.get('worker')).toMatchObject({ summary: 'Run fresh file', toolName: 'run_file' });
+  });
+
+  it('separates fresh animation events from soft recent activity', () => {
+    const events: AgentFlowActivityEvent[] = [
+      { id: 'recent', timestamp: '2026-06-12T09:59:30.000Z', sessionId: 's', nodeId: 'router', targetNodeId: 'worker', phase: 'handoff', summary: 'Recent handoff' },
+      { id: 'fresh', timestamp: '2026-06-12T09:59:58.000Z', sessionId: 's', nodeId: 'router', phase: 'artifact', summary: 'Fresh write', artifactPath: '.github/artifacts/plan.md' }
+    ];
+
+    expect(recentActivityEvents(events, Date.parse(now)).map((event) => event.id)).toEqual(['recent', 'fresh']);
+    expect(freshActivityEvents(events, Date.parse(now)).map((event) => event.id)).toEqual(['fresh']);
+
+    const summaries = recentNodeActivitySummaries(events, Date.parse(now));
+    expect(summaries.get('router')).toMatchObject({ summary: 'Fresh write', freshness: 'fresh' });
+    expect(activeEdgeIds(pipeline, freshActivityEvents(events, Date.parse(now)))).toEqual(['ref:artifact-output:router:plan']);
   });
 
   it('derives a compact live HUD state and recent traceable activity trail', () => {
