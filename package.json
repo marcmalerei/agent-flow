@@ -38,7 +38,9 @@
     "onCommand:agentflow.generateFiles",
     "onCommand:agentflow.validatePipeline",
     "onCommand:agentflow.createDefaultPipeline",
+    "onCommand:agentflow.startGuidedDemo",
     "onCommand:agentflow.playDemoActivity",
+    "onCommand:agentflow.resetGuidedDemo",
     "onCommand:agentflow.exportReport",
     "onCommand:agentflow.exportActivityCsv",
     "onCommand:agentflow.checkSetup",
@@ -166,8 +168,18 @@
         "category": "Agent Flow"
       },
       {
+        "command": "agentflow.startGuidedDemo",
+        "title": "Agent Flow: Start Guided Demo",
+        "category": "Agent Flow"
+      },
+      {
         "command": "agentflow.playDemoActivity",
         "title": "Agent Flow: Play Demo Activity",
+        "category": "Agent Flow"
+      },
+      {
+        "command": "agentflow.resetGuidedDemo",
+        "title": "Agent Flow: Reset Guided Demo",
         "category": "Agent Flow"
       },
       {

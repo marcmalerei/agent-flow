@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add Start Guided Demo and Reset Guided Demo commands for non-destructive in-product tutorial playback.
 - Add a Fit meaningful flow graph action that centers primary execution nodes before secondary support nodes.
 - Add first-run sample language and a dismissible default-pipeline guide for learning core graph actions.
 - Surface graph sync state with toolbar status, stale-view recovery, and external-change actions.

@@ -493,11 +493,12 @@ async function listExistingGithubPaths(workspace: string): Promise<string[]> {
   return [...new Set(paths)];
 }
 
-function isAllowedWebviewCommand(command: unknown): command is 'agentflow.createDefaultPipeline' | 'agentflow.scanWorkspace' | 'agentflow.checkSetup' | 'agentflow.playDemoActivity' | 'agentflow.openDocs' {
+function isAllowedWebviewCommand(command: unknown): command is 'agentflow.createDefaultPipeline' | 'agentflow.scanWorkspace' | 'agentflow.checkSetup' | 'agentflow.playDemoActivity' | 'agentflow.startGuidedDemo' | 'agentflow.openDocs' {
   return command === 'agentflow.createDefaultPipeline'
     || command === 'agentflow.scanWorkspace'
     || command === 'agentflow.checkSetup'
     || command === 'agentflow.playDemoActivity'
+    || command === 'agentflow.startGuidedDemo'
     || command === 'agentflow.openDocs';
 }
 
