@@ -50,14 +50,21 @@ describe('webview assets', () => {
 
     expect(webviewSource).toContain('InspectorSection');
     expect(webviewSource).toContain('InspectorQuickActions');
+    expect(webviewSource).toContain('InspectorHeader');
+    expect(webviewSource).toContain('deriveInspectorSyncStatus');
     expect(webviewSource).toContain('ToolSelectionSummary');
     expect(webviewSource).toContain('inspector-sticky-header');
+    expect(webviewSource).toContain('inspector-sync-status');
     expect(webviewSource).toContain('Identity');
     expect(webviewSource).toContain('Run behavior');
     expect(webviewSource).toContain('Context');
     expect(webviewSource).toContain('Artifacts');
+    expect(webviewSource).toContain('Content');
+    expect(webviewSource).toContain('Health');
     expect(webviewSource).toContain("command: 'openWorkspaceFile'");
     expect(css).toContain('.inspector-sticky-header');
+    expect(css).toContain('.inspector-sync-status');
+    expect(css).toContain('.inspector-sync-external-change');
     expect(css).toContain('.inspector-quick-actions');
     expect(css).toContain('.tool-selection-summary');
   });
@@ -240,8 +247,11 @@ describe('webview assets', () => {
     expect(source).toContain('Routing');
     expect(source).toContain('Context');
     expect(source).toContain('Artifacts');
+    expect(source).toContain('Content');
+    expect(source).toContain('Health');
     expect(source).toContain('Open file');
     expect(source).toContain('selectedToolSummary');
+    expect(source).toContain('runtime={selected ? state.nodeRuntime?.[selected.id] : undefined}');
     expect(css).toContain('.config-header.sticky');
     expect(css).toContain('.inspector-section-summary');
   });

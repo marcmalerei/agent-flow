@@ -36,13 +36,14 @@ import { optionalTextValue, referenceInstructionTextValue } from './formState';
 import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } from './components';
 import { applyNodePatch } from './nodeMarkdownSync';
 import { mergeRemoteStateUpdate } from './stateUpdates';
-import { deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
+import { deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, type NodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
 import { edgeGradientId, edgeMarkerColor, graphNodeDisplayLabel, graphNodeFullLabel, nodeTypeColor, nodeTypeColors } from './nodeDisplay';
 import { deriveFlowEmptyState, type EmptyStateAction, type FlowEmptyState, type WorkspaceFileSummary } from './emptyState';
 import { spatialNeighborNodeId, type SpatialArrowKey } from './keyboardNavigation';
 import { deriveGraphRecoveryState, type GraphRecoveryState } from './graphRecoveryState';
 import { activeEdgeClass, edgeTooltip } from './edgeClasses';
 import { shouldFocusLiveActivity } from './activityFocus';
+import { deriveInspectorSyncStatus, type InspectorSyncStatus } from './inspectorStatus';
 
 interface State {
   stateVersion: number;
@@ -501,7 +502,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
     <NativeGraph canvasRef={canvasRef} nodes={nodes} edges={edges} selectedId={selectedId} activeNodeIds={activeNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
-    {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} onConnect={applyConnection} /></aside>}
+    {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} onConnect={applyConnection} /></aside>}
     <section className="bottom"><VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
 }
@@ -909,7 +910,7 @@ function nodeFileSummary(node: PipelineNode): string {
   return node.id;
 }
 
-function Inspector({ node, pipeline, toolOptions, findings, onChange, onConnect }: { node?: PipelineNode; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[]; findings: ValidationFinding[]; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void; onConnect: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void }) {
+function Inspector({ node, pipeline, toolOptions, runtime, findings, onChange, onConnect }: { node?: PipelineNode; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[]; runtime?: NodeRuntimeState; findings: ValidationFinding[]; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void; onConnect: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void }) {
   if (!node) return <p>Select a node.</p>;
   const agents = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'agent' }> => item.type === 'agent' && item.id !== node.id);
   const branchTargets = pipeline.nodes.filter((item) => item.id !== node.id && (item.type === 'agent' || item.type === 'prompt' || item.type === 'gate' || item.type === 'handoff'));
@@ -943,9 +944,10 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange, onConnect 
   const toolGroups = (node.type === 'agent' || node.type === 'prompt') ? partitionConfiguredTools({ availableTools: flattenToolOptionValues(toolOptions), configuredTools: node.tools ?? [] }) : { available: [], unavailable: [] };
   const selectedToolSummaryText = selectedToolSummary(node.type === 'agent' || node.type === 'prompt' ? node.tools ?? [] : [], toolOptions, toolGroups.unavailable);
   const filePath = nodeFileSummary(node);
+  const syncStatus = deriveInspectorSyncStatus({ runtime, findingSeverities: findings.map((finding) => finding.severity) });
   const firstArtifact = artifacts[0];
   const firstInstruction = instructions[0];
-  return <div className="config"><div className="config-header sticky inspector-sticky-header"><div><h2>{node.label}</h2><span className="config-subtitle" title={filePath}>{filePath}</span></div><div className="config-header-actions"><VSCodeButton className="compact" icon="go-to-file" onClick={() => vscode?.postMessage({ command: 'openWorkspaceFile', path: filePath })}>Open file</VSCodeButton><span className="pill node-type-pill" style={{ background: typeColors[node.type] }}>{node.type}</span></div></div>
+  return <div className="config"><InspectorHeader node={node} filePath={filePath} syncStatus={syncStatus} />
     <InspectorQuickActions node={node} hasArtifact={Boolean(firstArtifact)} hasInstruction={Boolean(firstInstruction)} hasAgent={agents.length > 0} onAddInput={() => firstArtifact && toggleArtifact(node.type === 'agent' ? 'inputs' : 'requiredArtifacts', firstArtifact.path, true, 'read')} onAddOutput={() => firstArtifact && node.type === 'agent' && toggleArtifact('outputs', firstArtifact.path, true, 'write')} onAddInstruction={() => firstInstruction && toggleInstructionRef(instructionReferenceTarget(firstInstruction), true)} onAddHandoff={() => setHandoffs([...(node.type === 'agent' ? node.handoffs ?? [] : []), { label: 'New handoff', agent: agents[0]?.id ?? '', send: false }])} />
     <InspectorSection id="identity" title="Identity" summary={filePath} defaultOpen>
       <VSCodeInput label="Label" value={node.label} onChange={(event: any) => onChange(node.id, { label: event.target.value } as Partial<PipelineNode>)} />
@@ -968,8 +970,19 @@ function Inspector({ node, pipeline, toolOptions, findings, onChange, onConnect 
     {node.type === 'hook' && <InspectorSection id="run" title="Run behavior" summary={node.trigger || 'manual trigger'} defaultOpen><label>Trigger<input value={node.trigger ?? ''} onChange={(event: any) => setOptionalString('trigger', event.target.value)} /></label><label>Action<textarea value={node.action ?? ''} onChange={(event: any) => setOptionalString('action', event.target.value)} /></label></InspectorSection>}
     {node.type === 'handoff' && <InspectorSection id="routing" title="Routing" summary={node.targetAgent || 'no target'} defaultOpen><label>Target agent<input value={node.targetAgent ?? ''} onChange={(event: any) => setOptionalString('targetAgent', event.target.value)} /></label><label>Prompt<textarea value={node.prompt ?? ''} onChange={(event: any) => setOptionalString('prompt', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label></InspectorSection>}
     {node.type === 'mcp-server' && <InspectorSection id="run" title="Run behavior" summary={node.command || 'no command'} defaultOpen><label>Command<input value={node.command ?? ''} onChange={(event: any) => setOptionalString('command', event.target.value)} /></label><label>Args<input value={Array.isArray(node.args) ? node.args.join(' ') : node.args ?? ''} onChange={(event: any) => setOptionalString('args', event.target.value)} /></label></InspectorSection>}
-    <InspectorSection id="markdown" title="Markdown body" summary={node.markdown ? 'custom body' : 'empty'}><TiptapMarkdownEditor value={node.markdown ?? ''} references={references} onChange={(value) => onChange(node.id, { markdown: value } as Partial<PipelineNode>)} /></InspectorSection>
-    <InspectorSection id="findings" title="Findings" summary={findings.length ? `${findings.length} finding${findings.length === 1 ? '' : 's'}` : 'no findings'} defaultOpen={findings.length > 0}>{findings.length ? findings.map((finding) => <p key={`${finding.ruleId}-${finding.message}`} className={`inspector-finding ${finding.severity}`}><strong>{finding.severity}</strong>{finding.message}<small>{finding.ruleId}</small></p>) : <p>No node findings.</p>}</InspectorSection>
+    <InspectorSection id="markdown" title="Content" summary={node.markdown ? 'custom body' : 'empty'}><TiptapMarkdownEditor value={node.markdown ?? ''} references={references} onChange={(value) => onChange(node.id, { markdown: value } as Partial<PipelineNode>)} /></InspectorSection>
+    <InspectorSection id="findings" title="Health" summary={findings.length ? `${findings.length} finding${findings.length === 1 ? '' : 's'}` : 'no findings'} defaultOpen={findings.length > 0}>{findings.length ? findings.map((finding) => <p key={`${finding.ruleId}-${finding.message}`} className={`inspector-finding ${finding.severity}`}><strong>{finding.severity}</strong>{finding.message}<small>{finding.ruleId}</small></p>) : <p>No node findings.</p>}</InspectorSection>
+  </div>;
+}
+
+function InspectorHeader({ filePath, node, syncStatus }: { filePath: string; node: PipelineNode; syncStatus: InspectorSyncStatus }) {
+  return <div className={`config-header sticky inspector-sticky-header inspector-sync-${syncStatus.kind}`}>
+    <div className="inspector-node-context">
+      <div className="inspector-title-row"><h2>{node.label}</h2><span className="pill node-type-pill" style={{ background: typeColors[node.type] }}>{node.type}</span></div>
+      <span className="config-subtitle" title={filePath}>{filePath}</span>
+      <span className="inspector-sync-status" title={syncStatus.detail}><Codicon name={syncStatus.icon} />{syncStatus.label}<small>{syncStatus.detail}</small></span>
+    </div>
+    <div className="config-header-actions"><VSCodeButton className="compact" icon="go-to-file" onClick={() => vscode?.postMessage({ command: 'openWorkspaceFile', path: filePath })}>Open file</VSCodeButton></div>
   </div>;
 }
 
