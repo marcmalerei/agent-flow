@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Make the configuration inspector and diagnostics panel resizable, and wrap long debug-log diagnostics so details stay readable.
 - Add selected-node inspector sync context with file path, node type, runtime state, and task-oriented health/content labels.
 - Add an opt-in Follow live activity toggle that centers the newest active node without changing zoom and respects manual viewport/inspector use.
 - Anchor graph edges at visible node ports and hide low-priority support labels until hover, focus, or live activity.
