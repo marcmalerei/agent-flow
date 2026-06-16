@@ -27,6 +27,12 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .activity-hud-recent { border-color: var(--vscode-charts-blue); color: var(--vscode-charts-blue); }
 .activity-hud-degraded { border-color: var(--vscode-editorWarning-foreground, #cca700); color: var(--vscode-editorWarning-foreground, #cca700); }
 .follow-live-toggle.active { border-color: var(--vscode-focusBorder); background: color-mix(in srgb, var(--vscode-button-secondaryBackground, transparent) 72%, var(--vscode-focusBorder)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
+.graph-mode-switch { display: inline-flex; flex: 0 0 auto; align-items: center; padding: 2px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, transparent); }
+.graph-mode-switch button { min-height: 26px; padding: 2px 7px; border: 0; border-radius: var(--agentflow-control-radius); background: transparent; color: var(--vscode-descriptionForeground); font-size: 12px; }
+.graph-mode-switch button.active { background: var(--vscode-button-secondaryBackground, var(--vscode-list-activeSelectionBackground)); color: var(--vscode-button-secondaryForeground, var(--vscode-list-activeSelectionForeground)); box-shadow: inset 0 0 0 1px var(--vscode-focusBorder); }
+.graph-mode-switch button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app.graph-mode-run .activity-hud, .app.graph-mode-run .activity-trail { border-color: var(--vscode-charts-green); box-shadow: inset 2px 0 0 var(--vscode-charts-green); }
+.app.graph-mode-diagnose .bottom { border-top-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 58%, var(--agentflow-border)); }
 .canvas { position: relative; min-width: 0; min-height: var(--agentflow-canvas-min-height); width: 100%; height: 100%; overflow: hidden; background: var(--vscode-editor-background); }
 .native-graph { touch-action: none; background-image: radial-gradient(color-mix(in srgb, var(--vscode-editor-foreground) 42%, transparent) 1px, transparent 1px); background-size: 24px 24px; cursor: grab; }
 .native-graph:active { cursor: grabbing; }
@@ -51,6 +57,9 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .agentflow-node:hover { background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-list-hoverBackground, transparent)); }
 .agentflow-node.selected { box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
 .agentflow-node.active { z-index: 3; }
+.agentflow-node.problem-node .flow-node { box-shadow: inset 0 0 0 1px var(--vscode-editorWarning-foreground, #cca700), 0 0 0 3px color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 16%, transparent); }
+.agentflow-node.diagnose-muted { opacity: .24; }
+.agentflow-node.diagnose-muted:hover { opacity: .62; }
 .agentflow-node.focus-related { z-index: 2; }
 .agentflow-node.focus-muted { opacity: .34; }
 .agentflow-node.focus-muted:hover { opacity: .72; }
