@@ -385,6 +385,20 @@ describe('webview assets', () => {
     expect(css).toContain('.inspector-section-summary');
   });
 
+  test('shows which markdown or frontmatter field each inspector task edits', () => {
+    const source = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(source).toContain('fieldHint');
+    expect(source).toContain('Writes:');
+    expect(source).toContain('frontmatter name, file path, description');
+    expect(source).toContain('frontmatter tools, model, target');
+    expect(source).toContain('Artifact work');
+    expect(source).toContain('Referenced instructions');
+    expect(source).toContain('Markdown body');
+    expect(css).toContain('.inspector-section-field');
+  });
+
   test('lets users resize inspector and diagnostics without clipping long debug details', () => {
     const source = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');

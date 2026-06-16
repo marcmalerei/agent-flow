@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Show inspector section field hints so task sections state which Markdown or frontmatter fields they edit.
 - Enable deterministic diagnostic quick fixes for missing output artifacts from the validation panel.
 - Document graph visual grammar and centralize edge label visibility classes through a shared helper.
 - Add a reusable default-pipeline demo script and documentation for first-run smoke checks and Marketplace capture.
