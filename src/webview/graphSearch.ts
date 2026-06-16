@@ -1,10 +1,44 @@
-import type { AgentPipeline, PipelineNode } from '../pipeline/types';
+import type { AgentPipeline, PipelineNode, PipelineNodeType } from '../pipeline/types';
 
 export interface GraphSearchResult {
   label: string;
   match: string;
   nodeId: string;
 }
+
+export interface GraphTypeFilterOption {
+  count: number;
+  label: string;
+  type: PipelineNodeType;
+}
+
+export interface GraphRelationshipNode {
+  id: string;
+  label: string;
+  type: PipelineNodeType;
+}
+
+export interface ArtifactRelationshipSummary {
+  artifactId: string;
+  consumers: GraphRelationshipNode[];
+  path: string;
+  producers: GraphRelationshipNode[];
+  referencedBy: GraphRelationshipNode[];
+}
+
+const graphTypeOrder: PipelineNodeType[] = ['agent', 'prompt', 'instruction', 'role', 'skill', 'artifact', 'handoff', 'gate', 'hook', 'mcp-server'];
+const graphTypeLabels: Record<PipelineNodeType, string> = {
+  agent: 'Agents',
+  prompt: 'Prompts',
+  instruction: 'Instructions',
+  role: 'Roles',
+  skill: 'Skills',
+  artifact: 'Artifacts',
+  handoff: 'Handoffs',
+  gate: 'Gates',
+  hook: 'Hooks',
+  'mcp-server': 'MCP servers'
+};
 
 export function graphSearchResults(pipeline: AgentPipeline, query: string): GraphSearchResult[] {
   const normalizedQuery = normalizeSearchText(query);
@@ -24,6 +58,43 @@ export function graphNeighborhoodNodeIds(pipeline: AgentPipeline, selectedId: st
     if (edge.to === selectedId) related.add(edge.from);
   }
   return pipeline.nodes.filter((node) => related.has(node.id)).map((node) => node.id);
+}
+
+export function graphTypeFilterOptions(pipeline: AgentPipeline): GraphTypeFilterOption[] {
+  const counts = pipeline.nodes.reduce((map, node) => map.set(node.type, (map.get(node.type) ?? 0) + 1), new Map<PipelineNodeType, number>());
+  return graphTypeOrder
+    .filter((type) => counts.has(type))
+    .map((type) => ({ type, label: graphTypeLabels[type], count: counts.get(type) ?? 0 }));
+}
+
+export function visibleGraphNodeIdsForTypes(pipeline: AgentPipeline, selectedTypes: readonly PipelineNodeType[]): string[] {
+  const selected = new Set(selectedTypes);
+  return pipeline.nodes.filter((node) => selected.has(node.type)).map((node) => node.id);
+}
+
+export function artifactRelationshipSummary(pipeline: AgentPipeline, artifactId: string): ArtifactRelationshipSummary | undefined {
+  const artifact = pipeline.nodes.find((node) => node.id === artifactId);
+  if (!artifact || artifact.type !== 'artifact') return undefined;
+  const producerIds = new Set<string>(artifact.producers ?? []);
+  const consumerIds = new Set<string>(artifact.consumers ?? []);
+  const referencedIds = new Set<string>();
+  for (const edge of pipeline.edges) {
+    if (edge.to === artifact.id && edge.kind === 'artifact') producerIds.add(edge.from);
+    if (edge.from === artifact.id && edge.kind === 'artifact') consumerIds.add(edge.to);
+  }
+  for (const node of pipeline.nodes) {
+    if (node.id === artifact.id) continue;
+    if (nodeUsesArtifactAsProducer(node, artifact.path)) producerIds.add(node.id);
+    if (nodeUsesArtifactAsConsumer(node, artifact.path)) consumerIds.add(node.id);
+    if (nodeReferencesArtifact(node, artifact.path) && !producerIds.has(node.id) && !consumerIds.has(node.id)) referencedIds.add(node.id);
+  }
+  return {
+    artifactId: artifact.id,
+    path: artifact.path,
+    producers: relationshipNodes(pipeline, producerIds),
+    consumers: relationshipNodes(pipeline, consumerIds),
+    referencedBy: relationshipNodes(pipeline, referencedIds)
+  };
 }
 
 function graphNodeSearchFields(node: PipelineNode): string[] {
@@ -47,6 +118,32 @@ function artifactUsagePaths(usages: Array<{ path: string }> | undefined): string
 
 function arrayFields(values: readonly string[] | undefined): string[] {
   return values ? [...values] : [];
+}
+
+function relationshipNodes(pipeline: AgentPipeline, ids: Set<string>): GraphRelationshipNode[] {
+  return pipeline.nodes
+    .filter((node) => ids.has(node.id))
+    .map((node) => ({ id: node.id, label: node.label, type: node.type }));
+}
+
+function nodeUsesArtifactAsProducer(node: PipelineNode, path: string): boolean {
+  if (node.type === 'agent' && node.outputs?.includes(path)) return true;
+  return nodeArtifactUsages(node).some((usage) => usage.path === path && ['write', 'append'].includes(usage.action));
+}
+
+function nodeUsesArtifactAsConsumer(node: PipelineNode, path: string): boolean {
+  if (node.type === 'agent' && node.inputs?.includes(path)) return true;
+  if ((node.type === 'prompt' || node.type === 'instruction' || node.type === 'skill') && node.requiredArtifacts?.includes(path)) return true;
+  return nodeArtifactUsages(node).some((usage) => usage.path === path && usage.action === 'read');
+}
+
+function nodeReferencesArtifact(node: PipelineNode, path: string): boolean {
+  return nodeArtifactUsages(node).some((usage) => usage.path === path);
+}
+
+function nodeArtifactUsages(node: PipelineNode): Array<{ path: string; action: string }> {
+  if ('artifactUsages' in node && Array.isArray(node.artifactUsages)) return node.artifactUsages;
+  return [];
 }
 
 function normalizeSearchText(value: string): string {

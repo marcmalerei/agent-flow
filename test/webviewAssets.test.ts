@@ -188,6 +188,25 @@ describe('webview assets', () => {
     expect(css).toContain('.graph-search-results');
   });
 
+  test('adds graph type filters, focus clearing, and artifact relationship summaries', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('GraphTypeFilters');
+    expect(webviewSource).toContain('graphTypeFilterOptions');
+    expect(webviewSource).toContain('visibleGraphNodeIdsForTypes');
+    expect(webviewSource).toContain('ArtifactRelationshipSummary');
+    expect(webviewSource).toContain('artifactRelationshipSummary');
+    expect(webviewSource).toContain('Clear graph focus');
+    expect(webviewSource).toContain('No graph nodes match the active type filters.');
+    expect(webviewSource).toContain('aria-label="Graph type filters"');
+    expect(webviewSource).toContain("event.key === 'Escape'");
+    expect(css).toContain('.graph-type-filters');
+    expect(css).toContain('.graph-focus-chip');
+    expect(css).toContain('.graph-filter-empty');
+    expect(css).toContain('.artifact-relationship-summary');
+  });
+
   test('previews node renames before autosave rewrites files and references', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
