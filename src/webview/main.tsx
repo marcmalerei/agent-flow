@@ -35,7 +35,7 @@ import { duplicatePipelineSelection } from './builderMutations';
 import { optionalTextValue, referenceInstructionTextValue } from './formState';
 import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } from './components';
 import { applyNodePatch } from './nodeMarkdownSync';
-import { mergeRemoteStateUpdate } from './stateUpdates';
+import { mergeRemoteStateUpdate, type EditingConflict } from './stateUpdates';
 import { deriveNodeRuntimeState, markNodeRuntimeDirty, mergeNodeRuntimeState, type NodeRuntimeState, type NodeRuntimeStateMap } from './nodeRuntimeState';
 import { edgeGradientId, edgeMarkerColor, graphNodeDisplayLabel, graphNodeFullLabel, nodeTypeColor, nodeTypeColors } from './nodeDisplay';
 import { deriveFlowEmptyState, type EmptyStateAction, type FlowEmptyState, type WorkspaceFileSummary } from './emptyState';
@@ -170,6 +170,7 @@ function App() {
   const [state, setState] = useState(window.__AGENTFLOW_STATE__);
   const [draft, setDraft] = useState(state.pipeline);
   const [selectedId, setSelectedId] = useState(state.pipeline.nodes[0]?.id ?? '');
+  const [editingConflict, setEditingConflict] = useState<EditingConflict | undefined>(undefined);
   const [bottomOpen, setBottomOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<BottomTab>('validation');
@@ -178,6 +179,7 @@ function App() {
   const [viewportSignal, setViewportSignal] = useState(0);
   const dirtyRef = useRef(false);
   const draftRef = useRef(draft);
+  const selectedIdRef = useRef(selectedId);
   const undoStack = useRef<AgentPipeline[]>([]);
   const redoStack = useRef<AgentPipeline[]>([]);
   const [copiedIds, setCopiedIds] = useState<string[]>([]);
@@ -185,6 +187,10 @@ function App() {
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   useEffect(() => {
     const timers = [0, 100, 500, 1_500].map((delay) => window.setTimeout(() => {
@@ -203,10 +209,15 @@ function App() {
             currentState: current,
             currentDraft: draftRef.current,
             incomingState: incoming,
-            dirty: dirtyRef.current
+            dirty: dirtyRef.current,
+            selectedId: selectedIdRef.current
           });
+          if (merged.conflict) {
+            setEditingConflict(merged.conflict);
+          }
           if (merged.applyDraft) {
             dirtyRef.current = false;
+            setEditingConflict(undefined);
             setDraft(merged.draft);
             setSelectedId((selected) => incoming.pipeline.nodes.some((node: PipelineNode) => node.id === event.data.selectedId) ? event.data.selectedId : incoming.pipeline.nodes.some((node: PipelineNode) => node.id === selected) ? selected : incoming.pipeline.nodes[0]?.id ?? '');
           }
@@ -375,10 +386,32 @@ function App() {
     }, node.id, [node.id]);
     setInspectorOpen(true);
   };
-  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} />;
+  const applyConflictPipeline = useCallback((pipeline: AgentPipeline, nodeId: string) => {
+    dirtyRef.current = false;
+    undoStack.current = [...undoStack.current.slice(-49), draftRef.current];
+    redoStack.current = [];
+    setDraft(pipeline);
+    setState((previous) => deriveState(pipeline, previous));
+    setSelectedId(pipeline.nodes.some((node) => node.id === nodeId) ? nodeId : pipeline.nodes[0]?.id ?? '');
+    setEditingConflict(undefined);
+  }, []);
+  const applyExternalChanges = useCallback(() => {
+    if (editingConflict) applyConflictPipeline(editingConflict.incomingPipeline, editingConflict.nodeId);
+  }, [applyConflictPipeline, editingConflict]);
+  const keepLocalEdit = useCallback(() => {
+    setEditingConflict(undefined);
+  }, []);
+  const openConflictDiff = useCallback(() => {
+    if (!editingConflict) return;
+    vscode?.postMessage({ command: 'openNodeDiff', pipeline: draftRef.current, nodeId: editingConflict.nodeId });
+  }, [editingConflict]);
+  const cancelLocalEdit = useCallback(() => {
+    if (editingConflict) applyConflictPipeline(editingConflict.incomingPipeline, editingConflict.nodeId);
+  }, [applyConflictPipeline, editingConflict]);
+  return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} editingConflict={editingConflict} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} onApplyExternalChanges={applyExternalChanges} onKeepLocalEdit={keepLocalEdit} onOpenConflictDiff={openConflictDiff} onCancelLocalEdit={cancelLocalEdit} />;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, graphMode, inspectorOpen, viewportSignal, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setGraphMode, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; inspectorOpen: boolean; viewportSignal: number; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string, intent?: ConnectionIntentKind) => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, graphMode, inspectorOpen, viewportSignal, editingConflict, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setGraphMode, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void }) {
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
@@ -662,7 +695,7 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     <NativeGraph graphMode={graphMode} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
     {state.debugOverlay && <DebugOverlay status={renderStatus} stateVersion={state.stateVersion} draft={draft} />}
     {inspectorOpen && <div className="panel-resize-handle inspector-resize-handle" role="separator" aria-label="Resize configuration panel" aria-orientation="vertical" aria-valuemin={inspectorResize.min} aria-valuemax={inspectorResize.max} aria-valuenow={inspectorResize.size} tabIndex={0} {...inspectorResize.resizeHandleProps} />}
-    {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} onChange={updateNode} onConnect={applyConnection} /></aside>}
+    {inspectorOpen && <aside className="inspector"><Inspector node={selected} pipeline={draft} toolOptions={state.toolOptions} runtime={selected ? state.nodeRuntime?.[selected.id] : undefined} findings={state.findings.filter((finding) => finding.nodeId === selectedId)} conflict={editingConflict} onChange={updateNode} onConnect={applyConnection} onApplyExternalChanges={onApplyExternalChanges} onKeepLocalEdit={onKeepLocalEdit} onOpenConflictDiff={onOpenConflictDiff} onCancelLocalEdit={onCancelLocalEdit} /></aside>}
     <section className="bottom">{bottomOpen && <div className="panel-resize-handle diagnostics-resize-handle" role="separator" aria-label="Resize diagnostics panel" aria-orientation="horizontal" aria-valuemin={diagnosticsResize.min} aria-valuemax={diagnosticsResize.max} aria-valuenow={diagnosticsResize.size} tabIndex={0} {...diagnosticsResize.resizeHandleProps} />}<VSCodeButton className="collapse" icon={bottomOpen ? 'chevron-down' : 'chevron-right'} onClick={() => setBottomOpen(!bottomOpen)}>{bottomOpen ? 'Hide diagnostics' : 'Show diagnostics'}</VSCodeButton>{bottomOpen && <Bottom state={state} activeTab={activeTab} setActiveTab={setActiveTab} onSelectNode={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} />}</section>
   </div>;
 }
@@ -1213,7 +1246,7 @@ function nodeFileSummary(node: PipelineNode): string {
   return node.id;
 }
 
-function Inspector({ node, pipeline, toolOptions, runtime, findings, onChange, onConnect }: { node?: PipelineNode; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[]; runtime?: NodeRuntimeState; findings: ValidationFinding[]; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void; onConnect: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void }) {
+function Inspector({ node, pipeline, toolOptions, runtime, findings, conflict, onChange, onConnect, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit }: { node?: PipelineNode; pipeline: AgentPipeline; toolOptions: ToolOptionGroup[]; runtime?: NodeRuntimeState; findings: ValidationFinding[]; conflict?: EditingConflict; onChange: (nodeId: string, patch: Partial<PipelineNode>) => void; onConnect: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void }) {
   const [labelDraft, setLabelDraft] = useState(node?.label ?? '');
   const [renameSummary, setRenameSummary] = useState<RenamePreviewModel | undefined>(undefined);
   const nodeId = node?.id ?? '';
@@ -1282,7 +1315,9 @@ function Inspector({ node, pipeline, toolOptions, runtime, findings, onChange, o
   const syncStatus = deriveInspectorSyncStatus({ runtime, findingSeverities: findings.map((finding) => finding.severity) });
   const firstArtifact = artifacts[0];
   const firstInstruction = instructions[0];
+  const activeConflict = conflict?.nodeId === node.id ? conflict : undefined;
   return <div className="config"><InspectorHeader node={node} filePath={filePath} syncStatus={syncStatus} />
+    {activeConflict && <InspectorConflictBanner conflict={activeConflict} onApplyExternalChanges={onApplyExternalChanges} onKeepLocalEdit={onKeepLocalEdit} onOpenConflictDiff={onOpenConflictDiff} onCancelLocalEdit={onCancelLocalEdit} />}
     <InspectorQuickActions node={node} hasArtifact={Boolean(firstArtifact)} hasInstruction={Boolean(firstInstruction)} hasAgent={agents.length > 0} onAddInput={() => firstArtifact && toggleArtifact(node.type === 'agent' ? 'inputs' : 'requiredArtifacts', firstArtifact.path, true, 'read')} onAddOutput={() => firstArtifact && node.type === 'agent' && toggleArtifact('outputs', firstArtifact.path, true, 'write')} onAddInstruction={() => firstInstruction && toggleInstructionRef(instructionReferenceTarget(firstInstruction), true)} onAddHandoff={() => setHandoffs([...(node.type === 'agent' ? node.handoffs ?? [] : []), { label: 'New handoff', agent: agents[0]?.id ?? '', send: false }])} />
     <InspectorSection id="identity" title="Identity" summary={filePath} defaultOpen>
       <VSCodeInput label="Label" value={labelDraft} onChange={(event: any) => { setLabelDraft(event.target.value); setRenameSummary(undefined); }} onBlur={commitLabelDraft} onKeyDown={onLabelKeyDown} />
@@ -1308,6 +1343,19 @@ function Inspector({ node, pipeline, toolOptions, runtime, findings, onChange, o
     {node.type === 'mcp-server' && <InspectorSection id="run" title="Run behavior" summary={node.command || 'no command'} defaultOpen><label>Command<input value={node.command ?? ''} onChange={(event: any) => setOptionalString('command', event.target.value)} /></label><label>Args<input value={Array.isArray(node.args) ? node.args.join(' ') : node.args ?? ''} onChange={(event: any) => setOptionalString('args', event.target.value)} /></label></InspectorSection>}
     <InspectorSection id="markdown" title="Content" summary={node.markdown ? 'custom body' : 'empty'}><TiptapMarkdownEditor value={node.markdown ?? ''} references={references} onChange={(value) => onChange(node.id, { markdown: value } as Partial<PipelineNode>)} /></InspectorSection>
     <InspectorSection id="findings" title="Health" summary={findings.length ? `${findings.length} finding${findings.length === 1 ? '' : 's'}` : 'no findings'} defaultOpen={findings.length > 0}>{findings.length ? findings.map((finding) => <p key={`${finding.ruleId}-${finding.message}`} className={`inspector-finding ${finding.severity}`}><strong>{finding.severity}</strong>{finding.message}<small>{finding.ruleId}</small></p>) : <p>No node findings.</p>}</InspectorSection>
+  </div>;
+}
+
+function InspectorConflictBanner({ conflict, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit }: { conflict: EditingConflict; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void }) {
+  return <div className="inspector-conflict-banner" role="alert">
+    <header><Codicon name="warning" /><strong>This file changed outside Agent Flow</strong></header>
+    <p>{conflict.filePath ?? conflict.nodeLabel} has external changes while this inspector has a local edit.</p>
+    <div className="inspector-conflict-actions">
+      <VSCodeButton className="compact" icon="cloud-download" onClick={onApplyExternalChanges}>Apply external changes</VSCodeButton>
+      <VSCodeButton className="compact" icon="edit" onClick={onKeepLocalEdit}>Keep my edit</VSCodeButton>
+      <VSCodeButton className="compact" icon="diff" onClick={onOpenConflictDiff}>Open diff</VSCodeButton>
+      <VSCodeButton className="compact" icon="discard" onClick={onCancelLocalEdit}>Cancel local edit</VSCodeButton>
+    </div>
   </div>;
 }
 

@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import { countCopilotInstructionLines, loadOrInferPipeline } from '../pipeline/scanner';
 import { validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { AgentPipeline } from '../pipeline/types';
 import { buildToolOptionGroups, normalizePipelineToolsForOptions } from './toolOptions';
-import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from './panelMessages';
+import { handleOpenNodeDiffMessage, handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from './panelMessages';
 import { coerceFlowLayout } from './flowLayout';
 import { AgentFlowLog, writeGeneratedFiles } from './filePersistence';
 import { FileWatchSuppression } from './fileWatchSuppression';
@@ -285,6 +286,25 @@ export async function openPipelinePanel(context: vscode.ExtensionContext, activi
           const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(target));
           await vscode.window.showTextDocument(doc, { preview: true });
         }
+      }
+      if (message?.command === 'openNodeDiff') {
+        await handleOpenNodeDiffMessage({
+          message,
+          workspace,
+          writeTempDraft: async (relativePath, content) => {
+            const safeRelativePath = relativePath.replace(/^[\\/]+/u, '');
+            const target = path.join(context.globalStorageUri.fsPath, 'diffs', safeRelativePath);
+            await fs.mkdir(path.dirname(target), { recursive: true });
+            await fs.writeFile(target, content, 'utf8');
+            return target;
+          },
+          openDiff: async (left, right, title) => {
+            await vscode.commands.executeCommand('vscode.diff', vscode.Uri.file(left), vscode.Uri.file(right), title);
+          },
+          showErrorMessage: async (message) => {
+            vscode.window.showWarningMessage(message);
+          }
+        });
       }
       if (message?.command === 'runCommand' && isAllowedWebviewCommand(message.name)) {
         log(`running webview requested command ${message.name}`);

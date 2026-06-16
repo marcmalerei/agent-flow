@@ -207,6 +207,23 @@ describe('webview assets', () => {
     expect(css).toContain('.artifact-relationship-summary');
   });
 
+  test('adds selected-node external edit conflict banner actions', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const panelSource = readFileSync('src/webview/panel.ts', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('InspectorConflictBanner');
+    expect(webviewSource).toContain('This file changed outside Agent Flow');
+    expect(webviewSource).toContain('Apply external changes');
+    expect(webviewSource).toContain('Keep my edit');
+    expect(webviewSource).toContain('Open diff');
+    expect(webviewSource).toContain('Cancel local edit');
+    expect(webviewSource).toContain("command: 'openNodeDiff'");
+    expect(panelSource).toContain("message?.command === 'openNodeDiff'");
+    expect(panelSource).toContain('vscode.diff');
+    expect(css).toContain('.inspector-conflict-banner');
+  });
+
   test('previews node renames before autosave rewrites files and references', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from '../src/webview/panelMessages';
+import { handleOpenNodeDiffMessage, handlePersistPipelineMessage, handleSavePipelineMessage, handleWriteMarkdownFilesMessage } from '../src/webview/panelMessages';
 import { AgentPipeline } from '../src/pipeline/types';
 
 describe('webview save handling', () => {
@@ -120,5 +120,35 @@ describe('webview save handling', () => {
 
     expect(result).toBeUndefined();
     expect(calls).toEqual(['confirm:1']);
+  });
+
+  it('opens a diff between draft node Markdown and the workspace file', async () => {
+    const pipeline: AgentPipeline = {
+      version: 1,
+      name: 'Diff',
+      nodes: [{ id: 'agent', type: 'agent', label: 'Agent', agentFile: '.github/agents/agent.agent.md', tools: ['read'], calls: [], outputs: [] }],
+      edges: []
+    };
+    const calls: string[] = [];
+
+    await handleOpenNodeDiffMessage({
+      message: { command: 'openNodeDiff', pipeline, nodeId: 'agent' },
+      workspace: '/workspace',
+      writeTempDraft: async (relativePath, content) => {
+        calls.push(`temp:${relativePath}:${content.includes('name: "agent"')}`);
+        return `/tmp/${relativePath}`;
+      },
+      openDiff: async (left, right, title) => {
+        calls.push(`diff:${left}:${right}:${title}`);
+      },
+      showErrorMessage: async (message) => {
+        calls.push(`error:${message}`);
+      }
+    });
+
+    expect(calls).toEqual([
+      'temp:.github/agents/agent.agent.md:true',
+      'diff:/tmp/.github/agents/agent.agent.md:/workspace/.github/agents/agent.agent.md:Agent Flow draft vs external file'
+    ]);
   });
 });

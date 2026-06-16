@@ -248,6 +248,12 @@ pre { white-space: pre-wrap; font-size: 12px; background: var(--vscode-textCodeB
 .inspector-sync-needs-attention .inspector-sync-status { border-color: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 65%, var(--agentflow-border)); }
 .config h2 { margin: 0 0 3px; font-size: 18px; line-height: 1.25; color: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground)); overflow-wrap: anywhere; }
 .config-subtitle { display: block; max-width: 260px; color: var(--vscode-descriptionForeground); font-size: 11px; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inspector-conflict-banner { display: grid; gap: 8px; margin: 0 0 12px; padding: 10px; border: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 70%, var(--agentflow-border)); border-radius: var(--agentflow-control-radius); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 88%, var(--vscode-editorWarning-foreground, #cca700)); color: var(--vscode-editorWidget-foreground, var(--vscode-foreground)); }
+.inspector-conflict-banner header { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.inspector-conflict-banner header .codicon { flex: 0 0 auto; color: var(--vscode-editorWarning-foreground, #cca700); }
+.inspector-conflict-banner strong { min-width: 0; overflow-wrap: anywhere; }
+.inspector-conflict-banner p { margin: 0; color: var(--vscode-descriptionForeground); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.inspector-conflict-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .config label { display: block; margin: 10px 0; font-weight: 600; }
 .config label.inline-check { display: flex; align-items: center; gap: 8px; font-weight: 400; }
 .config label.inline-check input { width: auto; margin: 0; }
