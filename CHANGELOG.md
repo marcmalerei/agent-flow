@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fix the browser webview example so the local UX preview renders activity sources with the runtime-compatible data shape.
 - Make the configuration inspector and diagnostics panel resizable, and wrap long debug-log diagnostics so details stay readable.
 - Add selected-node inspector sync context with file path, node type, runtime state, and task-oriented health/content labels.
 - Add an opt-in Follow live activity toggle that centers the newest active node without changing zoom and respects manual viewport/inspector use.

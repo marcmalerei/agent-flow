@@ -11,6 +11,7 @@ import { handlePersistPipelineMessage } from '../src/webview/panelMessages';
 
 const exampleRoot = path.join(process.cwd(), 'examples/basic-flow');
 const pipelineFile = path.join(exampleRoot, '.agent-pipeline/pipeline.json');
+const webviewExampleFile = path.join(exampleRoot, 'webview.html');
 
 async function readExamplePipeline(): Promise<AgentPipeline> {
   return parsePipelineJson(await fs.readFile(pipelineFile, 'utf8'));
@@ -25,6 +26,13 @@ async function writeGeneratedMarkdown(workspace: string, pipeline: AgentPipeline
 }
 
 describe('basic example flow', () => {
+  it('provides browser webview activity sources in runtime array shape', async () => {
+    const html = await fs.readFile(webviewExampleFile, 'utf8');
+
+    expect(html).toContain('activitySources: [');
+    expect(html).not.toContain('activitySources: {');
+  });
+
   it('covers every configured node type and has no broken references', async () => {
     const pipeline = await readExamplePipeline();
     const types = new Set(pipeline.nodes.map((node) => node.type));
