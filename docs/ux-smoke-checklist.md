@@ -119,6 +119,7 @@ Cosmetic issues:
 Use `examples/ux-smoke-workspace` when recording a GIF or screenshot. Follow the [default pipeline demo](default-pipeline-demo.md) for first-run story beats, then capture these frames:
 
 - Default graph after first open.
+- Guided demo prompt showing `Use Current Graph`, `Create Sample Files`, and `Cancel` in a workspace with existing nodes.
 - Add Node menu with a new artifact or instruction.
 - Inspector showing artifact/reference editing.
 - Live activity on one agent and one artifact edge.

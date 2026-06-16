@@ -13,7 +13,8 @@ describe('flow empty state', () => {
     expect(state.title).toContain('Start with a sample flow');
     expect(state.primaryAction.label).toBe('Create sample pipeline');
     expect(state.primaryAction.command).toBe('agentflow.createDefaultPipeline');
-    expect(state.secondaryActions.map((action) => action.label)).toEqual(expect.arrayContaining(['Open existing .github pipeline', 'Learn with demo activity']));
+    expect(state.secondaryActions.map((action) => action.label)).toEqual(expect.arrayContaining(['Open existing .github pipeline', 'Start guided demo']));
+    expect(state.secondaryActions.map((action) => action.command)).toContain('agentflow.startGuidedDemo');
   });
 
   test('explains when .github exists without supported customization files', () => {
@@ -31,6 +32,6 @@ describe('flow empty state', () => {
     expect(state.kind).toBe('no-graphable-nodes');
     expect(state.primaryAction.command).toBe('agentflow.checkSetup');
     expect(state.secondaryActions.map((action) => action.command)).toContain('agentflow.scanWorkspace');
-    expect(state.secondaryActions.map((action) => action.command)).toContain('agentflow.playDemoActivity');
+    expect(state.secondaryActions.map((action) => action.command)).toContain('agentflow.startGuidedDemo');
   });
 });

@@ -61,7 +61,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('agentflow.generateFiles', generateFilesCommand),
     vscode.commands.registerCommand('agentflow.validatePipeline', validatePipelineCommand),
     vscode.commands.registerCommand('agentflow.createDefaultPipeline', createDefaultPipelineCommand),
+    vscode.commands.registerCommand('agentflow.startGuidedDemo', () => startGuidedDemoCommand(context)),
     vscode.commands.registerCommand('agentflow.playDemoActivity', playDemoActivityCommand),
+    vscode.commands.registerCommand('agentflow.resetGuidedDemo', resetGuidedDemoCommand),
     vscode.commands.registerCommand('agentflow.exportReport', exportReportCommand),
     vscode.commands.registerCommand('agentflow.exportActivityCsv', exportActivityCsvCommand),
     vscode.commands.registerCommand('agentflow.checkSetup', checkSetupCommand),
@@ -164,6 +166,49 @@ async function playDemoActivityCommand(): Promise<void> {
   const events = createSyntheticActivity(pipeline, `demo-${Date.now()}`);
   for (const event of events) activityStore.append(event);
   vscode.window.showInformationMessage(`Agent Flow emitted ${events.length} demo activity events.`);
+}
+
+async function startGuidedDemoCommand(context: vscode.ExtensionContext): Promise<void> {
+  const workspace = getWorkspaceRoot();
+  if (!workspace) { vscode.window.showErrorMessage('Open a workspace folder before starting the guided demo.'); return; }
+  const prompt = 'Agent Flow guided demo can use the current graph or create sample files only after you confirm.';
+  let pipeline = await loadOrInferPipeline(workspace);
+  if (pipeline.nodes.length) {
+    const answer = await vscode.window.showInformationMessage(prompt, 'Use Current Graph', 'Create Sample Files', 'Cancel');
+    if (answer === 'Create Sample Files') {
+      await vscode.commands.executeCommand('agentflow.createDefaultPipeline');
+      pipeline = await loadOrInferPipeline(workspace);
+    } else if (answer !== 'Use Current Graph') {
+      return;
+    }
+  } else {
+    const answer = await vscode.window.showInformationMessage(prompt, 'Create Sample Files', 'Check Setup', 'Cancel');
+    if (answer === 'Create Sample Files') {
+      await vscode.commands.executeCommand('agentflow.createDefaultPipeline');
+      pipeline = await loadOrInferPipeline(workspace);
+    } else if (answer === 'Check Setup') {
+      await vscode.commands.executeCommand('agentflow.checkSetup');
+      return;
+    } else {
+      return;
+    }
+  }
+  if (!pipeline.nodes.length) {
+    vscode.window.showWarningMessage('Agent Flow guided demo needs graph nodes before activity can be shown.');
+    return;
+  }
+  stopActivityReplay();
+  activityStore.clear();
+  const events = createSyntheticActivity(pipeline, `guided-demo-${Date.now()}`);
+  for (const event of events) activityStore.append(event);
+  await openPipelinePanel(context, activityStore);
+  vscode.window.showInformationMessage(`Agent Flow guided demo started with ${events.length} activity events. Run Agent Flow: Reset Guided Demo to clear demo activity.`);
+}
+
+function resetGuidedDemoCommand(): void {
+  stopActivityReplay();
+  activityStore.clear();
+  vscode.window.showInformationMessage('Agent Flow guided demo reset. Workspace files were not changed.');
 }
 
 async function exportReportCommand(): Promise<void> {

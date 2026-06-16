@@ -422,8 +422,10 @@ describe('webview assets', () => {
     expect(panelSource).toContain('isAllowedWebviewCommand');
     expect(panelSource).toContain('agentflow.createDefaultPipeline');
     expect(panelSource).toContain('agentflow.playDemoActivity');
+    expect(panelSource).toContain('agentflow.startGuidedDemo');
     expect(panelSource).toContain('agentflow.openDocs');
-    expect(extensionSource).toContain('Agent Flow needs graph nodes before demo activity can be shown.');
+    expect(extensionSource).toContain('Agent Flow guided demo can use the current graph or create sample files only after you confirm.');
+    expect(extensionSource).toContain('resetGuidedDemoCommand');
     expect(css).toContain('.flow-empty-state');
     expect(css).toContain('.flow-empty-card');
   });
@@ -436,7 +438,7 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('isDefaultSamplePipeline');
     expect(webviewSource).toContain('agentflow.firstRunGuideDismissed');
     expect(webviewSource).toContain('Create artifact reference');
-    expect(webviewSource).toContain('Play demo activity');
+    expect(webviewSource).toContain('Start guided demo');
     expect(css).toContain('.first-run-guide');
   });
 

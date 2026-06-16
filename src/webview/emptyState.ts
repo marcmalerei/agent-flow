@@ -15,7 +15,7 @@ export interface FlowEmptyState {
 
 export interface EmptyStateAction {
   label: string;
-  command: 'agentflow.createDefaultPipeline' | 'agentflow.scanWorkspace' | 'agentflow.checkSetup' | 'agentflow.playDemoActivity' | 'agentflow.openDocs';
+  command: 'agentflow.createDefaultPipeline' | 'agentflow.scanWorkspace' | 'agentflow.checkSetup' | 'agentflow.playDemoActivity' | 'agentflow.startGuidedDemo' | 'agentflow.openDocs';
   icon: string;
 }
 
@@ -25,12 +25,12 @@ export function deriveFlowEmptyState(nodeCount: number, workspace?: WorkspaceFil
     return {
       kind: 'no-workspace-files',
       title: 'Start with a sample flow',
-      detail: 'This workspace does not have a .github customization folder yet. Create the sample pipeline, open existing customization files, or learn with demo activity.',
+      detail: 'This workspace does not have a .github customization folder yet. Create the sample pipeline, open existing customization files, or start the guided demo.',
       primaryAction: action('Create sample pipeline', 'agentflow.createDefaultPipeline', 'sparkle'),
       secondaryActions: [
         action('Open existing .github pipeline', 'agentflow.scanWorkspace', 'folder-opened'),
         action('Check Setup', 'agentflow.checkSetup', 'checklist'),
-        action('Learn with demo activity', 'agentflow.playDemoActivity', 'pulse'),
+        action('Start guided demo', 'agentflow.startGuidedDemo', 'play'),
         action('Open Docs', 'agentflow.openDocs', 'book')
       ]
     };
@@ -44,7 +44,7 @@ export function deriveFlowEmptyState(nodeCount: number, workspace?: WorkspaceFil
       secondaryActions: [
         action('Open existing .github pipeline', 'agentflow.scanWorkspace', 'folder-opened'),
         action('Check Setup', 'agentflow.checkSetup', 'checklist'),
-        action('Learn with demo activity', 'agentflow.playDemoActivity', 'pulse'),
+        action('Start guided demo', 'agentflow.startGuidedDemo', 'play'),
         action('Open Docs', 'agentflow.openDocs', 'book')
       ]
     };
@@ -57,7 +57,7 @@ export function deriveFlowEmptyState(nodeCount: number, workspace?: WorkspaceFil
     secondaryActions: [
       action('Scan Workspace', 'agentflow.scanWorkspace', 'refresh'),
       action('Create Default Pipeline', 'agentflow.createDefaultPipeline', 'sparkle'),
-      action('Play Demo Activity', 'agentflow.playDemoActivity', 'pulse'),
+      action('Start Guided Demo', 'agentflow.startGuidedDemo', 'play'),
       action('Open Docs', 'agentflow.openDocs', 'book')
     ]
   };
