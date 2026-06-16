@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { AgentPipeline } from '../src/pipeline/types';
 import { validatePipeline } from '../src/pipeline/validator';
+import { applyDiagnosticQuickFix } from '../src/webview/diagnosticQuickFixes';
 
 function basePipeline(nodes: AgentPipeline['nodes']): AgentPipeline {
   return { version: 1, name: 'diagnostics-test', nodes, edges: [] };
@@ -65,5 +66,35 @@ describe('actionable diagnostics', () => {
       expect.objectContaining({ kind: 'focusNode', nodeId: 'planner', sectionId: 'artifacts' }),
       expect.objectContaining({ kind: 'quickFix', quickFixId: 'create-output-artifact', nodeId: 'planner' })
     ]));
+  });
+
+  test('applies the missing output artifact quick fix deterministically', () => {
+    const pipeline = basePipeline([
+      {
+        id: 'planner',
+        type: 'agent',
+        label: 'planner',
+        agentFile: '.github/agents/planner.agent.md',
+        tools: ['read/readFile']
+      }
+    ]);
+    const finding = validatePipeline(pipeline).find((item) => item.ruleId === 'agent-no-output');
+
+    const result = applyDiagnosticQuickFix(pipeline, finding?.actions?.find((action) => action.kind === 'quickFix'));
+
+    const agent = result?.pipeline.nodes.find((node) => node.type === 'agent' && node.id === 'planner');
+    const artifact = result?.pipeline.nodes.find((node) => node.type === 'artifact' && node.id === 'planner-output');
+    expect(agent?.type).toBe('agent');
+    expect(agent?.outputs).toEqual(['.github/artifacts/planner-output.md']);
+    expect(agent?.artifactUsages).toEqual([
+      { path: '.github/artifacts/planner-output.md', action: 'write', instruction: 'Write this node result to $artifact.' }
+    ]);
+    expect(artifact).toMatchObject({
+      id: 'planner-output',
+      label: 'planner output',
+      path: '.github/artifacts/planner-output.md'
+    });
+    expect(result?.selectedId).toBe('planner');
+    expect(result?.sectionId).toBe('artifacts');
   });
 });
