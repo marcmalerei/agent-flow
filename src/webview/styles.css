@@ -409,6 +409,22 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .reference-list { display: grid; gap: 8px; }
 .reference-row { padding: 8px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, transparent); }
 .reference-row.selected { background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--agentflow-panel)) 78%, var(--vscode-list-hoverBackground, transparent)); }
+.reference-intent-card { display: grid; gap: 10px; width: 100%; padding: 10px; border: 1px solid var(--agentflow-border); border-radius: 8px; background: var(--vscode-editorWidget-background, transparent); box-sizing: border-box; }
+.reference-intent-card.selected { border-color: color-mix(in srgb, var(--vscode-focusBorder, var(--agentflow-border)) 62%, var(--agentflow-border)); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--agentflow-panel)) 82%, var(--vscode-list-hoverBackground, transparent)); }
+.reference-intent-card.missing { border-color: var(--vscode-inputValidation-warningBorder, var(--vscode-charts-yellow)); }
+.reference-intent-header { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: start; gap: 8px; }
+.reference-card-target { display: grid; gap: 3px; min-width: 0; }
+.reference-card-target strong { overflow-wrap: anywhere; }
+.reference-card-target small { color: var(--vscode-descriptionForeground); font-size: 11px; overflow-wrap: anywhere; }
+.reference-selection-state { display: inline-flex; align-items: center; gap: 4px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.reference-sync-status { display: inline-flex; align-items: center; min-height: 20px; padding: 1px 6px; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); color: var(--vscode-descriptionForeground); font-size: 11px; white-space: nowrap; }
+.reference-sync-status.needs-repair { border-color: var(--vscode-inputValidation-warningBorder, var(--vscode-charts-yellow)); color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground)); }
+.reference-card-actions { display: inline-flex; justify-content: flex-end; gap: 2px; }
+.reference-intent-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.reference-card-note { margin: 0; color: var(--vscode-descriptionForeground); font-size: 12px; }
+.reference-markdown-preview { margin-top: 2px; border-top: 1px solid var(--agentflow-border); padding-top: 8px; }
+.reference-markdown-preview summary { cursor: pointer; color: var(--vscode-descriptionForeground); font-size: 12px; }
+.reference-markdown-preview pre { margin: 8px 0 0; max-height: 140px; overflow: auto; padding: 8px; border-radius: var(--agentflow-control-radius); background: var(--vscode-textCodeBlock-background, rgba(127,127,127,.12)); font-size: 11px; white-space: pre-wrap; }
 .compact-reference-list { gap: 6px; }
 .compact-reference-row { padding: 7px 8px; }
 .reference-row-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
@@ -424,6 +440,11 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .reference-markdown-field { display: grid; width: 100%; gap: 5px; }
 .reference-markdown-label { color: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground)); font-size: 12px; font-weight: 700; }
 .selected-tools label { color: var(--vscode-descriptionForeground); }
+@media (max-width: 420px) {
+  .reference-intent-header { grid-template-columns: minmax(0, 1fr) auto; }
+  .reference-sync-status { grid-column: 1 / -1; width: fit-content; }
+  .reference-card-actions { grid-column: 2; grid-row: 1; }
+}
 .markdown-shell { position: relative; border: 1px solid var(--agentflow-border); border-radius: var(--agentflow-control-radius); background: var(--vscode-editor-background); overflow: hidden; }
 .editor-toolbar { display: flex; align-items: center; gap: 2px; min-height: 34px; padding: 3px 6px; border-bottom: 1px solid var(--agentflow-border); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--agentflow-panel)) 92%, transparent); }
 .editor-tool { display: inline-grid; place-items: center; width: 30px; height: 30px; margin: 0; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--vscode-descriptionForeground); font: 600 13px/1 var(--vscode-font-family, system-ui); cursor: pointer; }

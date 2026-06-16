@@ -13,7 +13,7 @@ import Code from '@tiptap/extension-code';
 import Link from '@tiptap/extension-link';
 import '@vscode/codicons/dist/codicon.css';
 import './styles.css';
-import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ValidationAction, ValidationFinding, RiskScore } from '../pipeline/types';
+import { AgentHandoff, AgentPipeline, ArtifactAction, ArtifactUsage, PipelineNode, PipelineNodeType, ReferenceInstruction, ReferenceRole, ValidationAction, ValidationFinding, RiskScore } from '../pipeline/types';
 import { AgentFlowActivityEvent } from '../activity/types';
 import { aggregateActivityMetrics } from '../activity/metrics';
 import { aggregateFileAttention } from '../activity/fileAttention';
@@ -1363,6 +1363,7 @@ function Inspector({ node, pipeline, toolOptions, runtime, findings, conflict, o
   const branchTargets = pipeline.nodes.filter((item) => item.id !== node.id && (item.type === 'agent' || item.type === 'prompt' || item.type === 'gate' || item.type === 'handoff'));
   const artifacts = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'artifact' }> => item.type === 'artifact');
   const instructions = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'instruction' }> => item.type === 'instruction');
+  const roles = pipeline.nodes.filter((item): item is Extract<PipelineNode, { type: 'role' }> => item.type === 'role');
   const references = buildReferenceItems(pipeline);
   const setOptionalString = (field: string, value: string) => onChange(node.id, { [field]: optionalTextValue(value) } as Partial<PipelineNode>);
   const setHandoffs = (handoffs: AgentHandoff[]) => onChange(node.id, { handoffs } as Partial<PipelineNode>);
@@ -1388,6 +1389,13 @@ function Inspector({ node, pipeline, toolOptions, runtime, findings, conflict, o
   const updateInstructionRef = (target: string, instruction: string) => {
     onChange(node.id, { instructionRefs: upsertInstructionRef((node as any).instructionRefs, target, instruction) } as Partial<PipelineNode>);
   };
+  const toggleRoleRef = (target: string, checked: boolean) => {
+    const roleRefs = checked ? upsertRoleRef((node as any).roleRefs, target) : ((node as any).roleRefs as ReferenceRole[] | undefined)?.filter((ref) => ref.target !== target);
+    onChange(node.id, { roleRefs } as Partial<PipelineNode>);
+  };
+  const updateRoleRef = (target: string, instruction: string) => {
+    onChange(node.id, { roleRefs: upsertRoleRef((node as any).roleRefs, target, instruction) } as Partial<PipelineNode>);
+  };
   const toolGroups = (node.type === 'agent' || node.type === 'prompt') ? partitionConfiguredTools({ availableTools: flattenToolOptionValues(toolOptions), configuredTools: node.tools ?? [] }) : { available: [], unavailable: [] };
   const selectedToolSummaryText = selectedToolSummary(node.type === 'agent' || node.type === 'prompt' ? node.tools ?? [] : [], toolOptions, toolGroups.unavailable);
   const filePath = nodeFileSummary(node);
@@ -1407,7 +1415,7 @@ function Inspector({ node, pipeline, toolOptions, runtime, findings, conflict, o
     {node.type === 'agent' && <InspectorSection id="run" title="Run behavior" summary={`${node.model || 'auto model'} · ${node.target || 'both environments'}`} defaultOpen><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Target<select value={node.target ?? ''} onChange={(event: any) => setOptionalString('target', event.target.value)}><option value="">Both environments</option><option value="vscode">VS Code</option><option value="github-copilot">GitHub Copilot</option></select></label><label className="inline-check"><input type="checkbox" checked={node.userInvocable ?? true} onChange={(event: any) => onChange(node.id, { userInvocable: event.target.checked ? undefined : false } as Partial<PipelineNode>)} /> User invocable</label><label className="inline-check"><input type="checkbox" checked={node.disableModelInvocation ?? false} onChange={(event: any) => onChange(node.id, { disableModelInvocation: event.target.checked || undefined } as Partial<PipelineNode>)} /> Disable model invocation</label></InspectorSection>}
     {(node.type === 'agent' || node.type === 'prompt') && <InspectorSection id="tools" title="Tools" summary={selectedToolSummaryText}><ToolSelectionSummary selected={node.tools ?? []} groups={toolOptions} unavailable={toolGroups.unavailable} /><ToolTree groups={toolOptions} selected={node.tools ?? []} unavailable={toolGroups.unavailable} onToggle={(tool, checked) => toggleListItem('tools', tool, checked)} /></InspectorSection>}
     {node.type === 'agent' && <InspectorSection id="routing" title="Routing" summary={`${node.handoffs?.length ?? 0} handoffs · ${node.calls?.length ?? 0} subagents`}><h4>Subagents</h4><div className="checks">{agents.map((agent) => <label key={agent.id}><input type="checkbox" checked={(node.calls ?? []).includes(agent.id)} onChange={(event: any) => toggleListItem('calls', agent.id, event.target.checked)} />{agent.label}</label>)}</div><HandoffEditor handoffs={node.handoffs ?? []} agents={agents} onChange={setHandoffs} /></InspectorSection>}
-    {(node.type === 'agent' || node.type === 'prompt') && <InspectorSection id="context" title="Context" summary={`${((node as any).instructionRefs ?? []).length} instruction refs`}><InstructionReferenceSelector instructions={instructions} refs={(node as any).instructionRefs ?? []} references={references} onToggle={toggleInstructionRef} onInstructionChange={updateInstructionRef} /></InspectorSection>}
+    {(node.type === 'agent' || node.type === 'prompt') && <InspectorSection id="context" title="Context" summary={`${((node as any).instructionRefs ?? []).length} instruction · ${((node as any).roleRefs ?? []).length} role refs`}><InstructionReferenceSelector instructions={instructions} refs={(node as any).instructionRefs ?? []} references={references} onToggle={toggleInstructionRef} onInstructionChange={updateInstructionRef} /><RoleReferenceSelector roles={roles} refs={(node as any).roleRefs ?? []} references={references} onToggle={toggleRoleRef} onRoleChange={updateRoleRef} /></InspectorSection>}
     {node.type === 'agent' && <InspectorSection id="artifacts" title="Artifacts" summary={`${(node.inputs ?? []).length} input · ${(node.outputs ?? []).length} output`}><AgentArtifactSelector artifacts={artifacts} inputs={node.inputs ?? []} outputs={node.outputs ?? []} usages={node.artifactUsages ?? []} references={references} onInputToggle={(path, checked) => toggleArtifact('inputs', path, checked, 'read')} onOutputToggle={(path, checked) => toggleArtifact('outputs', path, checked, 'write')} onUsageChange={(path, patch, action) => updateArtifactUsage(path, patch, action)} /></InspectorSection>}
     {node.type === 'prompt' && <InspectorSection id="run" title="Run behavior" summary={node.startAgent || 'current agent'} defaultOpen><label>Argument hint<input value={node.argumentHint ?? ''} onChange={(event: any) => setOptionalString('argumentHint', event.target.value)} /></label><label>Model<input value={node.model ?? ''} onChange={(event: any) => setOptionalString('model', event.target.value)} /></label><label>Agent<select value={node.startAgent ?? ''} onChange={(event: any) => onChange(node.id, { startAgent: event.target.value || undefined } as Partial<PipelineNode>)}><option value="">Current agent</option><option value="ask">ask</option><option value="agent">agent</option><option value="plan">plan</option>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.label}</option>)}</select></label></InspectorSection>}
     {node.type === 'prompt' && <InspectorSection id="artifacts" title="Artifacts" summary={`${node.requiredArtifacts?.length ?? 0} required`}><ArtifactSelector title="Required artifacts" artifacts={artifacts} selected={node.requiredArtifacts ?? []} usages={node.artifactUsages ?? []} references={references} defaultAction="read" actionOptions={['read', 'validate']} onToggle={(path, checked) => toggleArtifact('requiredArtifacts', path, checked, 'read')} onUsageChange={(path, patch) => updateArtifactUsage(path, patch, 'read')} /></InspectorSection>}
@@ -1693,26 +1701,23 @@ function AgentArtifactSelector({ artifacts, inputs, onInputToggle, onOutputToggl
 function AgentArtifactRow({ checkedInput, checkedOutput, label, onInputToggle, onOutputToggle, onUsageChange, path, references, usage }: { checkedInput: boolean; checkedOutput: boolean; label: string; onInputToggle: (path: string, checked: boolean) => void; onOutputToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>, action: ArtifactAction) => void; path: string; references: ReferenceItem[]; usage?: ArtifactUsage }) {
   const checked = checkedInput || checkedOutput;
   const currentAction = usage?.action ?? (checkedOutput ? 'write' : 'read');
-  return <div className={`reference-row compact-reference-row${checked ? ' selected' : ''}`}>
-    <div className="reference-row-header">
-      <span className="artifact-option"><span>{label}</span><small>{path}</small></span>
+  return <ReferenceIntentCard checked={checked} label={label} nodeType="artifact" path={path} status={checked ? 'writes Markdown block' : 'parsed from Markdown'} onRemove={checked ? () => { onInputToggle(path, false); onOutputToggle(path, false); } : undefined}>
+    <div className="reference-intent-controls">
       <div className="direction-chips" aria-label={`Artifact direction for ${label}`}>
         <label><input type="checkbox" checked={checkedInput} onChange={(event: any) => onInputToggle(path, event.target.checked)} />Input</label>
         <label><input type="checkbox" checked={checkedOutput} onChange={(event: any) => onOutputToggle(path, event.target.checked)} />Output</label>
       </div>
+      {checked && <label className="reference-action-field">Action<select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value }, event.target.value)}>{['read', 'write', 'append', 'validate'].map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label>}
     </div>
-    {checked && <div className="compact-reference-fields"><label className="reference-action-field">Action<select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value }, event.target.value)}>{['read', 'write', 'append', 'validate'].map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label><div className="reference-markdown-field"><span className="reference-markdown-label">Instruction</span><ReferenceMarkdownEditor ariaLabel={`Instruction for ${label}`} value={usage?.instruction ?? ''} references={references} referenceToken={{ icon: 'file-symlink-file', label: 'Artifact', value: '$artifact', title: `Insert ${path}` }} onChange={(value) => onUsageChange(path, { instruction: referenceInstructionTextValue(value) }, currentAction)} /></div></div>}
-  </div>;
+    {checked && <div className="reference-fields"><div className="reference-markdown-field"><span className="reference-markdown-label">Instruction</span><ReferenceMarkdownEditor ariaLabel={`Instruction for ${label}`} value={usage?.instruction ?? ''} references={references} referenceToken={{ icon: 'file-symlink-file', label: 'Artifact', value: '$artifact', title: `Insert ${path}` }} onChange={(value) => onUsageChange(path, { instruction: referenceInstructionTextValue(value) }, currentAction)} /></div><ReferenceMarkdownPreview kind="artifact-ref" action={currentAction} path={path} token="$artifact" instruction={usage?.instruction} /></div>}
+  </ReferenceIntentCard>;
 }
 
 function ArtifactUsageRow({ actionOptions, checked, defaultAction, label, onToggle, onUsageChange, path, references, usage }: { actionOptions: ArtifactAction[]; checked: boolean; defaultAction: ArtifactAction; label: string; onToggle: (path: string, checked: boolean) => void; onUsageChange: (path: string, patch: Partial<ArtifactUsage>) => void; path: string; references: ReferenceItem[]; usage?: ArtifactUsage }) {
   const currentAction = usage?.action ?? defaultAction;
-  return <div className={`reference-row compact-reference-row${checked ? ' selected' : ''}`}>
-    <div className="reference-row-header">
-      <label className="reference-check" title={path}><input type="checkbox" checked={checked} onChange={(event: any) => onToggle(path, event.target.checked)} /><span className="artifact-option"><span>{label}</span><small>{path}</small></span></label>
-    </div>
-    {checked && <div className="compact-reference-fields"><label className="reference-action-field">Action<select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value })}>{actionOptions.map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label><div className="reference-markdown-field"><span className="reference-markdown-label">Instruction</span><ReferenceMarkdownEditor ariaLabel={`Instruction for ${label}`} value={usage?.instruction ?? ''} references={references} referenceToken={{ icon: 'file-symlink-file', label: 'Artifact', value: '$artifact', title: `Insert ${path}` }} onChange={(value) => onUsageChange(path, { instruction: referenceInstructionTextValue(value) })} /></div></div>}
-  </div>;
+  return <ReferenceIntentCard checked={checked} label={label} nodeType="artifact" path={path} status={checked ? 'writes Markdown block' : 'parsed from Markdown'} onSelect={() => onToggle(path, true)} onRemove={checked ? () => onToggle(path, false) : undefined}>
+    {checked && <div className="reference-fields"><label className="reference-action-field">Action<select aria-label={`Action for ${label}`} value={currentAction} onChange={(event: any) => onUsageChange(path, { action: event.target.value })}>{actionOptions.map((action) => <option key={action} value={action}>{artifactActionLabel(action)}</option>)}</select></label><div className="reference-markdown-field"><span className="reference-markdown-label">Instruction</span><ReferenceMarkdownEditor ariaLabel={`Instruction for ${label}`} value={usage?.instruction ?? ''} references={references} referenceToken={{ icon: 'file-symlink-file', label: 'Artifact', value: '$artifact', title: `Insert ${path}` }} onChange={(value) => onUsageChange(path, { instruction: referenceInstructionTextValue(value) })} /></div><ReferenceMarkdownPreview kind="artifact-ref" action={currentAction} path={path} token="$artifact" instruction={usage?.instruction} /></div>}
+  </ReferenceIntentCard>;
 }
 
 function InstructionReferenceSelector({ instructions, onInstructionChange, onToggle, references, refs }: { instructions: Array<Extract<PipelineNode, { type: 'instruction' }>>; onInstructionChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; references: ReferenceItem[]; refs: ReferenceInstruction[] }) {
@@ -1730,10 +1735,60 @@ function InstructionReferenceSelector({ instructions, onInstructionChange, onTog
 }
 
 function InstructionReferenceRow({ checked, instruction, onInstructionChange, onToggle, reference, references, target }: { checked: boolean; instruction?: Extract<PipelineNode, { type: 'instruction' }>; onInstructionChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; reference?: ReferenceInstruction; references: ReferenceItem[]; target: string }) {
-  return <div className={`reference-row${checked ? ' selected' : ''}`}>
-    <label className="reference-check" title={target}><input type="checkbox" checked={checked} onChange={(event: any) => onToggle(target, event.target.checked)} /><span className="artifact-option"><span>{instruction?.label ?? target}</span><small>{target}</small></span></label>
-    {checked && <div className="reference-fields"><div className="reference-markdown-field"><span className="reference-markdown-label">Purpose</span><ReferenceMarkdownEditor ariaLabel={`Purpose for ${target}`} value={reference?.instruction ?? ''} references={references} referenceToken={{ icon: 'references', label: 'Instruction', value: '$instruction', title: `Insert ${target}` }} onChange={(value) => onInstructionChange(target, value)} /></div></div>}
-  </div>;
+  const missing = checked && !instruction;
+  return <ReferenceIntentCard checked={checked} label={instruction?.label ?? target} missing={missing} nodeType="instruction" path={target} status={missing ? 'needs repair' : checked ? 'writes Markdown block' : 'parsed from Markdown'} onSelect={() => onToggle(target, true)} onRemove={checked ? () => onToggle(target, false) : undefined}>
+    {checked && <div className="reference-fields"><div className="reference-markdown-field"><span className="reference-markdown-label">Purpose</span><ReferenceMarkdownEditor ariaLabel={`Purpose for ${target}`} value={reference?.instruction ?? ''} references={references} referenceToken={{ icon: 'references', label: 'Instruction', value: '$instruction', title: `Insert ${target}` }} onChange={(value) => onInstructionChange(target, value)} /></div><ReferenceMarkdownPreview kind="instruction-ref" path={target} token="$instruction" instruction={reference?.instruction} /></div>}
+  </ReferenceIntentCard>;
+}
+
+function RoleReferenceSelector({ onRoleChange, onToggle, references, refs, roles }: { onRoleChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; references: ReferenceItem[]; refs: ReferenceRole[]; roles: Array<Extract<PipelineNode, { type: 'role' }>> }) {
+  const targets = new Set(roles.map(roleReferenceTarget));
+  const missing = refs.filter((ref) => !targets.has(ref.target));
+  return <section className="reference-picker">
+    <h4>Role references</h4>
+    {roles.length ? <div className="reference-list">{roles.map((role) => {
+      const target = roleReferenceTarget(role);
+      const ref = refs.find((item) => item.target === target);
+      return <RoleReferenceRow key={target} checked={Boolean(ref)} reference={ref} references={references} role={role} target={target} onToggle={onToggle} onRoleChange={onRoleChange} />;
+    })}</div> : <p className="hint">Create a role node to reference it here.</p>}
+    {missing.length > 0 && <><p className="hint">Selected role references without a role node.</p><div className="reference-list selected-tools">{missing.map((ref) => <RoleReferenceRow key={ref.target} checked={true} reference={ref} references={references} target={ref.target} onToggle={onToggle} onRoleChange={onRoleChange} />)}</div></>}
+  </section>;
+}
+
+function RoleReferenceRow({ checked, onRoleChange, onToggle, reference, references, role, target }: { checked: boolean; onRoleChange: (target: string, instruction: string) => void; onToggle: (target: string, checked: boolean) => void; reference?: ReferenceRole; references: ReferenceItem[]; role?: Extract<PipelineNode, { type: 'role' }>; target: string }) {
+  const missing = checked && !role;
+  return <ReferenceIntentCard checked={checked} label={role?.label ?? target} missing={missing} nodeType="role" path={target} status={missing ? 'needs repair' : checked ? 'writes Markdown block' : 'parsed from Markdown'} onSelect={() => onToggle(target, true)} onRemove={checked ? () => onToggle(target, false) : undefined}>
+    {checked && <div className="reference-fields"><div className="reference-markdown-field"><span className="reference-markdown-label">Purpose</span><ReferenceMarkdownEditor ariaLabel={`Purpose for ${target}`} value={reference?.instruction ?? ''} references={references} referenceToken={{ icon: 'person', label: 'Role', value: '$role', title: `Insert ${target}` }} onChange={(value) => onRoleChange(target, value)} /></div><ReferenceMarkdownPreview kind="role-ref" path={target} token="$role" instruction={reference?.instruction} /></div>}
+  </ReferenceIntentCard>;
+}
+
+function ReferenceIntentCard({ checked, children, label, missing = false, nodeType, onRemove, onSelect, path, status }: { checked: boolean; children?: React.ReactNode; label: string; missing?: boolean; nodeType: PipelineNodeType | 'artifact' | 'instruction' | 'role'; onRemove?: () => void; onSelect?: () => void; path: string; status: 'writes Markdown block' | 'parsed from Markdown' | 'needs repair' }) {
+  return <article className={`reference-intent-card${checked ? ' selected' : ''}${missing ? ' missing' : ''}`}>
+    <header className="reference-intent-header">
+      <div className="reference-card-target">
+        <span className="reference-selection-state"><Codicon name={checked ? 'check' : 'circle-outline'} />{checked ? 'Selected reference' : 'Available reference'}</span>
+        <strong>{label}</strong>
+        <small title={path}>{path}</small>
+      </div>
+      <span className="pill node-type-pill" style={{ background: typeColors[nodeType] }}>{nodeType}</span>
+      <span className={`reference-sync-status ${status.replaceAll(' ', '-')}`}>{status}</span>
+      <div className="reference-card-actions">
+        <VSCodeIconButton type="button" icon="go-to-file" title="Open referenced file" aria-label={`Open referenced file ${path}`} onClick={() => vscode?.postMessage({ command: 'openWorkspaceFile', path })} />
+        {!checked && onSelect && <VSCodeIconButton type="button" icon="add" title="Select reference" aria-label={`Select reference ${label}`} onClick={onSelect} />}
+        {checked && onRemove && <VSCodeIconButton type="button" className="danger" icon="trash" title="Remove reference" aria-label={`Remove reference ${label}`} onClick={onRemove} />}
+      </div>
+    </header>
+    {children}
+  </article>;
+}
+
+function ReferenceMarkdownPreview({ action, instruction, kind, path, token }: { action?: string; instruction?: string; kind: 'artifact-ref' | 'instruction-ref' | 'role-ref'; path: string; token: '$artifact' | '$instruction' | '$role' }) {
+  const attrs = kind === 'artifact-ref' ? `action="${action ?? 'read'}" path="${path}"` : `target="${path}"`;
+  const body = instruction?.trim() ? `\n${instruction.replaceAll(token, `\`${path}\``).trim()}\n` : '\n';
+  return <details className="reference-markdown-preview">
+    <summary>Generated Markdown</summary>
+    <pre>{`<!--agent-flow:begin ${kind} ${attrs}-->${body}<!--agent-flow:end ${kind}-->`}</pre>
+  </details>;
 }
 
 interface ReferenceItem { label: string; value: string; type: string }
@@ -1787,6 +1842,16 @@ function upsertInstructionRef(refs: ReferenceInstruction[] | undefined, target: 
 
 function instructionReferenceTarget(instruction: Extract<PipelineNode, { type: 'instruction' }>): string {
   return instruction.instructionFile ?? `.github/instructions/${instruction.id}.instructions.md`;
+}
+
+function upsertRoleRef(refs: ReferenceRole[] | undefined, target: string, instruction?: string): ReferenceRole[] {
+  const existing = refs ?? [];
+  if (existing.some((ref) => ref.target === target)) return existing.map((ref) => ref.target === target ? { target, instruction: instruction === undefined ? ref.instruction : referenceInstructionTextValue(instruction) } : ref);
+  return [...existing, { target, instruction: instruction === undefined ? undefined : referenceInstructionTextValue(instruction) }];
+}
+
+function roleReferenceTarget(role: Extract<PipelineNode, { type: 'role' }>): string {
+  return role.roleFile ?? `.github/roles/${role.id}.md`;
 }
 
 function artifactActionLabel(action: string): string {

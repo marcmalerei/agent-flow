@@ -1,7 +1,7 @@
 import { AgentNode } from '../types';
 import { normalizeToolsForVsCode } from '../toolNormalization';
 import { normalizeNodeLabel } from '../labels';
-import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, replaceMarkdownSection, yamlBooleanLine, yamlOptionalList, yamlString, yamlStringLine } from './shared';
+import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, referenceRoleList, replaceMarkdownSection, yamlBooleanLine, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function agentFilePath(node: AgentNode): string {
   if (node.agentFile) return node.agentFile;
@@ -13,9 +13,13 @@ export function generateAgentMarkdown(node: AgentNode): string {
   const label = normalizeNodeLabel(node.label, node.id);
   if (node.markdown?.trim()) {
     const body = replaceMarkdownSection(
-      replaceMarkdownSection(markdownBody(node.markdown), 'Artifact work', artifactUsageList(node.artifactUsages)),
-      'Referenced instructions',
-      referenceInstructionList(node.instructionRefs)
+      replaceMarkdownSection(
+        replaceMarkdownSection(markdownBody(node.markdown), 'Artifact work', artifactUsageList(node.artifactUsages)),
+        'Referenced instructions',
+        referenceInstructionList(node.instructionRefs)
+      ),
+      'Referenced roles',
+      referenceRoleList(node.roleRefs)
     );
     return mergeMarkdownWithFrontmatter(body, frontmatter);
   }
@@ -37,6 +41,10 @@ ${artifactUsageList(node.artifactUsages)}
 # Referenced instructions
 
 ${referenceInstructionList(node.instructionRefs)}
+
+# Referenced roles
+
+${referenceRoleList(node.roleRefs)}
 
 # Context budget
 

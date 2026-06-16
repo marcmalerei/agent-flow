@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Redesign inspector reference editing around full-width intent cards with explicit sync states, referenced-file actions, and role reference Markdown round-tripping.
 - Make Add Node file-first with lower-case name normalization, generated path preview, cancelable creation, and created-file feedback.
 - Add graph reading levels for overview, data flow, references, run activity, and selected-path scanning.
 - Add a compact Now card to the activity HUD so live graph activity names the current node, action, file or target, and event timestamp.
