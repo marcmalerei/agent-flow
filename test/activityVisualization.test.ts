@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeEdgeIds, recentActivityEvents, recentNodeActivitySummaries, resolveActivityEventsForPipeline, summarizeNodeActivity } from '../src/webview/activity';
+import { activeEdgeIds, deriveActivityHudState, recentActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, summarizeNodeActivity } from '../src/webview/activity';
 import { AgentFlowActivityEvent } from '../src/activity/types';
 import { AgentPipeline } from '../src/pipeline/types';
 
@@ -87,5 +87,26 @@ describe('activity visualization helpers', () => {
 
     expect(summaries.has('router')).toBe(false);
     expect(summaries.get('worker')).toMatchObject({ summary: 'Run fresh file', toolName: 'run_file' });
+  });
+
+  it('derives a compact live HUD state and recent traceable activity trail', () => {
+    const events: AgentFlowActivityEvent[] = [
+      { id: 'stale', timestamp: '2026-06-12T09:57:30.000Z', sessionId: 'older', nodeId: 'router', phase: 'tool', summary: 'Stale read', toolName: 'read_file' },
+      { id: 'write', timestamp: '2026-06-12T09:59:57.000Z', sessionId: 'run-1', nodeId: 'router', phase: 'artifact', summary: 'Wrote plan', artifactPath: '.github/artifacts/plan.md' },
+      { id: 'handoff', timestamp: '2026-06-12T09:59:59.000Z', sessionId: 'run-1', nodeId: 'router', targetNodeId: 'worker', phase: 'handoff', summary: 'Hand off to worker' }
+    ];
+
+    expect(deriveActivityHudState(events, [], Date.parse(now))).toEqual(expect.objectContaining({
+      mode: 'live',
+      eventCount: 3,
+      recentCount: 2,
+      activeSessionId: 'run-1',
+      lastSummary: 'Hand off to worker',
+      sourceSummary: 'No active sources'
+    }));
+    expect(recentActivityTrail(events, Date.parse(now), 2)).toEqual([
+      expect.objectContaining({ id: 'handoff', label: 'handoff', nodeId: 'router', targetNodeId: 'worker' }),
+      expect.objectContaining({ id: 'write', label: 'artifact', nodeId: 'router', artifactPath: '.github/artifacts/plan.md' })
+    ]);
   });
 });
