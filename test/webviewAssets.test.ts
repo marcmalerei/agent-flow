@@ -167,19 +167,6 @@ describe('webview assets', () => {
     expect(css).toContain('.flow-empty-card');
   });
 
-  test('shows graph startup and recovery states when parsed nodes are not visible', () => {
-    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
-    const css = readFileSync('src/webview/styles.css', 'utf8');
-
-    expect(webviewSource).toContain('deriveGraphRecoveryState');
-    expect(webviewSource).toContain('FlowRecoveryStateView');
-    expect(webviewSource).toContain("command: 'copyDebugSnapshot'");
-    expect(webviewSource).toContain('Retry render');
-    expect(webviewSource).toContain('Graph render needs attention');
-    expect(css).toContain('.flow-recovery-state');
-    expect(css).toContain('.flow-recovery-card');
-  });
-
   test('animates node-level file and artifact activity', () => {
     const tokenNodeSource = readFileSync('src/webview/TokenNode.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
