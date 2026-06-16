@@ -50,6 +50,43 @@ describe('webview state updates', () => {
     expect(result.state.nodeRuntime?.agent).toMatchObject({ dirty: true, status: 'stale', activity: 'writing' });
   });
 
+  it('reports a selected-node edit conflict when that node changes externally while dirty', () => {
+    const incomingSelectedPipeline: AgentPipeline = {
+      version: 1,
+      name: 'Incoming selected',
+      nodes: [{ id: 'agent', type: 'agent', label: 'externally edited', agentFile: '.github/agents/agent.agent.md', tools: [], calls: [], outputs: [] }],
+      edges: []
+    };
+    const result = mergeRemoteStateUpdate({
+      currentState: {
+        pipeline: currentPipeline,
+        findings: [],
+        risk: { score: 0, reasons: [] },
+        generatedFiles: [],
+        activityEvents: []
+      },
+      currentDraft: currentPipeline,
+      incomingState: {
+        pipeline: incomingSelectedPipeline,
+        findings: [],
+        risk: { score: 0, reasons: [] },
+        generatedFiles: [],
+        activityEvents: []
+      },
+      dirty: true,
+      selectedId: 'agent'
+    });
+
+    expect(result.applyDraft).toBe(false);
+    expect(result.draft).toBe(currentPipeline);
+    expect(result.conflict).toEqual({
+      filePath: '.github/agents/agent.agent.md',
+      incomingPipeline: incomingSelectedPipeline,
+      nodeId: 'agent',
+      nodeLabel: 'locally edited'
+    });
+  });
+
   it('applies remote state updates when the webview draft is clean', () => {
     const nextPipeline: AgentPipeline = {
       version: 1,

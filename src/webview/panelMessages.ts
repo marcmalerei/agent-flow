@@ -1,7 +1,8 @@
+import * as path from 'node:path';
 import { parsePipeline } from '../pipeline/parser';
 import { normalizePipelineAgentReferences } from '../pipeline/referenceResolver';
 import { AgentPipeline } from '../pipeline/types';
-import { generateFiles } from '../pipeline/generators';
+import { generateFileForNode, generateFiles } from '../pipeline/generators';
 import { normalizePipelineTools } from '../pipeline/toolNormalization';
 
 export interface SavePipelineMessage {
@@ -20,6 +21,12 @@ export interface WriteMarkdownFilesMessage {
   command: 'writeMarkdownFiles';
   pipeline: unknown;
   selectedId?: string;
+}
+
+export interface OpenNodeDiffMessage {
+  command: 'openNodeDiff';
+  pipeline: unknown;
+  nodeId?: string;
 }
 
 export interface SavePipelineDependencies {
@@ -72,4 +79,24 @@ export async function handleWriteMarkdownFilesMessage(dependencies: WriteMarkdow
   await dependencies.postState(pipeline, dependencies.message.selectedId);
   await dependencies.showWrittenMessage(fileCount);
   return pipeline;
+}
+
+export interface OpenNodeDiffDependencies {
+  message: OpenNodeDiffMessage;
+  workspace: string;
+  writeTempDraft(relativePath: string, content: string): Promise<string>;
+  openDiff(left: string, right: string, title: string): Promise<void>;
+  showErrorMessage(message: string): Promise<void>;
+}
+
+export async function handleOpenNodeDiffMessage(dependencies: OpenNodeDiffDependencies): Promise<void> {
+  const pipeline = normalizePipelineTools(normalizePipelineAgentReferences(parsePipeline(dependencies.message.pipeline)));
+  const nodeId = typeof dependencies.message.nodeId === 'string' ? dependencies.message.nodeId : '';
+  const file = generateFileForNode(pipeline, nodeId);
+  if (!file || file.kind === 'pipeline') {
+    await dependencies.showErrorMessage('Agent Flow could not find a generated file for this node.');
+    return;
+  }
+  const draftPath = await dependencies.writeTempDraft(file.path, file.content);
+  await dependencies.openDiff(draftPath, path.resolve(dependencies.workspace, file.path), 'Agent Flow draft vs external file');
 }
