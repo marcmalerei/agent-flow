@@ -25,6 +25,22 @@ describe('webview assets', () => {
     expect(webviewSource).not.toContain('className="node-buttons"');
   });
 
+  test('previews file-first node creation before mutating the pipeline', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const builderSource = readFileSync('src/webview/builderMutations.ts', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('NodeCreationForm');
+    expect(webviewSource).toContain('Generated file');
+    expect(webviewSource).toContain('Name or id');
+    expect(webviewSource).toContain('Created ');
+    expect(webviewSource).toContain('createPipelineNode');
+    expect(builderSource).toContain('previewNodeCreation');
+    expect(builderSource).toContain('normalized');
+    expect(css).toContain('.node-creation-form');
+    expect(css).toContain('.creation-feedback');
+  });
+
   test('exposes builder clipboard and complete undo redo controls', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
 

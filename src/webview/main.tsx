@@ -31,7 +31,7 @@ import { filterToolOptionGroups, flattenToolOptionValues, normalizeConfiguredToo
 import { estimateNodeTokenCount, formatTokenBadge } from './tokenCounts';
 import { TokenNode, flowHandlePositions } from './TokenNode';
 import { applyConnectionIntent, buildConnectionIntentOptions, connectPipelineNodes, deletePipelineEdges, deletePipelineNodes, deriveRenamePreview, renamePipelineNodeLabel, type ConnectionIntentKind, type RenamePreview as RenamePreviewModel } from './flowMutations';
-import { duplicatePipelineSelection } from './builderMutations';
+import { createPipelineNode, duplicatePipelineSelection, previewNodeCreation, type NodeCreationPreview } from './builderMutations';
 import { optionalTextValue, referenceInstructionTextValue } from './formState';
 import { Codicon, VSCodeButton, VSCodeIconButton, VSCodeInput, VSCodeTextarea } from './components';
 import { applyNodePatch } from './nodeMarkdownSync';
@@ -120,6 +120,13 @@ interface PendingNodeConnection {
   sourceId: string;
   targetNode: PipelineNode;
   options: ReturnType<typeof buildConnectionIntentOptions>;
+}
+
+interface NodeCreationDraft {
+  connectFrom?: string;
+  description: string;
+  name: string;
+  type: PipelineNodeType;
 }
 
 function initialGraphReadingLevel(): GraphReadingLevel {
@@ -408,8 +415,7 @@ function App() {
     setInspectorOpen(true);
     if (result.sectionId) window.setTimeout(() => document.querySelector<HTMLElement>(`.inspector-section-${result.sectionId}`)?.scrollIntoView({ block: 'nearest' }), 0);
   }, [commitDraft]);
-  const addNode = (type: PipelineNodeType, position = { x: 120, y: 120 }, connectFrom?: string, intent?: ConnectionIntentKind) => {
-    const node = createNode(type, draft, position);
+  const addNode = (node: PipelineNode, connectFrom?: string, intent?: ConnectionIntentKind) => {
     commitDraft((pipeline) => {
       const next = { ...pipeline, nodes: [...pipeline.nodes, node] };
       if (connectFrom && intent) return applyConnectionIntent(next, connectFrom, node.id, intent);
@@ -442,13 +448,15 @@ function App() {
   return <FlowApp state={state} draft={draft} selected={selected} selectedId={selectedId} nodes={nodes} edges={edges} activeNodeIds={activeNodeIds} activityHud={activityHud} activityTrail={activityTrail} activeTab={activeTab} bottomOpen={bottomOpen} graphMode={graphMode} graphReadingLevel={graphReadingLevel} inspectorOpen={inspectorOpen} viewportSignal={viewportSignal} editingConflict={editingConflict} canUndo={undoStack.current.length > 0} canRedo={redoStack.current.length > 0} canPaste={copiedIds.length > 0 || Boolean(selectedId)} undoLast={undoLast} redoLast={redoLast} copySelection={copySelection} pasteSelection={pasteSelection} setActiveTab={setActiveTab} setBottomOpen={setBottomOpen} setGraphMode={setGraphMode} setGraphReadingLevel={setGraphReadingLevel} setInspectorOpen={setInspectorOpen} setSelectedId={setSelectedId} updateNode={updateNode} connectNodes={connectNodes} applyConnection={applyConnection} deleteNodes={deleteNodes} deleteEdges={deleteEdges} addNode={addNode} onApplyExternalChanges={applyExternalChanges} onKeepLocalEdit={keepLocalEdit} onOpenConflictDiff={openConflictDiff} onCancelLocalEdit={cancelLocalEdit} onApplyValidationQuickFix={applyValidationQuickFix} />;
 }
 
-function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, graphMode, graphReadingLevel, inspectorOpen, viewportSignal, editingConflict, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setGraphMode, setGraphReadingLevel, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit, onApplyValidationQuickFix }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; graphReadingLevel: GraphReadingLevel; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setGraphReadingLevel: (level: GraphReadingLevel) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (type: PipelineNodeType, position?: { x: number; y: number }, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void; onApplyValidationQuickFix: (action: ValidationAction | undefined) => void }) {
+function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeIds, activityHud, activityTrail, activeTab, bottomOpen, graphMode, graphReadingLevel, inspectorOpen, viewportSignal, editingConflict, canUndo, canRedo, canPaste, undoLast, redoLast, copySelection, pasteSelection, setActiveTab, setBottomOpen, setGraphMode, setGraphReadingLevel, setInspectorOpen, setSelectedId, updateNode, applyConnection, deleteNodes, addNode, onApplyExternalChanges, onKeepLocalEdit, onOpenConflictDiff, onCancelLocalEdit, onApplyValidationQuickFix }: { state: State; draft: AgentPipeline; selected?: PipelineNode; selectedId: string; nodes: RenderedNode[]; edges: RenderedEdge[]; activeNodeIds: string[]; activityHud: ActivityHudState; activityTrail: ActivityTrailItem[]; activeTab: BottomTab; bottomOpen: boolean; graphMode: GraphMode; graphReadingLevel: GraphReadingLevel; inspectorOpen: boolean; viewportSignal: number; editingConflict?: EditingConflict; canUndo: boolean; canRedo: boolean; canPaste: boolean; undoLast: () => void; redoLast: () => void; copySelection: () => void; pasteSelection: () => void; setActiveTab: (tab: BottomTab) => void; setBottomOpen: (open: boolean) => void; setGraphMode: (mode: GraphMode) => void; setGraphReadingLevel: (level: GraphReadingLevel) => void; setInspectorOpen: (open: boolean) => void; setSelectedId: (id: string) => void; updateNode: (nodeId: string, patch: Partial<PipelineNode>) => void; connectNodes: (sourceId: string, targetId: string) => void; applyConnection: (sourceId: string, targetId: string, kind: ConnectionIntentKind) => void; deleteNodes: (nodeIds: string[]) => void; deleteEdges: (edgeIds: string[]) => void; addNode: (node: PipelineNode, connectFrom?: string, intent?: ConnectionIntentKind) => void; onApplyExternalChanges: () => void; onKeepLocalEdit: () => void; onOpenConflictDiff: () => void; onCancelLocalEdit: () => void; onApplyValidationQuickFix: (action: ValidationAction | undefined) => void }) {
   const addNodeMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLElement | null>(null);
   const [addNodeMenuOpen, setAddNodeMenuOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [followLiveActivity, setFollowLiveActivity] = useState(false);
   const [pendingNodeConnection, setPendingNodeConnection] = useState<PendingNodeConnection | undefined>(undefined);
+  const [nodeCreationDraft, setNodeCreationDraft] = useState<NodeCreationDraft | undefined>(undefined);
+  const [creationFeedback, setCreationFeedback] = useState<string | undefined>(undefined);
   const [graphSearchQuery, setGraphSearchQuery] = useState('');
   const [graphSearchIndex, setGraphSearchIndex] = useState(0);
   const [selectedGraphTypes, setSelectedGraphTypes] = useState<PipelineNodeType[]>(graphTypeFilterOptions(draft).map((option) => option.type));
@@ -545,10 +553,16 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       if (target && addNodeMenuRef.current?.contains(target)) return;
       setAddNodeMenuOpen(false);
       setPendingNodeConnection(undefined);
+      setNodeCreationDraft(undefined);
     };
     window.addEventListener('pointerdown', onPointerDown);
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [addNodeMenuOpen]);
+  useEffect(() => {
+    if (!creationFeedback) return;
+    const timer = window.setTimeout(() => setCreationFeedback(undefined), 2800);
+    return () => window.clearTimeout(timer);
+  }, [creationFeedback]);
 
   const fitViewport = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -616,25 +630,39 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
     setGraphViewport(focusViewportOnNode(node, viewportRef.current, rect));
   }, [activeNodeIds, followLiveActivity, inspectorOpen, nodes, setGraphViewport]);
 
-  const addNodeAtCenter = (type: PipelineNodeType, connectFrom?: string) => {
+  const nodeCreationPreview = useMemo(() => nodeCreationDraft ? previewNodeCreation(draft, nodeCreationDraft.type, nodeCreationDraft.name, nodeCreationDraft.description) : undefined, [draft, nodeCreationDraft]);
+  const nodeCreationPosition = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
-    const position = rect
+    return rect
       ? screenToGraphPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }, rect, viewport)
       : { x: 120, y: 120 };
-    if (connectFrom) {
-      const targetNode = createNode(type, draft, position);
+  }, [viewport]);
+  const beginNodeCreation = (type: PipelineNodeType, connectFrom?: string) => {
+    setPendingNodeConnection(undefined);
+    setCreationFeedback(undefined);
+    setNodeCreationDraft({ connectFrom, description: '', name: `new ${type}`, type });
+  };
+  const confirmNodeCreation = () => {
+    if (!nodeCreationDraft) return;
+    const position = nodeCreationPosition();
+    const targetNode = createPipelineNode(draft, nodeCreationDraft.type, position, { description: nodeCreationDraft.description, name: nodeCreationDraft.name });
+    if (nodeCreationDraft.connectFrom) {
       const previewPipeline = { ...draft, nodes: [...draft.nodes, targetNode] };
       setPendingNodeConnection({
-        type,
+        type: nodeCreationDraft.type,
         position,
-        sourceId: connectFrom,
+        sourceId: nodeCreationDraft.connectFrom,
         targetNode,
-        options: buildConnectionIntentOptions(previewPipeline, connectFrom, targetNode.id)
+        options: buildConnectionIntentOptions(previewPipeline, nodeCreationDraft.connectFrom, targetNode.id)
       });
+      setNodeCreationDraft(undefined);
       return;
     }
     setPendingNodeConnection(undefined);
-    addNode(type, position);
+    addNode(targetNode);
+    setCreationFeedback(`Created ${nodeFileSummary(targetNode)}`);
+    setNodeCreationDraft(undefined);
+    setAddNodeMenuOpen(false);
   };
   const openActivityForNode = (nodeId?: string) => {
     if (nodeId) {
@@ -720,7 +748,8 @@ function FlowApp({ state, draft, selected, selectedId, nodes, edges, activeNodeI
       <VSCodeButton className="compact" icon="copy" aria-keyshortcuts="Control+C Meta+C" onClick={copySelection} disabled={!selectedId} title="Copy selected node">Copy</VSCodeButton>
       <VSCodeButton className="compact" icon="files" aria-keyshortcuts="Control+V Meta+V" onClick={pasteSelection} disabled={!canPaste} title="Paste copied node">Paste</VSCodeButton>
       <span className="autosave-status"><Codicon name="sync" /> Auto-save</span>
-      <div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => setAddNodeMenuOpen((open) => !open)}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => { addNodeAtCenter(type); setAddNodeMenuOpen(false); }}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => addNodeAtCenter(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.type, pendingNodeConnection.position); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.type, pendingNodeConnection.position, pendingNodeConnection.sourceId, kind); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</div>}</div>
+      {creationFeedback && <span className="creation-feedback" role="status"><Codicon name="pass" />{creationFeedback}</span>}
+      <div className="add-node-menu" ref={addNodeMenuRef}><VSCodeButton className="compact" icon="add" aria-haspopup="menu" aria-expanded={addNodeMenuOpen} onClick={() => { setAddNodeMenuOpen((open) => !open); setPendingNodeConnection(undefined); }}>Add Node</VSCodeButton>{addNodeMenuOpen && <div className="add-node-popover" role="menu" aria-label="Add node">{nodeCreationDraft && nodeCreationPreview ? <NodeCreationForm draft={nodeCreationDraft} preview={nodeCreationPreview} connectFromLabel={nodeCreationDraft.connectFrom ? draft.nodes.find((node) => node.id === nodeCreationDraft.connectFrom)?.label : undefined} onCancel={() => setNodeCreationDraft(undefined)} onChange={setNodeCreationDraft} onCreate={confirmNodeCreation} /> : <>{nodePaletteGroups.map((group) => <section className="node-palette-group" key={group.label}><h3>{group.label}</h3>{group.types.map((type) => <div className="node-palette-item" key={type}><button type="button" role="menuitem" onClick={() => beginNodeCreation(type)}><Codicon name={nodeTypeIcons[type]} /><span>{nodeTypeLabel(type)}</span><small>{nodeTypeDescription(type)}</small></button>{selected && <button type="button" className="node-palette-connect" onClick={() => beginNodeCreation(type, selected.id)} title={`Connect from selected ${selected.label}`}><Codicon name="link" /><span>Connect from selected</span></button>}</div>)}</section>)}{pendingNodeConnection && <ConnectionIntentChooser pending={pendingNodeConnection} source={draft.nodes.find((node) => node.id === pendingNodeConnection.sourceId)} onCancel={() => setPendingNodeConnection(undefined)} onCreateOnly={() => { addNode(pendingNodeConnection.targetNode); setCreationFeedback(`Created ${nodeFileSummary(pendingNodeConnection.targetNode)}`); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} onCreateAndConnect={(kind) => { addNode(pendingNodeConnection.targetNode, pendingNodeConnection.sourceId, kind); setCreationFeedback(`Created ${nodeFileSummary(pendingNodeConnection.targetNode)}`); setPendingNodeConnection(undefined); setAddNodeMenuOpen(false); }} />}</>}</div>}</div>
     </header>
     {shortcutsOpen && <ShortcutsHelp onClose={() => setShortcutsOpen(false)} />}
     <NativeGraph graphMode={graphMode} graphReadingLevel={graphReadingLevel} onGraphReadingLevelChange={setGraphReadingLevel} canvasRef={canvasRef} nodes={visibleNodes} edges={visibleEdgesForFilters} selectedId={selectedId} selectedNode={selected} activeNodeIds={activeNodeIds} problemNodeIds={problemNodeIds} activityTrail={activityTrail} viewport={viewport} graphBounds={graphBounds} emptyState={emptyState} recoveryState={recoveryState} searchQuery={graphSearchQuery} searchMatches={graphSearchMatches} searchIndex={graphSearchIndex} typeFilterOptions={graphTypeOptions} selectedGraphTypes={selectedGraphTypes} graphFilterEmpty={graphFilterEmpty} artifactSummary={artifactSummary} onActivitySelect={(item) => openActivityForNode(item.nodeId ?? item.targetNodeId)} onViewportChange={setGraphViewport} onFit={fitViewport} onFitSelectedNeighborhood={fitSelectedNeighborhood} onJumpActive={jumpToActive} onJumpProblem={jumpToProblem} onJumpSelected={jumpToSelected} onJumpStart={jumpToStart} onOpenDiagnostics={() => { setBottomOpen(true); setActiveTab('validation'); }} onNodeClick={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(true); }} onSelectNode={setSelectedId} onClearFocus={() => setSelectedId('')} onTypeFilterChange={setSelectedGraphTypes} onOpenSelected={() => selectedId && setInspectorOpen(true)} onCanvasClick={() => setInspectorOpen(false)} onDeleteSelected={() => selectedId && deleteNodes([selectedId])} onSearchChange={updateGraphSearch} onSearchClear={clearGraphSearch} onSearchStep={stepGraphSearch} />
@@ -781,6 +810,29 @@ function GraphModeSwitch({ mode, onChange }: { mode: GraphMode; onChange: (mode:
       onClick={() => onChange(option.id)}
     ><Codicon name={option.icon} /><span>{option.label}</span></button>)}
   </div>;
+}
+
+function NodeCreationForm({ connectFromLabel, draft, onCancel, onChange, onCreate, preview }: { connectFromLabel?: string; draft: NodeCreationDraft; onCancel: () => void; onChange: (draft: NodeCreationDraft) => void; onCreate: () => void; preview: NodeCreationPreview }) {
+  const storageTarget = preview.filePath ?? 'Stored in pipeline configuration';
+  return <section className="node-creation-form" aria-label="Create node">
+    <header><Codicon name={nodeTypeIcons[draft.type]} /><strong>Create {nodeTypeLabel(draft.type)}</strong></header>
+    <label>Name or id<input value={draft.name} onChange={(event: any) => onChange({ ...draft, name: event.target.value })} placeholder={`new ${draft.type}`} /></label>
+    <label>Description<textarea value={draft.description} onChange={(event: any) => onChange({ ...draft, description: event.target.value })} rows={3} placeholder="Optional short purpose." /></label>
+    <div className="node-creation-preview">
+      <span>Generated file</span>
+      <code>{storageTarget}</code>
+    </div>
+    <div className="node-creation-preview">
+      <span>Node id</span>
+      <code>{preview.id}</code>
+    </div>
+    {preview.normalized && <p className="node-creation-note">Names are normalized to lower-case file-safe ids before anything is written.</p>}
+    {connectFromLabel && <p className="node-creation-note">After creation, choose how this connects from {connectFromLabel}.</p>}
+    <div className="node-creation-actions">
+      <VSCodeButton className="compact" icon="close" onClick={onCancel}>Cancel</VSCodeButton>
+      <VSCodeButton className="compact" icon="add" onClick={onCreate}>Create</VSCodeButton>
+    </div>
+  </section>;
 }
 
 function GraphSearchControl({ matches, onChange, onClear, onStep, query, searchIndex }: { matches: GraphSearchResult[]; onChange: (query: string) => void; onClear: () => void; onStep: (direction: 1 | -1) => void; query: string; searchIndex: number }) {
@@ -1231,25 +1283,6 @@ function visibleNativeNodeCount(container: HTMLElement | null): number {
       && rect.bottom > containerRect.top
       && rect.top < containerRect.bottom;
   }).length;
-}
-
-function createNode(type: PipelineNodeType, pipeline: AgentPipeline, position: { x: number; y: number }): PipelineNode {
-  const baseId = `new-${type}`;
-  const existing = new Set(pipeline.nodes.map((node) => node.id));
-  let suffix = 1;
-  while (existing.has(`${baseId}-${suffix}`)) suffix += 1;
-  const id = `${baseId}-${suffix}`;
-  const base = { id, type, label: `new ${type}`, position };
-  if (type === 'agent') return { ...base, type, agentFile: `.github/agents/${id}.agent.md`, tools: ['read', 'search'], calls: [], inputs: [], outputs: [] };
-  if (type === 'prompt') return { ...base, type, promptFile: `.github/prompts/${id}.prompt.md`, tools: [], workflow: [], constraints: [] };
-  if (type === 'instruction') return { ...base, type, instructionFile: `.github/instructions/${id}.instructions.md`, rules: [] };
-  if (type === 'skill') return { ...base, type, skillFile: `.github/skills/${id}/SKILL.md`, activationCriteria: [], procedure: [] };
-  if (type === 'role') return { ...base, type, roleFile: `.github/roles/${id}.md` };
-  if (type === 'artifact') return { ...base, type, path: `.github/artifacts/${id}.md` };
-  if (type === 'gate') return { ...base, type, condition: 'Define condition' };
-  if (type === 'handoff') return { ...base, type, label: 'new handoff' };
-  if (type === 'mcp-server') return { ...base, type, label: 'new mcp server' };
-  return { ...base, type };
 }
 
 function nodeTypeLabel(type: PipelineNodeType): string {
