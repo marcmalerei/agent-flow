@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Wrap the top toolbar into responsive groups so live activity, sync state, and actions stay reachable in narrow editor widths.
 - Condense the top activity HUD copy and timestamp layout so the toolbar status stays readable in the 1280px smoke and Marketplace capture viewport.
 - Fix the Marketplace preview capture script so Add Node palette steps wait for selector-backed headings and generated-file previews instead of unreliable global body text.
 - Prioritize the meaningful starter flow when auto-fitting the first graph viewport so default pipelines open at a readable scale.
