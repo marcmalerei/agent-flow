@@ -248,6 +248,16 @@ describe('webview assets', () => {
     expect(css).toContain('.overview-viewport');
   });
 
+  test('keeps recent activity trail compact inside the graph canvas', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('aria-label={`Replay activity ${item.label}');
+    expect(css).toContain('.activity-trail button { width: 28px; height: 28px;');
+    expect(css).toContain('.activity-trail span { position: absolute;');
+    expect(css).toContain('clip-path: inset(50%)');
+  });
+
   test('adds graph search and selected-neighborhood fitting controls', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
@@ -450,6 +460,19 @@ describe('webview assets', () => {
     expect(css).toContain('.node-meta-slot');
     expect(css).toContain('.node-status-slot');
     expect(css).toContain('.flow-node-type-handoff');
+  });
+
+  test('keeps graph nodes readable on dark canvases', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('--agentflow-node-color');
+    expect(css).toContain('--agentflow-node-surface');
+    expect(css).toContain('--agentflow-node-outline');
+    expect(css).toContain('box-shadow: inset 0 0 0 1px');
+    expect(css).toContain('.agentflow-node.focus-muted { opacity: .72; }');
+    expect(css).toContain('.agentflow-node.reading-muted { opacity: .68; }');
+    expect(css).toContain('.agentflow-node.diagnose-muted { opacity: .62; }');
   });
 
   test('surfaces webview bundle load and runtime failures instead of a blank panel', () => {

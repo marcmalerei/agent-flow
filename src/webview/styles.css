@@ -89,8 +89,8 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .graph-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .graph-edge-layer { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
 .graph-node-layer { position: absolute; left: 0; top: 0; }
-.agentflow-node { position: absolute; box-sizing: border-box; display: block; min-width: 0; padding: 0; text-align: initial; transform-origin: 0 0; cursor: pointer; }
-.agentflow-node:hover { background: color-mix(in srgb, var(--vscode-editor-background) 88%, var(--vscode-list-hoverBackground, transparent)); }
+.agentflow-node { --agentflow-node-surface: color-mix(in srgb, var(--vscode-editor-background) 84%, var(--agentflow-node-color, var(--vscode-focusBorder))); --agentflow-node-outline: color-mix(in srgb, var(--agentflow-node-color, var(--vscode-focusBorder)) 76%, var(--vscode-editor-foreground)); position: absolute; box-sizing: border-box; display: block; min-width: 0; padding: 0; text-align: initial; transform-origin: 0 0; cursor: pointer; }
+.agentflow-node:hover .flow-node { background: color-mix(in srgb, var(--agentflow-node-surface) 84%, var(--vscode-list-hoverBackground, var(--vscode-editor-foreground))); box-shadow: inset 0 0 0 1px var(--agentflow-node-outline), 0 0 0 2px color-mix(in srgb, var(--agentflow-node-color, var(--vscode-focusBorder)) 24%, transparent), 0 10px 22px rgba(0,0,0,.32); }
 .agentflow-node.selected { box-shadow: 0 0 0 1px var(--vscode-focusBorder); }
 .agentflow-node.active { z-index: 3; }
 .agentflow-node.problem-node .flow-node { box-shadow: inset 0 0 0 1px var(--vscode-editorWarning-foreground, #cca700), 0 0 0 3px color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 16%, transparent); }
@@ -98,22 +98,23 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .agentflow-node.node-priority-activity { z-index: 5; }
 .agentflow-node.node-priority-status { z-index: 4; }
 .agentflow-node.node-priority-related { z-index: 3; }
-.agentflow-node.node-priority-muted { opacity: .32; }
-.agentflow-node.node-priority-muted:hover { opacity: .68; }
+.agentflow-node.node-priority-muted { opacity: .68; }
+.agentflow-node.node-priority-muted:hover { opacity: .88; }
 .agentflow-node.reading-primary { z-index: 2; }
 .agentflow-node.reading-related { opacity: .78; z-index: 1; }
-.agentflow-node.reading-muted { opacity: .34; }
-.agentflow-node.reading-muted:hover { opacity: .68; }
+.agentflow-node.reading-muted { opacity: .68; }
+.agentflow-node.reading-muted:hover { opacity: .88; }
 .reading-level-selected-path .agentflow-node.reading-related .flow-node { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 58%, transparent); }
-.agentflow-node.diagnose-muted { opacity: .24; }
-.agentflow-node.diagnose-muted:hover { opacity: .62; }
+.agentflow-node.diagnose-muted { opacity: .62; }
+.agentflow-node.diagnose-muted:hover { opacity: .84; }
 .agentflow-node.focus-related { z-index: 2; }
-.agentflow-node.focus-muted { opacity: .34; }
-.agentflow-node.focus-muted:hover { opacity: .72; }
+.agentflow-node.focus-muted { opacity: .72; }
+.agentflow-node.focus-muted:hover { opacity: .9; }
 .agentflow-node.active .flow-node { box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 86%, transparent), 0 0 0 4px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 20%, transparent), 0 0 28px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 48%, transparent); }
-.flow-node { position: relative; box-sizing: border-box; display: grid; grid-template-rows: 18px minmax(0, 1fr) 22px; align-content: stretch; justify-items: stretch; height: 100%; min-height: 72px; min-width: 0; padding: 6px 14px 8px; border: 1px solid var(--agentflow-node-border); border-radius: 9px; background: linear-gradient(180deg, color-mix(in srgb, var(--agentflow-node-surface) 78%, white 3%) 0%, var(--agentflow-node-surface) 100%); text-align: center; white-space: normal; overflow: hidden; box-shadow: inset 0 1px 0 color-mix(in srgb, white 14%, transparent), var(--agentflow-node-shadow); }
-.flow-node.has-activity { background: linear-gradient(180deg, color-mix(in srgb, var(--agentflow-node-surface) 84%, var(--agentflow-token-color, var(--vscode-focusBorder)) 16%) 0%, color-mix(in srgb, var(--agentflow-node-surface) 90%, var(--agentflow-token-color, var(--vscode-focusBorder)) 10%) 100%); box-shadow: inset 0 1px 0 color-mix(in srgb, white 14%, transparent), 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 74%, transparent), 0 0 0 3px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 10%, transparent), var(--agentflow-node-shadow); }
-.flow-node.activity-freshness-fresh { animation: nodeActivityPulse 1.15s ease-in-out infinite; box-shadow: inset 0 1px 0 color-mix(in srgb, white 14%, transparent), 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 90%, transparent), 0 0 0 4px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 18%, transparent), 0 0 28px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 52%, transparent); }
+.flow-node { position: relative; box-sizing: border-box; display: grid; grid-template-rows: 18px minmax(0, 1fr) 22px; align-content: stretch; justify-items: stretch; height: 100%; min-height: 72px; min-width: 0; padding: 6px 14px 8px; background: var(--agentflow-node-surface); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agentflow-node-outline) 68%, transparent), 0 0 0 1px color-mix(in srgb, var(--vscode-editor-background) 78%, transparent), 0 8px 18px rgba(0,0,0,.26); text-align: center; white-space: normal; overflow: hidden; }
+.agentflow-node.selected .flow-node { box-shadow: inset 0 0 0 1px var(--agentflow-node-outline), 0 0 0 2px var(--vscode-focusBorder), 0 0 22px color-mix(in srgb, var(--vscode-focusBorder) 36%, transparent), 0 10px 24px rgba(0,0,0,.34); }
+.flow-node.has-activity { background: color-mix(in srgb, var(--vscode-editor-background) 92%, var(--agentflow-token-color, var(--vscode-focusBorder))); box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 74%, transparent), 0 0 0 3px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 10%, transparent); }
+.flow-node.activity-freshness-fresh { animation: nodeActivityPulse 1.15s ease-in-out infinite; box-shadow: 0 0 0 1px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 90%, transparent), 0 0 0 4px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 18%, transparent), 0 0 28px color-mix(in srgb, var(--agentflow-token-color, var(--vscode-focusBorder)) 52%, transparent); }
 .flow-node.activity-freshness-recent { opacity: .9; }
 .flow-node.has-activity::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--agentflow-token-color, var(--vscode-focusBorder)); box-shadow: 0 0 16px var(--agentflow-token-color, var(--vscode-focusBorder)); }
 .flow-node.activity-freshness-fresh.activity-node-file, .flow-node.activity-freshness-fresh.activity-node-artifact { animation-duration: .9s; }
@@ -195,11 +196,11 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .overview-node.active { fill: var(--vscode-charts-green); opacity: 1; }
 .overview-node.problem { fill: var(--vscode-editorWarning-foreground, #cca700); opacity: 1; }
 .overview-viewport { fill: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent); stroke: var(--vscode-focusBorder); stroke-width: 1.5; }
-.activity-trail { position: absolute; left: 52px; bottom: 12px; z-index: 5; display: flex; max-width: min(560px, calc(100% - 100px)); gap: 4px; overflow: hidden; pointer-events: auto; }
-.activity-trail button { max-width: 132px; min-height: 28px; padding: 3px 7px; border-color: var(--agentflow-border); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 92%, transparent); color: var(--vscode-foreground); }
+.activity-trail { position: absolute; left: 52px; bottom: 12px; z-index: 5; display: flex; max-width: min(220px, calc(100% - 100px)); gap: 4px; overflow: hidden; pointer-events: auto; }
+.activity-trail button { width: 28px; height: 28px; min-width: 28px; min-height: 28px; padding: 0; border-color: var(--agentflow-border); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 92%, transparent); color: var(--vscode-foreground); }
 .activity-trail button:first-child { border-color: var(--vscode-charts-green); box-shadow: inset 2px 0 0 var(--vscode-charts-green); }
 .activity-trail button.active { border-color: var(--vscode-focusBorder, var(--vscode-charts-green)); background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground)); }
-.activity-trail span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-trail span { position: absolute; width: 1px; height: 1px; margin: -1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
 .shortcut-help { position: fixed; top: 64px; right: 14px; z-index: 24; box-sizing: border-box; width: min(340px, calc(100vw - 28px)); padding: 10px; border: 1px solid var(--vscode-editorWidget-border, var(--agentflow-border)); border-radius: var(--agentflow-control-radius); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); color: var(--vscode-editorWidget-foreground, var(--vscode-foreground)); box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0,0,0,.35)); }
 .keyboard-shortcuts-popover { max-height: calc(100vh - 88px); overflow: auto; }
 .shortcut-help header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }

@@ -404,13 +404,14 @@ function App() {
   const activeEdges = useMemo(() => new Set(activeEdgeIds(draft, freshActivity)), [draft, freshActivity]);
   const nodes: RenderedNode[] = useMemo(() => normalizeGraphNodePositions(draft.nodes.map((node) => {
     const size = graphNodeSizeForType(node.type);
+    const nodeColor = typeColors[node.type] ?? 'var(--vscode-focusBorder)';
     return {
       id: node.id,
       position: layoutPositions.get(node.id) ?? node.position ?? { x: 0, y: 0 },
       width: size.width,
       height: size.height,
       data: { label: graphNodeDisplayLabel(node), fullLabel: graphNodeFullLabel(node), type: node.type, tokenBadge: formatTokenBadge(estimateNodeTokenCount(draft, node)), tokenColor: nodeTypeColor(node.type), activity: activityByNode.get(node.id), runtimeStatus: state.nodeRuntime?.[node.id]?.status, dirty: state.nodeRuntime?.[node.id]?.dirty, attention: risky.has(node.id), ...handlePositions },
-      style: { border: `1px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderLeft: `5px solid ${typeColors[node.type] ?? 'var(--vscode-focusBorder)'}`, borderRadius: 4, background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)', width: size.width }
+      style: { '--agentflow-node-color': nodeColor, border: `1px solid ${nodeColor}`, borderLeft: `5px solid ${nodeColor}`, borderRadius: 4, background: 'transparent', color: 'var(--vscode-editor-foreground)', width: size.width } as React.CSSProperties
     };
   })).nodes, [activityByNode, draft, handlePositions, layoutPositions, risky, state.flowLayout, state.nodeRuntime]);
   const activeNodeIds = useMemo(() => [...new Set(activityPlayback.activeEvents.flatMap((event) => [event.nodeId, event.targetNodeId].filter(Boolean) as string[]))], [activityPlayback.activeEvents]);
@@ -1243,7 +1244,7 @@ function NativeGraph({ canvasRef, graphMode, graphReadingLevel, graphFocusMode, 
     {emptyState.kind !== 'none' && <FlowEmptyStateView state={emptyState} />}
     {emptyState.kind === 'none' && recoveryState.kind !== 'none' && <FlowRecoveryStateView state={recoveryState} onRetry={onFit} onOpenDiagnostics={onOpenDiagnostics} />}
     {activityTrail.length > 0 && <div className="activity-trail" aria-label="Recent activity trail">
-      {activityTrail.map((item) => <button type="button" key={item.id} className={item.id === replayEventId ? 'active' : undefined} aria-pressed={item.id === replayEventId} title={item.summary} onClick={() => onActivitySelect(item)}>
+      {activityTrail.map((item) => <button type="button" key={item.id} className={item.id === replayEventId ? 'active' : undefined} aria-label={`Replay activity ${item.label}: ${item.summary}`} aria-pressed={item.id === replayEventId} title={`${item.label}: ${item.summary}`} onClick={() => onActivitySelect(item)}>
         <Codicon name={item.label === 'handoff' ? 'arrow-swap' : item.artifactPath ? 'file' : 'pulse'} />
         <span>{item.label}</span>
       </button>)}
