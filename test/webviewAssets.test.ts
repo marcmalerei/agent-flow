@@ -214,6 +214,22 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('M 0 0 L 3.5 1.75 L 0 3.5 z');
   });
 
+  test('gives graph nodes a stronger readable card surface', () => {
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(css).toContain('--agentflow-node-surface: color-mix(');
+    expect(css).toContain('--agentflow-node-border: color-mix(');
+    expect(css).toContain('.flow-node { position: relative;');
+    expect(css).toContain('border: 1px solid var(--agentflow-node-border);');
+    expect(css).toContain('border-radius: 9px;');
+    expect(css).toContain('background: linear-gradient(180deg,');
+    expect(css).toContain('font-size: 13px;');
+    expect(css).toContain('font-weight: 700;');
+    expect(css).toContain('text-transform: uppercase;');
+    expect(css).toContain('.token-badge { position: static;');
+    expect(css).toContain('box-shadow: 0 1px 6px');
+  });
+
   test('adds graph overview and navigation landmarks for large canvases', () => {
     const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
