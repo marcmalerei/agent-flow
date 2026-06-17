@@ -11,6 +11,8 @@ tools:
   - "search/searchWorkspaceSymbols"
   - "edit/editFiles"
   - "execute/run_in_terminal"
+  - "agentflow/reportActivity"
+  - "agentflow/completeNode"
 ---
 
 # role

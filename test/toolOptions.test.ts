@@ -89,7 +89,7 @@ describe('VS Code tool options', () => {
   it('filters tool groups by labels, canonical ids, aliases, and descriptions', () => {
     const groups = buildToolOptionGroups([
       { name: 'copilot_readFile', description: 'Read a workspace file.', inputSchema: undefined, tags: [] },
-      { name: 'agentflow_report_activity', description: 'Report node activity.', inputSchema: undefined, tags: [] },
+      { name: 'agentflow/reportActivity', description: 'Report node activity.', inputSchema: undefined, tags: [] },
       { name: 'mcp_docs_server_search_docs', description: 'Search documentation.', inputSchema: undefined, tags: [] }
     ]);
 
@@ -97,7 +97,7 @@ describe('VS Code tool options', () => {
       expect.objectContaining({ value: 'read', children: [expect.objectContaining({ value: 'read/readFile' })] })
     ]);
     expect(filterToolOptionGroups(groups, 'agentflow_report_activity').find((group) => group.label === 'Agentflow')?.options).toEqual([
-      expect.objectContaining({ value: 'agentflow/report_activity', aliases: ['agentflow_report_activity'] })
+      expect.objectContaining({ value: 'agentflow/reportActivity', aliases: ['agentflow_report_activity', 'agentflow/report_activity'] })
     ]);
     expect(filterToolOptionGroups(groups, 'workspace file')[0].options).toEqual([
       expect.objectContaining({ value: 'read', children: [expect.objectContaining({ value: 'read/readFile' })] })
@@ -108,7 +108,7 @@ describe('VS Code tool options', () => {
     const groups = buildToolOptionGroups([
       { name: 'copilot_readFile', description: 'Read a file.', inputSchema: undefined, tags: [] },
       { name: 'copilot_editFiles', description: 'Edit files.', inputSchema: undefined, tags: [] },
-      { name: 'agentflow_report_activity', description: 'Report node activity.', inputSchema: undefined, tags: [] }
+      { name: 'agentflow/reportActivity', description: 'Report node activity.', inputSchema: undefined, tags: [] }
     ]);
     const selected = new Set(normalizeConfiguredToolsForOptions(['read/readFile', 'agentflow_report_activity'], groups));
 
@@ -134,17 +134,17 @@ describe('VS Code tool options', () => {
 
   it('uses extension/tool ids for Agent Flow tool options and aliases raw VS Code names', () => {
     const groups = buildToolOptionGroups([
-      { name: 'agentflow_complete_node', description: 'Mark a node complete.', inputSchema: undefined, tags: [] },
-      { name: 'agentflow_report_activity', description: 'Report node activity.', inputSchema: undefined, tags: [] },
-      { name: 'agentflow_select_node', description: 'Select a node.', inputSchema: undefined, tags: [] }
+      { name: 'agentflow/completeNode', description: 'Mark a node complete.', inputSchema: undefined, tags: [] },
+      { name: 'agentflow/reportActivity', description: 'Report node activity.', inputSchema: undefined, tags: [] },
+      { name: 'agentflow/selectNode', description: 'Select a node.', inputSchema: undefined, tags: [] }
     ]);
 
     expect(groups.find((group) => group.label === 'Agentflow')?.options).toEqual([
-      expect.objectContaining({ value: 'agentflow/complete_node', aliases: ['agentflow_complete_node'], label: 'complete_node' }),
-      expect.objectContaining({ value: 'agentflow/report_activity', aliases: ['agentflow_report_activity'], label: 'report_activity' }),
-      expect.objectContaining({ value: 'agentflow/select_node', aliases: ['agentflow_select_node'], label: 'select_node' })
+      expect.objectContaining({ value: 'agentflow/completeNode', aliases: ['agentflow_complete_node', 'agentflow/complete_node'], label: 'completeNode' }),
+      expect.objectContaining({ value: 'agentflow/reportActivity', aliases: ['agentflow_report_activity', 'agentflow/report_activity'], label: 'reportActivity' }),
+      expect.objectContaining({ value: 'agentflow/selectNode', aliases: ['agentflow_select_node', 'agentflow/select_node'], label: 'selectNode' })
     ]);
-    expect(normalizeConfiguredToolsForOptions(['agentflow_complete_node'], groups)).toEqual(['agentflow/complete_node']);
+    expect(normalizeConfiguredToolsForOptions(['agentflow_complete_node'], groups)).toEqual(['agentflow/completeNode']);
   });
 
   it('normalizes legacy Agent Flow tool names to VS Code groups', () => {

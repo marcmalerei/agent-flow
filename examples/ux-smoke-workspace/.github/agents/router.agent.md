@@ -10,6 +10,8 @@ tools:
   - "read/readFile"
   - "search/searchWorkspaceSymbols"
   - "edit/editFiles"
+  - "agentflow/reportActivity"
+  - "agentflow/completeNode"
 ---
 
 # role

@@ -5,6 +5,8 @@ agent: "router"
 tools:
   - "read/readFile"
   - "search/searchWorkspaceSymbols"
+  - "agentflow/reportActivity"
+  - "agentflow/completeNode"
 ---
 
 # start implementation prompt
