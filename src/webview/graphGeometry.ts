@@ -99,7 +99,7 @@ export function fitGraphNodesViewport(nodes: readonly GraphGeometryNode[], curre
   const availableWidth = Math.max(40, size.width - 80);
   const availableHeight = Math.max(40, size.height - 80);
   const fitZoom = Math.min(availableWidth / bounds.width, availableHeight / bounds.height);
-  const zoom = clamp(Math.min(current.zoom, fitZoom), nativeGraphMinZoom, nativeGraphMaxZoom);
+  const zoom = clamp(fitZoom, nativeGraphMinZoom, nativeGraphMaxZoom);
   return {
     x: size.width / 2 - (bounds.x + bounds.width / 2) * zoom,
     y: size.height / 2 - (bounds.y + bounds.height / 2) * zoom,

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Let scoped graph fit actions zoom back in when the selected or meaningful subset is smaller than the previous overview fit.
 - Improve default graph node readability with stronger card surfaces, clearer label typography, and higher-contrast status badges.
 - Wrap the top toolbar into responsive groups so live activity, sync state, and actions stay reachable in narrow editor widths.
 - Condense the top activity HUD copy and timestamp layout so the toolbar status stays readable in the 1280px smoke and Marketplace capture viewport.

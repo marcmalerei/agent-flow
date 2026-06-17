@@ -73,14 +73,15 @@ describe('native graph geometry', () => {
     expect(viewport.zoom).toBeLessThanOrEqual(1);
   });
 
-  it('fits selected neighborhoods while preserving current zoom when practical', () => {
+  it('fits selected neighborhoods to the available canvas even when that means zooming back in', () => {
     const nodes: GraphGeometryNode[] = [
       { id: 'selected', position: { x: 100, y: 80 }, width: 100, height: 80 },
       { id: 'neighbor', position: { x: 260, y: 90 }, width: 100, height: 80 }
     ];
-    const viewport = fitGraphNodesViewport(nodes, { x: 0, y: 0, zoom: 0.75 }, { width: 900, height: 500 });
+    const viewport = fitGraphNodesViewport(nodes, { x: 0, y: 0, zoom: 0.2 }, { width: 900, height: 500 });
 
-    expect(viewport.zoom).toBe(0.75);
+    expect(viewport.zoom).toBeGreaterThan(1);
+    expect(viewport.zoom).toBeLessThanOrEqual(1.4);
     expect(viewport.x + 230 * viewport.zoom).toBeCloseTo(450);
     expect(viewport.y + 125 * viewport.zoom).toBeCloseTo(250);
   });
