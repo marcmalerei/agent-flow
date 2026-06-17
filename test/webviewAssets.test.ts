@@ -25,6 +25,22 @@ describe('webview assets', () => {
     expect(webviewSource).not.toContain('className="node-buttons"');
   });
 
+  test('wraps top toolbar groups so narrow widths keep controls reachable', () => {
+    const webviewSource = readFileSync('src/webview/main.tsx', 'utf8');
+    const css = readFileSync('src/webview/styles.css', 'utf8');
+
+    expect(webviewSource).toContain('toolbar-brand');
+    expect(webviewSource).toContain('toolbar-workflow');
+    expect(webviewSource).toContain('toolbar-actions');
+    expect(webviewSource).toContain('toolbar-status-row');
+    expect(css).toContain('--agentflow-toolbar-min-height: 56px');
+    expect(css).toContain('grid-template-rows: minmax(var(--agentflow-toolbar-min-height), auto) minmax(var(--agentflow-canvas-min-height), 1fr) 42px');
+    expect(css).toContain('.toolbar { grid-column: 1 / 3; display: flex; align-items: center; flex-wrap: wrap;');
+    expect(css).toContain('@media (max-width: 720px) {');
+    expect(css).toContain('.toolbar-brand, .toolbar-workflow, .toolbar-actions, .toolbar-status-row { flex: 1 1 100%; }');
+    expect(css).toContain('.activity-hud { flex: 1 1 220px; max-width: none; }');
+  });
+
   test('waits for Add Node palette headings with selector-based capture checks', () => {
     const captureScript = readFileSync('scripts/capture-preview-gif.mjs', 'utf8');
 
@@ -153,7 +169,7 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('ResizeObserver');
     expect(css).toContain('#root { position: fixed; inset: 0; }');
     expect(css).toContain('--agentflow-canvas-min-height: 360px');
-    expect(css).toContain('grid-template-rows: 56px minmax(var(--agentflow-canvas-min-height), 1fr) 42px');
+    expect(css).toContain('grid-template-rows: minmax(var(--agentflow-toolbar-min-height), auto) minmax(var(--agentflow-canvas-min-height), 1fr) 42px');
     expect(css).toContain('min-height: var(--agentflow-canvas-min-height)');
     expect(css).toContain('.debug-overlay');
     expect(css).toContain('.native-graph');
@@ -591,7 +607,7 @@ describe('webview assets', () => {
     expect(source).toContain('--agentflow-inspector-width');
     expect(source).toContain('--agentflow-bottom-height');
     expect(css).toContain('grid-template-columns: minmax(0, 1fr) var(--agentflow-inspector-width)');
-    expect(css).toContain('grid-template-rows: 56px minmax(var(--agentflow-canvas-min-height), 1fr) var(--agentflow-bottom-height)');
+    expect(css).toContain('grid-template-rows: minmax(var(--agentflow-toolbar-min-height), auto) minmax(var(--agentflow-canvas-min-height), 1fr) var(--agentflow-bottom-height)');
     expect(css).toContain('.panel-resize-handle');
     expect(css).toContain('cursor: col-resize');
     expect(css).toContain('cursor: row-resize');
