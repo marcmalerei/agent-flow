@@ -2,7 +2,7 @@
   "name": "copilot-agent-flow-studio",
   "displayName": "Agent Flow Studio",
   "description": "Visual manager for GitHub Copilot agent pipelines.",
-  "version": "0.0.123",
+  "version": "0.0.117",
   "publisher": "marcmalerei",
   "icon": "media/icon.png",
   "license": "MIT",
