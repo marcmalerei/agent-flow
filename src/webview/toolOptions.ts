@@ -169,6 +169,19 @@ function builtInParentForTool(tool: ConcreteToolOption): string | undefined {
 }
 
 function extensionGroupForTool(tool: ConcreteToolOption): { id: string; label: string; optionLabel: string; value: string; aliases?: string[] } {
+  const slash = tool.value.indexOf('/');
+  if (slash > 0) {
+    const vendor = tool.value.slice(0, slash);
+    const optionLabel = tool.value.slice(slash + 1);
+    return {
+      id: `extension:${vendor.toLowerCase()}`,
+      label: formatVendorLabel(vendor),
+      optionLabel,
+      value: tool.value,
+      aliases: legacyToolAliasesFor(tool.value)
+    };
+  }
+
   if (tool.value.startsWith('mcp_')) {
     const parts = tool.value.slice(4).split('_').filter(Boolean);
     const serverIndex = parts.indexOf('server');
@@ -185,12 +198,13 @@ function extensionGroupForTool(tool: ConcreteToolOption): { id: string; label: s
     if (vendor.toLowerCase() !== 'agentflow') {
       return { id: `extension:${vendor.toLowerCase()}`, label: formatVendorLabel(vendor), optionLabel, value: tool.value };
     }
+    const canonical = legacyAgentFlowCanonicalToolId(tool.value) ?? `${vendor}/${optionLabel}`;
     return {
       id: `extension:${vendor.toLowerCase()}`,
       label: formatVendorLabel(vendor),
-      optionLabel,
-      value: `${vendor}/${optionLabel}`,
-      aliases: [tool.value]
+      optionLabel: canonical.slice(canonical.indexOf('/') + 1),
+      value: canonical,
+      aliases: [...new Set([tool.value, ...(legacyToolAliasesFor(canonical) ?? [])])]
     };
   }
 
@@ -275,6 +289,20 @@ function formatVendorLabel(value: string): string {
 
 function formatToolLabel(value: string): string {
   return stripInternalToolPrefix(value);
+}
+
+function legacyToolAliasesFor(value: string): string[] | undefined {
+  if (value === 'agentflow/selectNode') return ['agentflow_select_node', 'agentflow/select_node'];
+  if (value === 'agentflow/reportActivity') return ['agentflow_report_activity', 'agentflow/report_activity'];
+  if (value === 'agentflow/completeNode') return ['agentflow_complete_node', 'agentflow/complete_node'];
+  return undefined;
+}
+
+function legacyAgentFlowCanonicalToolId(value: string): string | undefined {
+  if (value === 'agentflow_select_node' || value === 'agentflow/select_node') return 'agentflow/selectNode';
+  if (value === 'agentflow_report_activity' || value === 'agentflow/report_activity') return 'agentflow/reportActivity';
+  if (value === 'agentflow_complete_node' || value === 'agentflow/complete_node') return 'agentflow/completeNode';
+  return undefined;
 }
 
 function stripInternalToolPrefix(value: string): string {

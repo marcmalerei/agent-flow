@@ -5,7 +5,13 @@ const legacyToolAliases: Record<string, string[]> = {
   searchCodebase: ['search'],
   editFiles: ['edit'],
   runCommands: ['execute'],
-  terminal: ['execute']
+  terminal: ['execute'],
+  agentflow_select_node: ['agentflow/selectNode'],
+  agentflow_report_activity: ['agentflow/reportActivity'],
+  agentflow_complete_node: ['agentflow/completeNode'],
+  'agentflow/select_node': ['agentflow/selectNode'],
+  'agentflow/report_activity': ['agentflow/reportActivity'],
+  'agentflow/complete_node': ['agentflow/completeNode']
 };
 
 const internalToolPrefixes = ['copilot_'];
@@ -30,6 +36,8 @@ export function normalizePipelineTools<T extends AgentPipeline>(pipeline: T): T 
 }
 
 function publicToolId(tool: string): string {
+  const aliased = legacyToolAliases[tool];
+  if (aliased?.length === 1) return aliased[0];
   const slash = tool.indexOf('/');
   if (slash >= 0) {
     const group = tool.slice(0, slash).trim();

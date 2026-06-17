@@ -18,7 +18,9 @@ const readTool = 'read/readFile';
 const searchTool = 'search/searchWorkspaceSymbols';
 const editTool = 'edit/editFiles';
 const executeTool = 'execute/run_in_terminal';
-const defaultTools = [readTool, searchTool];
+const reportActivityTool = 'agentflow/reportActivity';
+const completeNodeTool = 'agentflow/completeNode';
+const defaultTools = [readTool, searchTool, reportActivityTool, completeNodeTool];
 
 export interface DefaultPipelineDemoStep {
   action: string;
@@ -107,7 +109,7 @@ export function createDefaultPipeline(): AgentPipeline {
       promptFile: '.github/prompts/start-implementation.prompt.md',
       description: 'Starts a small Agent Flow implementation pipeline.',
       startAgent: 'router',
-      tools: [readTool, searchTool, editTool],
+      tools: [readTool, searchTool, editTool, reportActivityTool, completeNodeTool],
       workflow: ['Capture the request in the request artifact.', 'Route to the implementer.', 'Review once and use the fixer only when needed.'],
       constraints: ['Do not bypass artifact handoff files.', 'Keep each artifact concise.', 'Do not make destructive changes without approval.'],
       artifactUsages: [{ path: requestArtifact, action: 'write', instruction: 'Write the user request and known constraints to $artifact before handing off.' }],
@@ -122,7 +124,7 @@ export function createDefaultPipeline(): AgentPipeline {
       rules: ['Extract the user goal, constraints, likely files, and validation needs.', 'Keep the plan artifact short enough for the next agent to scan quickly.']
     }),
     agent('implementer', 'Implementer', 'Makes the scoped code or documentation change and records what changed.', 520, 180, {
-      tools: [readTool, searchTool, editTool, executeTool],
+      tools: [readTool, searchTool, editTool, executeTool, reportActivityTool, completeNodeTool],
       inputs: [planArtifact],
       outputs: [resultArtifact],
       handoffs: [{ label: 'hand off to reviewer', agent: 'reviewer', prompt: 'Review the implementation result and validation notes.' }],
@@ -142,7 +144,7 @@ export function createDefaultPipeline(): AgentPipeline {
       rules: ['List blocking findings first.', 'Record residual risk if no blocking issue remains.']
     }),
     agent('fixer', 'Fixer', 'Applies the smallest repair for blocking review findings.', 960, 180, {
-      tools: [readTool, searchTool, editTool, executeTool],
+      tools: [readTool, searchTool, editTool, executeTool, reportActivityTool, completeNodeTool],
       inputs: [resultArtifact],
       outputs: [resultArtifact],
       instructionRefs: [

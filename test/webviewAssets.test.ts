@@ -220,9 +220,10 @@ describe('webview assets', () => {
     expect(css).toContain('--agentflow-node-surface: color-mix(');
     expect(css).toContain('--agentflow-node-border: color-mix(');
     expect(css).toContain('.flow-node { position: relative;');
-    expect(css).toContain('border: 1px solid var(--agentflow-node-border);');
-    expect(css).toContain('border-radius: 9px;');
-    expect(css).toContain('background: linear-gradient(180deg,');
+    expect(css).toContain('--agentflow-node-outline: color-mix(');
+    expect(css).toContain('background: var(--agentflow-node-surface);');
+    expect(css).toContain('box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--agentflow-node-outline) 68%, transparent)');
+    expect(css).toContain('.agentflow-node.selected .flow-node { box-shadow: inset 0 0 0 1px var(--agentflow-node-outline)');
     expect(css).toContain('font-size: 13px;');
     expect(css).toContain('font-weight: 700;');
     expect(css).toContain('text-transform: uppercase;');
