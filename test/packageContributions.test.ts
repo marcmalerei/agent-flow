@@ -79,18 +79,18 @@ describe('package contributions', () => {
 
   it('contributes Agent Flow activity language model tools', () => {
     expect(manifest.activationEvents).toEqual(expect.arrayContaining([
-      'onLanguageModelTool:agentflow/selectNode',
-      'onLanguageModelTool:agentflow/reportActivity',
-      'onLanguageModelTool:agentflow/completeNode'
+      'onLanguageModelTool:agentflow_select_node',
+      'onLanguageModelTool:agentflow_report_activity',
+      'onLanguageModelTool:agentflow_complete_node'
     ]));
     const tools = manifest.contributes?.languageModelTools ?? [];
     expect(tools.map((tool) => tool.name)).toEqual([
-      'agentflow/selectNode',
-      'agentflow/reportActivity',
-      'agentflow/completeNode'
+      'agentflow_select_node',
+      'agentflow_report_activity',
+      'agentflow_complete_node'
     ]);
-    expect(tools.find((tool) => tool.name === 'agentflow/reportActivity')?.modelDescription).toContain('Do not include raw prompts');
-    expect(tools.find((tool) => tool.name === 'agentflow/reportActivity')?.inputSchema?.properties).toHaveProperty('phase');
+    expect(tools.find((tool) => tool.name === 'agentflow_report_activity')?.modelDescription).toContain('Do not include raw prompts');
+    expect(tools.find((tool) => tool.name === 'agentflow_report_activity')?.inputSchema?.properties).toHaveProperty('phase');
   });
 
   it('contributes a demo activity command for Copilot-free smoke tests', () => {

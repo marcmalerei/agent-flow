@@ -6,12 +6,12 @@ const legacyToolAliases: Record<string, string[]> = {
   editFiles: ['edit'],
   runCommands: ['execute'],
   terminal: ['execute'],
-  agentflow_select_node: ['agentflow/selectNode'],
-  agentflow_report_activity: ['agentflow/reportActivity'],
-  agentflow_complete_node: ['agentflow/completeNode'],
-  'agentflow/select_node': ['agentflow/selectNode'],
-  'agentflow/report_activity': ['agentflow/reportActivity'],
-  'agentflow/complete_node': ['agentflow/completeNode']
+  'agentflow/selectNode': ['agentflow_select_node'],
+  'agentflow/reportActivity': ['agentflow_report_activity'],
+  'agentflow/completeNode': ['agentflow_complete_node'],
+  'agentflow/select_node': ['agentflow_select_node'],
+  'agentflow/report_activity': ['agentflow_report_activity'],
+  'agentflow/complete_node': ['agentflow_complete_node']
 };
 
 const internalToolPrefixes = ['copilot_'];

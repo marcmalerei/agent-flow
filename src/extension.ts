@@ -451,21 +451,21 @@ function registerActivityTools(): vscode.Disposable[] {
   if (!(vscode.workspace.getConfiguration('agentflow.activity.sources').get<boolean>('agentFlowTools') ?? true)) return [];
   if (!vscode.lm?.registerTool) return [];
   return [
-    vscode.lm.registerTool('agentflow/selectNode', {
+    vscode.lm.registerTool('agentflow_select_node', {
       invoke: async (options) => {
         const { pipeline } = await loadWorkspacePipeline();
         const result = selectActivityNode(options.input as any, { pipeline, store: activityStore });
         return toolResult(result);
       }
     }),
-    vscode.lm.registerTool('agentflow/reportActivity', {
+    vscode.lm.registerTool('agentflow_report_activity', {
       invoke: async (options) => {
         const { pipeline } = await loadWorkspacePipeline();
         const result = reportActivity(options.input as any, { pipeline, store: activityStore });
         return toolResult({ eventId: result.event.id, nodeId: result.event.nodeId, phase: result.event.phase });
       }
     }),
-    vscode.lm.registerTool('agentflow/completeNode', {
+    vscode.lm.registerTool('agentflow_complete_node', {
       invoke: async (options) => {
         const { pipeline } = await loadWorkspacePipeline();
         const result = completeNodeActivity(options.input as any, { pipeline, store: activityStore });

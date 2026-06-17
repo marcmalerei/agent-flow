@@ -120,8 +120,8 @@ describe('default pipeline', () => {
       'search/searchWorkspaceSymbols',
       'edit/editFiles',
       'execute/run_in_terminal',
-      'agentflow/reportActivity',
-      'agentflow/completeNode'
+      'agentflow_report_activity',
+      'agentflow_complete_node'
     ]));
   });
 

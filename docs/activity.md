@@ -6,9 +6,9 @@ Agent Flow Studio can show live activity on graph nodes without reading private 
 
 The production-supported ingestion path is the VS Code Language Model Tool API. Agent Flow contributes three tools:
 
-- `agentflow/selectNode` resolves a node by id, label, or backing file path.
-- `agentflow/reportActivity` records sanitized progress for a node.
-- `agentflow/completeNode` marks a node as completed or failed.
+- `agentflow_select_node` resolves a node by id, label, or backing file path.
+- `agentflow_report_activity` records sanitized progress for a node.
+- `agentflow_complete_node` marks a node as completed or failed.
 
 These tools only record short structured activity events. They do not execute user code, read files, or require raw prompt content.
 

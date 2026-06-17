@@ -18,8 +18,8 @@ const readTool = 'read/readFile';
 const searchTool = 'search/searchWorkspaceSymbols';
 const editTool = 'edit/editFiles';
 const executeTool = 'execute/run_in_terminal';
-const reportActivityTool = 'agentflow/reportActivity';
-const completeNodeTool = 'agentflow/completeNode';
+const reportActivityTool = 'agentflow_report_activity';
+const completeNodeTool = 'agentflow_complete_node';
 const defaultTools = [readTool, searchTool, reportActivityTool, completeNodeTool];
 
 export interface DefaultPipelineDemoStep {

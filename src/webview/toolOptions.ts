@@ -202,9 +202,9 @@ function extensionGroupForTool(tool: ConcreteToolOption): { id: string; label: s
     return {
       id: `extension:${vendor.toLowerCase()}`,
       label: formatVendorLabel(vendor),
-      optionLabel: canonical.slice(canonical.indexOf('/') + 1),
+      optionLabel: canonicalAgentFlowToolLabel(canonical),
       value: canonical,
-      aliases: [...new Set([tool.value, ...(legacyToolAliasesFor(canonical) ?? [])])]
+      aliases: [...new Set([tool.value, ...(legacyToolAliasesFor(canonical) ?? [])].filter((alias) => alias !== canonical))]
     };
   }
 
@@ -292,17 +292,27 @@ function formatToolLabel(value: string): string {
 }
 
 function legacyToolAliasesFor(value: string): string[] | undefined {
-  if (value === 'agentflow/selectNode') return ['agentflow_select_node', 'agentflow/select_node'];
-  if (value === 'agentflow/reportActivity') return ['agentflow_report_activity', 'agentflow/report_activity'];
-  if (value === 'agentflow/completeNode') return ['agentflow_complete_node', 'agentflow/complete_node'];
+  if (value === 'agentflow_select_node') return ['agentflow/selectNode', 'agentflow/select_node'];
+  if (value === 'agentflow_report_activity') return ['agentflow/reportActivity', 'agentflow/report_activity'];
+  if (value === 'agentflow_complete_node') return ['agentflow/completeNode', 'agentflow/complete_node'];
   return undefined;
 }
 
 function legacyAgentFlowCanonicalToolId(value: string): string | undefined {
-  if (value === 'agentflow_select_node' || value === 'agentflow/select_node') return 'agentflow/selectNode';
-  if (value === 'agentflow_report_activity' || value === 'agentflow/report_activity') return 'agentflow/reportActivity';
-  if (value === 'agentflow_complete_node' || value === 'agentflow/complete_node') return 'agentflow/completeNode';
+  if (value === 'agentflow_select_node') return 'agentflow_select_node';
+  if (value === 'agentflow_report_activity') return 'agentflow_report_activity';
+  if (value === 'agentflow_complete_node') return 'agentflow_complete_node';
+  if (value === 'agentflow/selectNode' || value === 'agentflow/select_node') return 'agentflow_select_node';
+  if (value === 'agentflow/reportActivity' || value === 'agentflow/report_activity') return 'agentflow_report_activity';
+  if (value === 'agentflow/completeNode' || value === 'agentflow/complete_node') return 'agentflow_complete_node';
   return undefined;
+}
+
+function canonicalAgentFlowToolLabel(value: string): string {
+  if (value === 'agentflow_select_node') return 'selectNode';
+  if (value === 'agentflow_report_activity') return 'reportActivity';
+  if (value === 'agentflow_complete_node') return 'completeNode';
+  return value.startsWith('agentflow_') ? value.slice('agentflow_'.length) : value;
 }
 
 function stripInternalToolPrefix(value: string): string {
