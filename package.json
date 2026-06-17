@@ -47,9 +47,9 @@
     "onCommand:agentflow.importActivityLog",
     "onCommand:agentflow.pauseActivityReplay",
     "onCommand:agentflow.restartActivityReplay",
-    "onLanguageModelTool:agentflow/selectNode",
-    "onLanguageModelTool:agentflow/reportActivity",
-    "onLanguageModelTool:agentflow/completeNode"
+    "onLanguageModelTool:agentflow_select_node",
+    "onLanguageModelTool:agentflow_report_activity",
+    "onLanguageModelTool:agentflow_complete_node"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -225,7 +225,7 @@
     ],
     "languageModelTools": [
       {
-        "name": "agentflow/selectNode",
+        "name": "agentflow_select_node",
         "displayName": "Select Agent Flow Node",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "agentflowSelectNode",
@@ -250,7 +250,7 @@
         }
       },
       {
-        "name": "agentflow/reportActivity",
+        "name": "agentflow_report_activity",
         "displayName": "Report Agent Flow Activity",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "agentflowReportActivity",
@@ -315,7 +315,7 @@
         }
       },
       {
-        "name": "agentflow/completeNode",
+        "name": "agentflow_complete_node",
         "displayName": "Complete Agent Flow Node",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "agentflowCompleteNode",

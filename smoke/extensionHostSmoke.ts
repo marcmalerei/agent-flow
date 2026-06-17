@@ -15,6 +15,12 @@ const expectedCommands = [
   'agentflow.debugSnapshot'
 ];
 
+const expectedLanguageModelTools = [
+  'agentflow_select_node',
+  'agentflow_report_activity',
+  'agentflow_complete_node'
+];
+
 export async function run(): Promise<void> {
   const extension = vscode.extensions.getExtension('marcmalerei.copilot-agent-flow-studio');
   assert.ok(extension, 'Agent Flow extension should be available in the extension host.');
@@ -24,6 +30,11 @@ export async function run(): Promise<void> {
   const commands = await vscode.commands.getCommands(true);
   for (const command of expectedCommands) {
     assert.ok(commands.includes(command), `Expected command ${command} to be registered.`);
+  }
+
+  const registeredTools = (vscode.lm?.tools ?? []).map((tool) => tool.name);
+  for (const tool of expectedLanguageModelTools) {
+    assert.ok(registeredTools.includes(tool), `Expected language model tool ${tool} to be registered.`);
   }
 
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
