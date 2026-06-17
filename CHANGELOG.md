@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Condense the top activity HUD copy and timestamp layout so the toolbar status stays readable in the 1280px smoke and Marketplace capture viewport.
 - Fix the Marketplace preview capture script so Add Node palette steps wait for selector-backed headings and generated-file previews instead of unreliable global body text.
 - Prioritize the meaningful starter flow when auto-fitting the first graph viewport so default pipelines open at a readable scale.
 - Shorten the VS Code smoke-test user-data and extensions paths so `npm run test:smoke` stays reliable from deep checkout directories on macOS.

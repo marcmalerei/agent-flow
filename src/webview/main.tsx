@@ -932,18 +932,23 @@ function KeyboardShortcutsPopover({ onClose }: { onClose: () => void }) {
 function ActivityHud({ onOpen, state }: { onOpen: () => void; state: ActivityHudState }) {
   const icon = state.mode === 'live' ? 'pulse' : state.mode === 'recent' ? 'history' : state.mode === 'degraded' ? 'warning' : 'circle-outline';
   const label = state.mode === 'live' ? 'Live activity' : state.mode === 'recent' ? 'Recent activity' : state.mode === 'degraded' ? 'Activity setup needed' : 'No activity';
-  const capability = state.canReportReads && state.canReportWrites ? 'reads + writes' : state.canReportWrites ? 'writes only' : state.canReportReads ? 'reads only' : 'no live read/write source';
+  const capability = state.canReportReads && state.canReportWrites ? 'read + write' : state.canReportWrites ? 'write only' : state.canReportReads ? 'read only' : 'no live I/O';
   const detail = state.lastSummary ? `${state.lastSummary}${state.activeSessionId ? ` · ${state.activeSessionId}` : ''}` : state.sourceSummary;
   return <button type="button" className={`activity-hud activity-hud-${state.mode}`} onClick={onOpen} title={`${label}. ${detail}`}>
     <Codicon name={icon} />
     <span>{label}</span>
-    <small>{state.recentCount ? `${state.recentCount} recent · ${capability}` : `${state.sourceSummary} · ${capability}`}</small>
+    <small>{state.recentCount ? `${state.recentCount} recent · ${capability}` : capability}</small>
     {state.now && <span className="activity-now-card" data-event-id={state.now.eventId}>
       <strong>{state.now.title}</strong>
       <span>{state.now.action}</span>
-      <small>{state.now.detail} · {new Date(state.now.timestamp).toLocaleTimeString()}</small>
+      <small>{state.now.detail}</small>
+      <small className="activity-now-time">{formatHudTime(state.now.timestamp)}</small>
     </span>}
   </button>;
+}
+
+function formatHudTime(timestamp: string): string {
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function ActivityPlaybackControls({ latestEventId, mode, onClear, onPauseToggle, onReplayLatest, onStopReplay, paused, replayEventId }: { latestEventId?: string; mode: string; onClear: () => void; onPauseToggle: () => void; onReplayLatest: () => void; onStopReplay: () => void; paused: boolean; replayEventId?: string }) {
