@@ -37,8 +37,11 @@ describe('webview assets', () => {
     expect(css).toContain('grid-template-rows: minmax(var(--agentflow-toolbar-min-height), auto) minmax(var(--agentflow-canvas-min-height), 1fr) 42px');
     expect(css).toContain('.toolbar { grid-column: 1 / 3; display: flex; align-items: center; flex-wrap: wrap;');
     expect(css).toContain('@media (max-width: 720px) {');
-    expect(css).toContain('.toolbar-brand, .toolbar-workflow, .toolbar-actions, .toolbar-status-row { flex: 1 1 100%; }');
-    expect(css).toContain('.activity-hud { flex: 1 1 220px; max-width: none; }');
+    expect(css).toContain('.toolbar-workflow {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto;');
+    expect(css).toContain('.toolbar-actions {\n    flex-wrap: nowrap;');
+    expect(css).toContain('.activity-hud { max-width: none; }');
+    expect(css).toContain('@media (max-width: 560px) {');
+    expect(css).toContain('.toolbar-actions .vscode-button-label { display: none; }');
   });
 
   test('waits for Add Node palette headings with selector-based capture checks', () => {

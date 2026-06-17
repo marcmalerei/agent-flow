@@ -9,7 +9,7 @@ export function Codicon({ name, className = '', title }: { name: string; classNa
 export function VSCodeButton({ children, className = '', icon, variant = 'secondary', ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { icon?: string; variant?: ButtonVariant }) {
   return <button {...props} className={`vscode-button vscode-button-${variant}${icon ? ' has-icon' : ''}${className ? ` ${className}` : ''}`}>
     {icon && <Codicon name={icon} />}
-    {children}
+    {children !== undefined && children !== null && <span className="vscode-button-label">{children}</span>}
   </button>;
 }
 

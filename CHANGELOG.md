@@ -4,7 +4,7 @@
 
 - Let scoped graph fit actions zoom back in when the selected or meaningful subset is smaller than the previous overview fit.
 - Improve default graph node readability with stronger card surfaces, clearer label typography, and higher-contrast status badges.
-- Wrap the top toolbar into responsive groups so live activity, sync state, and actions stay reachable in narrow editor widths.
+- Wrap the top toolbar into responsive groups and keep the action row horizontally stable so live activity, sync state, and controls stay readable in narrow editor widths.
 - Condense the top activity HUD copy and timestamp layout so the toolbar status stays readable in the 1280px smoke and Marketplace capture viewport.
 - Fix the Marketplace preview capture script so Add Node palette steps wait for selector-backed headings and generated-file previews instead of unreliable global body text.
 - Prioritize the meaningful starter flow when auto-fitting the first graph viewport so default pipelines open at a readable scale.
