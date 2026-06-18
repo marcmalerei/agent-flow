@@ -537,12 +537,15 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 .reference-menu small { color: var(--vscode-descriptionForeground); }
 .hint { color: var(--vscode-descriptionForeground); font-size: 12px; }
 .collapse { width: auto; margin: 5px 10px; padding: 4px 10px; background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background)); color: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }
-.diagnostics { display: grid; grid-template-columns: 150px minmax(0, 1fr); min-width: 0; height: calc(100% - 38px); border-top: 1px solid var(--agentflow-border); background: var(--vscode-panel-background, var(--agentflow-panel)); }
+.diagnostics { display: grid; grid-template-columns: 182px minmax(0, 1fr); min-width: 0; height: calc(100% - 38px); border-top: 1px solid var(--agentflow-border); background: var(--vscode-panel-background, var(--agentflow-panel)); }
 .diagnostics nav { min-height: 0; border-right: 1px solid var(--agentflow-border); padding: 8px; overflow: auto; }
-.diagnostics nav button { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; width: 100%; margin: 0 0 4px; background: transparent; color: var(--vscode-foreground); border-color: transparent; justify-content: stretch; text-align: left; text-transform: capitalize; }
+.diagnostics nav button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; min-height: 34px; margin: 0 0 6px; background: transparent; color: var(--vscode-foreground); border-color: transparent; justify-content: stretch; text-align: left; text-transform: none; }
 .diagnostics nav button:hover { background: var(--vscode-list-hoverBackground); }
 .diagnostics nav button.active { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
 .diagnostics article { min-width: 0; min-height: 0; padding: 12px; overflow: auto; }
+.diagnostic-tab-label { display: inline-flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; }
+.diagnostic-tab-label .codicon { flex: 0 0 auto; opacity: 0.84; }
+.diagnostic-tab-label span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .diagnostic-tab-count { min-width: 18px; padding: 1px 5px; border-radius: 999px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
 .diagnostic-heading { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
 .diagnostic-heading h3 { margin: 0; color: var(--vscode-foreground); font-size: 13px; font-weight: 700; }
