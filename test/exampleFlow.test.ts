@@ -43,6 +43,14 @@ describe('basic example flow', () => {
     expect(validatePipeline(pipeline).filter((finding) => finding.severity === 'error')).toEqual([]);
   });
 
+  it('deduplicates artifact producers in informational findings', async () => {
+    const pipeline = await readExamplePipeline();
+    const finding = validatePipeline(pipeline).find((item) => item.ruleId === 'artifact-written-never-consumed');
+
+    expect(finding?.message).toContain('written by reviewer but never consumed');
+    expect(finding?.message).not.toContain('reviewer, reviewer');
+  });
+
   it('generates Markdown for all editable VS Code Agent Flow file types', async () => {
     const pipeline = await readExamplePipeline();
     const files = generateFiles(pipeline);

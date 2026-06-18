@@ -126,7 +126,9 @@ function nodeFileFor(node: PipelineNode): string {
 }
 
 function addArtifactBoundary(map: Map<string, string[]>, artifact: string, nodeId: string): void {
-  map.set(artifact, [...(map.get(artifact) ?? []), nodeId]);
+  const current = map.get(artifact) ?? [];
+  if (current.includes(nodeId)) return;
+  map.set(artifact, [...current, nodeId]);
 }
 
 function recordArtifactUsages(node: PipelineNode, reads: Map<string, string[]>, writes: Map<string, string[]>): void {
