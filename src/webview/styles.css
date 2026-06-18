@@ -22,9 +22,10 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .toolbar strong { font-size: 14px; }
 .toolbar-brand { display: inline-flex; align-items: center; gap: 8px; min-width: 0; flex: 1 1 180px; }
 .toolbar-brand > span { min-width: 0; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.toolbar-workflow, .toolbar-actions, .toolbar-status-row { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.toolbar-workflow, .toolbar-actions, .toolbar-status-row, .toolbar-primary-actions, .toolbar-secondary-actions { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .toolbar-workflow { flex: 1 1 360px; flex-wrap: wrap; row-gap: 6px; }
 .toolbar-actions { flex: 1 1 320px; justify-content: flex-end; flex-wrap: wrap; }
+.toolbar-primary-actions, .toolbar-secondary-actions { flex-wrap: wrap; }
 .toolbar-status-row { flex: 0 1 auto; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
 .toolbar .autosave-status { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; font-size: 12px; }
 .autosave-status.sync-status-synced { color: var(--vscode-charts-green, #89d185); }
@@ -687,19 +688,19 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
     gap: 8px;
   }
   .toolbar-actions {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
+    justify-content: space-between;
     gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scrollbar-width: thin;
+    overflow-x: visible;
   }
-  .toolbar-actions::-webkit-scrollbar { height: 6px; }
-  .toolbar-actions > * { flex: 0 0 auto; }
+  .toolbar-primary-actions, .toolbar-secondary-actions {
+    gap: 6px;
+  }
+  .toolbar-primary-actions { flex: 1 1 auto; }
+  .toolbar-secondary-actions { justify-content: flex-end; }
   .toolbar-status-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
     gap: 8px;
     margin-left: 0;
   }
@@ -709,9 +710,29 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
 
 @media (max-width: 560px) {
   .toolbar-workflow { grid-template-columns: minmax(0, 1fr); }
-  .toolbar-actions { overflow-x: visible; }
-  .toolbar-actions .vscode-button { min-width: 30px; padding: 3px 7px; }
-  .toolbar-actions .vscode-button-label { display: none; }
+  .toolbar-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
+  }
+  .toolbar-primary-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .toolbar-primary-actions .add-node-menu { grid-column: 1 / -1; }
+  .toolbar-primary-actions > *,
+  .toolbar-primary-actions .add-node-menu > .vscode-button { width: 100%; }
+  .toolbar-secondary-actions {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+  .toolbar-secondary-actions::-webkit-scrollbar { height: 6px; }
+  .toolbar-secondary-actions > * { flex: 0 0 auto; }
+  .toolbar-secondary-actions .vscode-button { min-width: 30px; padding: 3px 7px; }
+  .toolbar-secondary-actions .vscode-button-label { display: none; }
   .activity-playback-controls { justify-self: start; }
-  .toolbar-status-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .toolbar-status-row { grid-template-columns: minmax(0, 1fr); }
 }
