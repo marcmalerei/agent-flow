@@ -33,15 +33,21 @@ describe('webview assets', () => {
     expect(webviewSource).toContain('toolbar-workflow');
     expect(webviewSource).toContain('toolbar-actions');
     expect(webviewSource).toContain('toolbar-status-row');
+    expect(webviewSource).toContain('toolbar-primary-actions');
+    expect(webviewSource).toContain('toolbar-secondary-actions');
     expect(css).toContain('--agentflow-toolbar-min-height: 56px');
     expect(css).toContain('grid-template-rows: minmax(var(--agentflow-toolbar-min-height), auto) minmax(var(--agentflow-canvas-min-height), 1fr) 42px');
     expect(css).toContain('.toolbar { grid-column: 1 / 3; display: flex; align-items: center; flex-wrap: wrap;');
     expect(css).toContain('@media (max-width: 720px) {');
     expect(css).toContain('.toolbar-workflow {\n    display: grid;\n    grid-template-columns: minmax(0, 1fr) auto;');
-    expect(css).toContain('.toolbar-actions {\n    flex-wrap: nowrap;');
+    expect(css).toContain('.toolbar-actions {\n    justify-content: space-between;');
+    expect(css).toContain('.toolbar-primary-actions { flex: 1 1 auto; }');
+    expect(css).toContain('.toolbar-secondary-actions { justify-content: flex-end; }');
     expect(css).toContain('.activity-hud { max-width: none; }');
     expect(css).toContain('@media (max-width: 560px) {');
-    expect(css).toContain('.toolbar-actions .vscode-button-label { display: none; }');
+    expect(css).toContain('.toolbar-primary-actions {\n    display: grid;\n    grid-template-columns: repeat(2, minmax(0, 1fr));');
+    expect(css).toContain('.toolbar-primary-actions .add-node-menu { grid-column: 1 / -1; }');
+    expect(css).toContain('.toolbar-secondary-actions .vscode-button-label { display: none; }');
   });
 
   test('waits for Add Node palette headings with selector-based capture checks', () => {

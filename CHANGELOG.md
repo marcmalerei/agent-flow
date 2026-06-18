@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fix the webview example dev server root URL so `npm run dev:webview:example` opens the demo instead of returning `404 Not Found`.
+- Keep labeled primary toolbar actions visible in narrow webview layouts and group `Add Node` with the main editing controls.
 - Let scoped graph fit actions zoom back in when the selected or meaningful subset is smaller than the previous overview fit.
 - Keep the live activity HUD readable at narrower editor widths and show two-line inspector sync details instead of truncating the reason to a tooltip.
 - Improve default graph node readability with stronger card surfaces, clearer label typography, and higher-contrast status badges.
