@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Keep graph type filters reachable on narrower canvas widths by moving the filter row onto its own line and allowing horizontal scrolling instead of clipping trailing items.
 - Improve diagnostics tab labels with descriptive names, icons, and clearer count spacing for faster scanning.
 - Fix the webview example dev server root URL so `npm run dev:webview:example` opens the demo instead of returning `404 Not Found`.
 - Keep labeled primary toolbar actions visible in narrow webview layouts and group `Add Node` with the main editing controls.

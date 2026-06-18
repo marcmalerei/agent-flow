@@ -160,7 +160,9 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .graph-toolstrip .graph-reading-level-switch, .graph-toolstrip .graph-focus-mode-switch { flex-wrap: nowrap; }
 .graph-toolstrip .graph-reading-level-switch button, .graph-toolstrip .graph-focus-mode-switch button { width: 26px; padding: 2px; }
 .graph-toolstrip .graph-reading-level-switch button span:not(.codicon), .graph-toolstrip .graph-focus-mode-switch button span:not(.codicon) { display: none; }
-.graph-toolstrip .graph-type-filters { min-width: 0; max-height: 28px; overflow: hidden; }
+.graph-toolstrip .graph-type-filters { min-width: 0; max-height: none; overflow-x: auto; overflow-y: hidden; flex-wrap: nowrap; padding-bottom: 2px; scrollbar-width: thin; }
+.graph-toolstrip .graph-type-filters::-webkit-scrollbar { height: 6px; }
+.graph-toolstrip .graph-type-filters button { flex: 0 0 auto; }
 .graph-toolstrip button { min-height: 22px; }
 .graph-reading-level-switch { position: absolute; left: 12px; top: 92px; z-index: 6; display: flex; flex-wrap: wrap; gap: 3px; width: min(520px, calc(100% - 24px)); padding: 4px; border: 1px solid var(--agentflow-border); background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 94%, transparent); pointer-events: auto; }
 .graph-reading-level-switch button { min-height: 24px; padding: 2px 6px; border: 1px solid transparent; background: transparent; color: var(--vscode-descriptionForeground); font-size: 11px; }
@@ -675,6 +677,20 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
   .flow-node.has-activity, .activity-started, .activity-thinking, .activity-tool, .activity-file, .activity-artifact, .graph-edge.animated .graph-edge-path { animation: none; }
   .graph-edge-tracer { display: none; }
 }
+@media (max-width: 900px) {
+  .graph-toolstrip {
+    grid-template-columns: repeat(2, minmax(0, max-content));
+    width: min(100%, calc(100% - 24px));
+  }
+  .graph-toolstrip .graph-type-filters { grid-column: 1 / -1; }
+  .graph-toolstrip .graph-type-filters {
+    flex-wrap: wrap;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+  .graph-focus-chip { top: 156px; }
+}
+
 @media (max-width: 720px) {
   .toolbar {
     display: grid;

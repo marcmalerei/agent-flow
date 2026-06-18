@@ -326,6 +326,8 @@ describe('webview assets', () => {
     expect(css).toContain('.graph-toolstrip');
     expect(css).toContain('grid-template-columns: minmax(0, max-content) minmax(0, max-content) minmax(0, 1fr)');
     expect(css).toContain('.graph-toolstrip .graph-reading-level-switch');
+    expect(css).toContain('.graph-toolstrip .graph-type-filters { min-width: 0; max-height: none; overflow-x: auto;');
+    expect(css).toContain('.graph-toolstrip .graph-type-filters button { flex: 0 0 auto; }');
   });
 
   test('adds semantic graph focus modes for investigative views', () => {
