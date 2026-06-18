@@ -660,9 +660,12 @@ describe('webview assets', () => {
 
   test('turns validation diagnostics into actionable workflows', () => {
     const source = readFileSync('src/webview/main.tsx', 'utf8');
+    const summarySource = readFileSync('src/webview/validationSummary.ts', 'utf8');
     const css = readFileSync('src/webview/styles.css', 'utf8');
 
-    expect(source).toContain('Ready to run');
+    expect(source).toContain('summarizeValidationFindings');
+    expect(summarySource).toContain('Needs attention');
+    expect(source).toContain('summary.infos === 1 ?');
     expect(source).toContain('validation-filter-bar');
     expect(source).toContain('diagnostic-workflow-card');
     expect(source).toContain('Focus node');
