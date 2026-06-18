@@ -2176,6 +2176,15 @@ function Bottom({ onApplyQuickFix, onSelectNode, state, activeTab, setActiveTab 
   const metrics = aggregateActivityMetrics(state.pipeline, state.activityEvents ?? []);
   const fileAttention = aggregateFileAttention(state.activityEvents ?? []);
   const tabs: BottomTab[] = ['activity', 'metrics', 'attention', 'validation', 'files', 'tools', 'risk'];
+  const tabMeta: Record<BottomTab, { label: string; icon: string }> = {
+    activity: { label: 'Activity', icon: 'pulse' },
+    metrics: { label: 'Metrics', icon: 'graph' },
+    attention: { label: 'File attention', icon: 'eye' },
+    validation: { label: 'Validation', icon: 'warning' },
+    files: { label: 'Files', icon: 'files' },
+    tools: { label: 'Tools', icon: 'tools' },
+    risk: { label: 'Risk', icon: 'shield' }
+  };
   const tabCounts: Record<BottomTab, number | undefined> = {
     activity: state.activityEvents?.length ?? 0,
     metrics: metrics.summary.activeNodes,
@@ -2187,7 +2196,10 @@ function Bottom({ onApplyQuickFix, onSelectNode, state, activeTab, setActiveTab 
   };
   const title = ({ activity: 'Activity timeline', metrics: 'Run metrics', attention: 'File attention', validation: 'Validation findings', files: 'Generated files', tools: 'Tool matrix', risk: 'Context risk' } as Record<BottomTab, string>)[activeTab];
   return <div className="diagnostics">
-    <nav>{tabs.map((tab) => <VSCodeButton key={tab} variant="ghost" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}><span>{tab}</span>{tabCounts[tab] !== undefined && <span className="diagnostic-tab-count">{tabCounts[tab]}</span>}</VSCodeButton>)}</nav>
+    <nav>{tabs.map((tab) => <VSCodeButton key={tab} variant="ghost" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)} title={tabMeta[tab].label} aria-label={`${tabMeta[tab].label} tab`}>
+      <span className="diagnostic-tab-label"><Codicon name={tabMeta[tab].icon} /><span>{tabMeta[tab].label}</span></span>
+      {tabCounts[tab] !== undefined && <span className="diagnostic-tab-count">{tabCounts[tab]}</span>}
+    </VSCodeButton>)}</nav>
     <article><div className="diagnostic-heading"><h3>{title}</h3><span>{diagnosticSummary(state, activeTab)}</span></div>{activeTab === 'activity' && <ActivityDiagnostics events={state.activityEvents ?? []} pipeline={state.pipeline} sources={state.activitySources ?? []} onSelectNode={onSelectNode} />}{activeTab === 'metrics' && <MetricsDiagnostics metrics={metrics} onSelectNode={onSelectNode} />}{activeTab === 'attention' && <FileAttentionDiagnostics entries={fileAttention} />}{activeTab === 'validation' && <ValidationDiagnostics findings={state.findings} pipeline={state.pipeline} toolOptions={state.toolOptions} onApplyQuickFix={onApplyQuickFix} onSelectNode={onSelectNode} />}{activeTab === 'files' && <FileDiagnostics files={state.generatedFiles} />}{activeTab === 'tools' && <ToolDiagnostics pipeline={state.pipeline} />}{activeTab === 'risk' && <RiskDiagnostics pipeline={state.pipeline} risk={state.risk} />}</article>
   </div>;
 }

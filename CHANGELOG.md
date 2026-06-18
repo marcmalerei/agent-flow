@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Improve diagnostics tab labels with descriptive names, icons, and clearer count spacing for faster scanning.
 - Fix the webview example dev server root URL so `npm run dev:webview:example` opens the demo instead of returning `404 Not Found`.
 - Keep labeled primary toolbar actions visible in narrow webview layouts and group `Add Node` with the main editing controls.
 - Let scoped graph fit actions zoom back in when the selected or meaningful subset is smaller than the previous overview fit.
