@@ -52,6 +52,7 @@ import { edgeReadingLevelClass, graphReadingLevels, nodeReadingLevelClass, type 
 import { edgeVisualPriorityClass, nodeVisualPriorityClass } from './visualPriority';
 import { isDefaultSamplePipeline } from './firstRunGuide';
 import { initialViewportNodeIds, meaningfulFlowNodeIds } from './meaningfulFlow';
+import { summarizeValidationFindings } from './validationSummary';
 
 interface State {
   stateVersion: number;
@@ -2348,12 +2349,8 @@ function ValidationDiagnostics({ findings, onApplyQuickFix, onSelectNode, pipeli
 }
 
 function ReadyToRunSummary({ findings }: { findings: ValidationFinding[] }) {
-  const errors = findings.filter((finding) => finding.severity === 'error').length;
-  const warnings = findings.filter((finding) => finding.severity === 'warning').length;
-  const risks = findings.filter((finding) => finding.severity === 'risk').length;
-  const state = errors ? 'fail' : warnings || risks ? 'warn' : 'pass';
-  const title = state === 'pass' ? 'Ready to run' : state === 'warn' ? 'Ready with warnings' : 'Not ready to run';
-  return <section className={`validation-ready-summary ${state}`}><Codicon name={state === 'pass' ? 'pass' : state === 'warn' ? 'warning' : 'error'} /><div><strong>{title}</strong><span>{errors} errors · {warnings} warnings · {risks} risks</span></div></section>;
+  const summary = summarizeValidationFindings(findings);
+  return <section className={`validation-ready-summary ${summary.state}`}><Codicon name={summary.state === 'pass' ? 'pass' : summary.state === 'warn' ? 'warning' : 'error'} /><div><strong>{summary.title}</strong><span>{summary.errors} errors · {summary.warnings} warnings · {summary.risks} risks · {summary.infos} info{summary.infos === 1 ? '' : 's'}</span></div></section>;
 }
 
 function DiagnosticFilters({ entityTypes, onSeverityChange, onTypeChange, severityFilter, typeFilter }: { entityTypes: string[]; onSeverityChange: (value: string) => void; onTypeChange: (value: string) => void; severityFilter: string; typeFilter: string }) {
