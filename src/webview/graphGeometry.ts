@@ -168,6 +168,26 @@ export function fitGraphNodesViewport(
   };
 }
 
+export function fitAutoGraphViewport({
+  bounds,
+  compact,
+  current,
+  insets,
+  nodes,
+  size,
+}: {
+  bounds: GraphBounds;
+  compact: boolean;
+  current: GraphViewport;
+  insets?: Partial<GraphViewportInsets>;
+  nodes: readonly GraphGeometryNode[];
+  size: GraphCanvasSize;
+}): GraphViewport {
+  return compact
+    ? fitGraphNodesViewport(nodes, current, size, insets)
+    : fitNativeGraphViewport(bounds, size, insets);
+}
+
 export function focusViewportOnNode(
   node: GraphGeometryNode,
   current: GraphViewport,

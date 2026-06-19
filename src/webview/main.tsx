@@ -23,7 +23,7 @@ import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges, type VisibleFlowEdge } from './graph';
-import { clamp, edgePathBetweenNodes, fitGraphNodesViewport, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphOverviewMetrics, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport, type GraphViewportInsets } from './graphGeometry';
+import { clamp, edgePathBetweenNodes, fitAutoGraphViewport, fitGraphNodesViewport, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphOverviewMetrics, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport, type GraphViewportInsets } from './graphGeometry';
 import { activeEdgeIds, deriveActivityHudState, deriveActivityPlaybackState, freshActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, type ActivityHudState, type ActivityTrailItem } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
@@ -984,7 +984,14 @@ const insets = measureGraphViewportInsets(canvasRef.current); const preserveMean
         ),
       );
       const fitNodes = visibleNodes.filter((node) => fitNodeIds.has(node.id));
-const next = preserveMeaningfulOverview ? fitGraphNodesViewport(fitNodes, viewportRef.current, rect, insets) : fitNativeGraphViewport(graphBounds, rect, insets);
+const next = fitAutoGraphViewport({
+bounds: graphBounds,
+compact: preserveMeaningfulOverview || graphFocusMode !== 'full',
+current: viewportRef.current,
+insets,
+nodes: fitNodes,
+size: rect,
+});
       lastFitSignature.current = flowNodeSignature;
       if (!userInteracted) userViewportInteracted.current = false;
       setGraphViewport(next, userInteracted);
