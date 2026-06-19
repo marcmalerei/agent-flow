@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   edgePathBetweenNodes,
   findSpatialNeighborNodeId,
+  fitAutoGraphViewport,
   fitGraphNodesViewport,
   fitNativeGraphViewport,
   focusViewportOnNode,
@@ -167,6 +168,38 @@ describe('native graph geometry', () => {
     expect(viewport.x).toBeGreaterThan(200);
     expect(viewport.y).toBeGreaterThan(100);
     expect(viewport.zoom).toBeGreaterThan(0.5);
+  });
+
+  it('prefers compact fitting when a focused view shows only selected nodes', () => {
+    const nodes: GraphGeometryNode[] = [
+      { id: 'triage-request', position: { x: 285, y: 0 } },
+      { id: 'router', position: { x: 285, y: 388 } },
+      { id: 'implementer', position: { x: 570, y: 538 } },
+      { id: 'reviewer', position: { x: 570, y: 388 } },
+      { id: 'triage-artifact', position: { x: 570, y: 582 } },
+    ];
+    const bounds = measuredGraphBounds(nodes);
+    const size = { width: 1280, height: 720 };
+    const insets = { left: 360, top: 180, right: 430, bottom: 140 };
+
+    const fullViewport = fitAutoGraphViewport({
+      bounds,
+      compact: false,
+      current: { x: 0, y: 0, zoom: 0.2 },
+      insets,
+      nodes,
+      size,
+    });
+    const focusedViewport = fitAutoGraphViewport({
+      bounds,
+      compact: true,
+      current: { x: 0, y: 0, zoom: 0.2 },
+      insets,
+      nodes,
+      size,
+    });
+
+    expect(focusedViewport.zoom).toBeGreaterThan(fullViewport.zoom);
   });
 
   it('projects overview metrics for the current viewport', () => {
