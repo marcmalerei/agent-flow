@@ -23,7 +23,7 @@ import { findCycles, validatePipeline } from '../pipeline/validator';
 import { calculateRiskScore } from '../pipeline/riskScore';
 import { generateFiles } from '../pipeline/generators';
 import { deriveVisibleFlowEdges, type VisibleFlowEdge } from './graph';
-import { clamp, edgePathBetweenNodes, fitGraphNodesViewport, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphOverviewMetrics, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport } from './graphGeometry';
+import { clamp, edgePathBetweenNodes, fitGraphNodesViewport, fitNativeGraphViewport, focusViewportOnNode, graphNodeSizeForType, graphOverviewMetrics, graphTransform, measuredGraphBounds, nativeGraphMaxZoom, nativeGraphMinZoom, normalizeGraphNodePositions, screenToGraphPosition, shouldAutoFitGraph, type GraphBounds, type GraphViewport, type GraphViewportInsets } from './graphGeometry';
 import { activeEdgeIds, deriveActivityHudState, deriveActivityPlaybackState, freshActivityEvents, recentActivityTrail, recentNodeActivitySummaries, resolveActivityEventsForPipeline, type ActivityHudState, type ActivityTrailItem } from './activity';
 import { FlowLayout, layoutFlowNodes } from './flowLayout';
 import { combineMarkdownFrontmatter, markdownToTiptapHtml, splitMarkdownFrontmatter, tiptapJsonToMarkdown } from './markdown';
@@ -124,6 +124,11 @@ const graphModeClassNames: Record<GraphMode, string> = {
 };
 const graphReadingLevelStorageKey = 'agentflow.graphReadingLevel';
 const firstRunGuideStorageKey = 'agentflow.firstRunGuideDismissed';
+const graphViewportInsetPadding = 12;
+const graphViewportInsetsZero: GraphViewportInsets = { left: 0, top: 0, right: 0, bottom: 0 };
+const graphTopInsetSelectors = ['.graph-search-control', '.graph-reading-level-switch', '.graph-focus-mode-switch', '.graph-type-filters', '.graph-filter-empty', '.artifact-relationship-summary'];
+const graphRightInsetSelectors = ['.artifact-relationship-summary', '.graph-overview', '.graph-navigation-landmarks'];
+const graphBottomInsetSelectors = ['.graph-overview', '.graph-navigation-landmarks'];
 const readingLevelClassNames: Record<GraphReadingLevel, string> = {
   overview: 'reading-level-overview',
   'data-flow': 'reading-level-data-flow',
@@ -143,6 +148,38 @@ interface RenderedNode {
 
 type RenderedEdge = VisibleFlowEdge & { className?: string };
 type ResizeAxis = 'x' | 'y';
+
+function measureGraphViewportInsets(canvas: HTMLElement | null): GraphViewportInsets {
+  if (!canvas) return graphViewportInsetsZero;
+  const canvasRect = canvas.getBoundingClientRect();
+  if (canvasRect.width < 20 || canvasRect.height < 20) return graphViewportInsetsZero;
+  return {
+    left: maxCanvasInset(canvas, canvasRect, ['.graph-search-control'], 'left'),
+    top: maxCanvasInset(canvas, canvasRect, graphTopInsetSelectors, 'top'),
+    right: maxCanvasInset(canvas, canvasRect, graphRightInsetSelectors, 'right'),
+    bottom: maxCanvasInset(canvas, canvasRect, graphBottomInsetSelectors, 'bottom'),
+  };
+}
+
+function maxCanvasInset(
+  canvas: HTMLElement,
+  canvasRect: DOMRect,
+  selectors: readonly string[],
+  edge: 'left' | 'top' | 'right' | 'bottom',
+): number {
+  let inset = 0;
+  for (const selector of selectors) {
+    for (const element of Array.from(canvas.querySelectorAll<HTMLElement>(selector))) {
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 12 || rect.height < 12) continue;
+      if (edge === 'left') inset = Math.max(inset, Math.min(canvasRect.width, rect.right - canvasRect.left) + graphViewportInsetPadding);
+      else if (edge === 'top') inset = Math.max(inset, Math.min(canvasRect.height, rect.bottom - canvasRect.top) + graphViewportInsetPadding);
+      else if (edge === 'right') inset = Math.max(inset, Math.min(canvasRect.width, canvasRect.right - rect.left) + graphViewportInsetPadding);
+      else inset = Math.max(inset, Math.min(canvasRect.height, canvasRect.bottom - rect.top) + graphViewportInsetPadding);
+    }
+  }
+  return inset;
+}
 
 interface ResizablePanelOptions {
   axis: ResizeAxis;
@@ -938,7 +975,7 @@ function FlowApp({
     (mode: 'auto' | 'full' = 'auto', userInteracted = false) => {
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!rect || rect.width < 20 || rect.height < 20 || !visibleNodes.length) return;
-      const preserveMeaningfulOverview = mode !== 'full' && graphFocusMode === 'full' && initialOverviewLocked.current;
+const insets = measureGraphViewportInsets(canvasRef.current); const preserveMeaningfulOverview = mode !== 'full' && graphFocusMode === 'full' && initialOverviewLocked.current;
       const fitNodeIds = new Set(
         autoFitViewportNodeIds(
           draft,
@@ -947,7 +984,7 @@ function FlowApp({
         ),
       );
       const fitNodes = visibleNodes.filter((node) => fitNodeIds.has(node.id));
-      const next = preserveMeaningfulOverview ? fitGraphNodesViewport(fitNodes, viewportRef.current, rect) : fitNativeGraphViewport(graphBounds, rect);
+const next = preserveMeaningfulOverview ? fitGraphNodesViewport(fitNodes, viewportRef.current, rect, insets) : fitNativeGraphViewport(graphBounds, rect, insets);
       lastFitSignature.current = flowNodeSignature;
       if (!userInteracted) userViewportInteracted.current = false;
       setGraphViewport(next, userInteracted);
@@ -1046,7 +1083,7 @@ function FlowApp({
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!node || !rect || rect.width < 20 || rect.height < 20) return;
     lastFocusedActivityNode.current = activeNodeId;
-    setGraphViewport(focusViewportOnNode(node, viewportRef.current, rect));
+      setGraphViewport(focusViewportOnNode(node, viewportRef.current, rect, measureGraphViewportInsets(canvasRef.current)));
   }, [activeNodeIds, followLiveActivity, inspectorOpen, nodes, setGraphViewport]);
 
   const nodeCreationPreview = useMemo(() => (nodeCreationDraft ? previewNodeCreation(draft, nodeCreationDraft.type, nodeCreationDraft.name, nodeCreationDraft.description) : undefined), [draft, nodeCreationDraft]);
@@ -1106,7 +1143,7 @@ function FlowApp({
       const rect = canvasRef.current?.getBoundingClientRect();
       if (!node || !rect || rect.width < 20 || rect.height < 20) return;
       setSelectedId(nodeId);
-      setGraphViewport(focusViewportOnNode(node, viewportRef.current, rect), true);
+    setGraphViewport(focusViewportOnNode(node, viewportRef.current, rect, measureGraphViewportInsets(canvasRef.current)), true);
     },
     [draft.nodes, nodes, setSelectedId, setGraphViewport],
   );
@@ -1155,7 +1192,7 @@ function FlowApp({
     const relatedNodes = visibleNodes.filter((node) => relatedIds.has(node.id));
     if (!relatedNodes.length) return;
     initialOverviewLocked.current = false;
-    setGraphViewport(fitGraphNodesViewport(relatedNodes, viewportRef.current, rect), true);
+    setGraphViewport(fitGraphNodesViewport(relatedNodes, viewportRef.current, rect, measureGraphViewportInsets(canvasRef.current)), true);
   }, [draft, selectedId, setGraphViewport, visibleNodes]);
   const fitMeaningfulFlow = useCallback(() => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -1164,7 +1201,7 @@ function FlowApp({
     const meaningfulNodes = visibleNodes.filter((node) => meaningfulIds.has(node.id));
     if (!meaningfulNodes.length) return;
     initialOverviewLocked.current = false;
-    setGraphViewport(fitGraphNodesViewport(meaningfulNodes, viewportRef.current, rect), true);
+    setGraphViewport(fitGraphNodesViewport(meaningfulNodes, viewportRef.current, rect, measureGraphViewportInsets(canvasRef.current)), true);
   }, [draft, setGraphViewport, visibleNodes]);
   const fitFullGraph = useCallback(() => {
     initialOverviewLocked.current = false;

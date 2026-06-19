@@ -16,6 +16,13 @@ export interface GraphViewport {
   zoom: number;
 }
 
+export interface GraphViewportInsets {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
 export interface GraphBounds {
   x: number;
   y: number;
@@ -31,7 +38,12 @@ export interface GraphCanvasSize {
 export interface GraphOverviewMetrics {
   height: number;
   scale: number;
-  viewport: { x: number; y: number; width: number; height: number };
+  viewport: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
   width: number;
 }
 
@@ -39,6 +51,7 @@ export const graphNodeWidth = 190;
 export const graphNodeHeight = 96;
 export const nativeGraphMinZoom = 0.08;
 export const nativeGraphMaxZoom = 1.4;
+
 const graphPadding = 120;
 const defaultEdgeLabelWidth = 56;
 const defaultEdgeLabelHeight = 20;
@@ -51,72 +64,131 @@ export function normalizeGraphNodePositions<T extends GraphGeometryNode>(nodes: 
   const rawMinY = Math.min(...nodes.map((node) => node.position.y));
   const offsetX = graphPadding - rawMinX;
   const offsetY = graphPadding - rawMinY;
-  const normalized = nodes.map((node) => ({ ...node, position: { x: node.position.x + offsetX, y: node.position.y + offsetY } }));
+  const normalized = nodes.map((node) => ({
+    ...node,
+    position: {
+      x: node.position.x + offsetX,
+      y: node.position.y + offsetY,
+    },
+  }));
   return { nodes: normalized, bounds: measuredGraphBounds(normalized) };
 }
 
 export function measuredGraphBounds(nodes: readonly GraphGeometryNode[]): GraphBounds {
   if (!nodes.length) return { x: 0, y: 0, width: 240, height: 240 };
+  const minX = Math.min(...nodes.map((node) => node.position.x)) - graphPadding;
+  const minY = Math.min(...nodes.map((node) => node.position.y)) - graphPadding;
   const maxX = Math.max(...nodes.map((node) => node.position.x + nodeWidth(node))) + graphPadding;
   const maxY = Math.max(...nodes.map((node) => node.position.y + nodeHeight(node))) + graphPadding;
-  return { x: 0, y: 0, width: Math.max(1, maxX), height: Math.max(1, maxY) };
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
 }
 
-export function edgePathBetweenNodes(source: GraphGeometryNode, target: GraphGeometryNode, labelOptions: { labelWidth?: number; labelHeight?: number } = {}): { path: string; labelX: number; labelY: number; start: GraphPoint; end: GraphPoint } {
+export function edgePathBetweenNodes(
+  source: GraphGeometryNode,
+  target: GraphGeometryNode,
+  labelOptions: { labelWidth?: number; labelHeight?: number } = {},
+): { path: string; labelX: number; labelY: number; start: GraphPoint; end: GraphPoint } {
   const sourceCenter = nodeCenter(source);
   const targetCenter = nodeCenter(target);
   const horizontal = Math.abs(targetCenter.x - sourceCenter.x) >= Math.abs(targetCenter.y - sourceCenter.y);
   const start = horizontal
-    ? { x: sourceCenter.x <= targetCenter.x ? source.position.x + nodeWidth(source) + nodePortAnchorOffset : source.position.x - nodePortAnchorOffset, y: sourceCenter.y }
-    : { x: sourceCenter.x, y: sourceCenter.y <= targetCenter.y ? source.position.y + nodeHeight(source) + nodePortAnchorOffset : source.position.y - nodePortAnchorOffset };
+    ? {
+        x: sourceCenter.x <= targetCenter.x
+          ? source.position.x + nodeWidth(source) + nodePortAnchorOffset
+          : source.position.x - nodePortAnchorOffset,
+        y: sourceCenter.y,
+      }
+    : {
+        x: sourceCenter.x,
+        y: sourceCenter.y <= targetCenter.y
+          ? source.position.y + nodeHeight(source) + nodePortAnchorOffset
+          : source.position.y - nodePortAnchorOffset,
+      };
   const end = horizontal
-    ? { x: sourceCenter.x <= targetCenter.x ? target.position.x - nodePortAnchorOffset : target.position.x + nodeWidth(target) + nodePortAnchorOffset, y: targetCenter.y }
-    : { x: targetCenter.x, y: sourceCenter.y <= targetCenter.y ? target.position.y - nodePortAnchorOffset : target.position.y + nodeHeight(target) + nodePortAnchorOffset };
+    ? {
+        x: sourceCenter.x <= targetCenter.x
+          ? target.position.x - nodePortAnchorOffset
+          : target.position.x + nodeWidth(target) + nodePortAnchorOffset,
+        y: targetCenter.y,
+      }
+    : {
+        x: targetCenter.x,
+        y: sourceCenter.y <= targetCenter.y
+          ? target.position.y - nodePortAnchorOffset
+          : target.position.y + nodeHeight(target) + nodePortAnchorOffset,
+      };
   const distance = horizontal ? Math.abs(end.x - start.x) : Math.abs(end.y - start.y);
   const bend = Math.max(56, distance * 0.42);
+  const direction = horizontal ? Math.sign(end.x - start.x || 1) : Math.sign(end.y - start.y || 1);
   const path = horizontal
-    ? `M ${round(start.x)} ${round(start.y)} C ${round(start.x + Math.sign(end.x - start.x || 1) * bend)} ${round(start.y)}, ${round(end.x - Math.sign(end.x - start.x || 1) * bend)} ${round(end.y)}, ${round(end.x)} ${round(end.y)}`
-    : `M ${round(start.x)} ${round(start.y)} C ${round(start.x)} ${round(start.y + Math.sign(end.y - start.y || 1) * bend)}, ${round(end.x)} ${round(end.y - Math.sign(end.y - start.y || 1) * bend)}, ${round(end.x)} ${round(end.y)}`;
+    ? `M ${round(start.x)} ${round(start.y)} C ${round(start.x + direction * bend)} ${round(start.y)}, ${round(end.x - direction * bend)} ${round(end.y)}, ${round(end.x)} ${round(end.y)}`
+    : `M ${round(start.x)} ${round(start.y)} C ${round(start.x)} ${round(start.y + direction * bend)}, ${round(end.x)} ${round(end.y - direction * bend)}, ${round(end.x)} ${round(end.y)}`;
   const label = edgeLabelPosition(source, target, start, end, horizontal, labelOptions);
   return { path, labelX: label.x, labelY: label.y, start, end };
 }
 
-export function fitNativeGraphViewport(bounds: GraphBounds, size: GraphCanvasSize): GraphViewport {
-  const padding = 56;
-  const availableWidth = Math.max(40, size.width - padding * 2);
-  const availableHeight = Math.max(40, size.height - padding * 2);
+export function fitNativeGraphViewport(
+  bounds: GraphBounds,
+  size: GraphCanvasSize,
+  insets?: Partial<GraphViewportInsets>,
+): GraphViewport {
+  const usable = usableCanvasFrame(size, insets, 56);
+  const availableWidth = Math.max(40, usable.width);
+  const availableHeight = Math.max(40, usable.height);
   const zoom = clamp(Math.min(1, availableWidth / bounds.width, availableHeight / bounds.height), nativeGraphMinZoom, 1);
   return {
-    x: (size.width - bounds.width * zoom) / 2,
-    y: (size.height - bounds.height * zoom) / 2,
-    zoom
+    x: usable.centerX - bounds.width * zoom / 2,
+    y: usable.centerY - bounds.height * zoom / 2,
+    zoom,
   };
 }
 
-export function fitGraphNodesViewport(nodes: readonly GraphGeometryNode[], current: GraphViewport, size: GraphCanvasSize): GraphViewport {
+export function fitGraphNodesViewport(
+  nodes: readonly GraphGeometryNode[],
+  current: GraphViewport,
+  size: GraphCanvasSize,
+  insets?: Partial<GraphViewportInsets>,
+): GraphViewport {
   if (!nodes.length) return current;
   const bounds = measuredNodeGroupBounds(nodes, 48);
-  const availableWidth = Math.max(40, size.width - 80);
-  const availableHeight = Math.max(40, size.height - 80);
+  const usable = usableCanvasFrame(size, insets, 40);
+  const availableWidth = Math.max(40, usable.width);
+  const availableHeight = Math.max(40, usable.height);
   const fitZoom = Math.min(availableWidth / bounds.width, availableHeight / bounds.height);
   const zoom = clamp(fitZoom, nativeGraphMinZoom, nativeGraphMaxZoom);
   return {
-    x: size.width / 2 - (bounds.x + bounds.width / 2) * zoom,
-    y: size.height / 2 - (bounds.y + bounds.height / 2) * zoom,
-    zoom
+    x: usable.centerX - (bounds.x + bounds.width / 2) * zoom,
+    y: usable.centerY - (bounds.y + bounds.height / 2) * zoom,
+    zoom,
   };
 }
 
-export function focusViewportOnNode(node: GraphGeometryNode, current: GraphViewport, size: GraphCanvasSize): GraphViewport {
+export function focusViewportOnNode(
+  node: GraphGeometryNode,
+  current: GraphViewport,
+  size: GraphCanvasSize,
+  insets?: Partial<GraphViewportInsets>,
+): GraphViewport {
   const center = nodeCenter(node);
+  const usable = usableCanvasFrame(size, insets, 0);
   return {
-    x: size.width / 2 - center.x * current.zoom,
-    y: size.height / 2 - center.y * current.zoom,
-    zoom: current.zoom
+    x: usable.centerX - center.x * current.zoom,
+    y: usable.centerY - center.y * current.zoom,
+    zoom: current.zoom,
   };
 }
 
-export function graphOverviewMetrics(bounds: GraphBounds, viewport: GraphViewport, canvasSize: GraphCanvasSize, maxSize: GraphCanvasSize): GraphOverviewMetrics {
+export function graphOverviewMetrics(
+  bounds: GraphBounds,
+  viewport: GraphViewport,
+  canvasSize: GraphCanvasSize,
+  maxSize: GraphCanvasSize,
+): GraphOverviewMetrics {
   const scale = Math.min(maxSize.width / bounds.width, maxSize.height / bounds.height);
   const width = Math.max(1, Math.round(bounds.width * scale));
   const height = Math.max(1, Math.round(bounds.height * scale));
@@ -133,13 +205,17 @@ export function graphOverviewMetrics(bounds: GraphBounds, viewport: GraphViewpor
       x: clamp(visibleLeft, 0, Math.max(0, width - viewportWidth)),
       y: clamp(visibleTop, 0, Math.max(0, height - viewportHeight)),
       width: viewportWidth,
-      height: viewportHeight
+      height: viewportHeight,
     },
-    width
+    width,
   };
 }
 
-export function findSpatialNeighborNodeId(nodes: readonly GraphGeometryNode[], selectedId: string, direction: 'left' | 'right' | 'up' | 'down'): string | undefined {
+export function findSpatialNeighborNodeId(
+  nodes: readonly GraphGeometryNode[],
+  selectedId: string,
+  direction: 'left' | 'right' | 'up' | 'down',
+): string | undefined {
   const selected = nodes.find((node) => node.id === selectedId);
   if (!selected) return undefined;
   const center = nodeCenter(selected);
@@ -159,39 +235,107 @@ export function findSpatialNeighborNodeId(nodes: readonly GraphGeometryNode[], s
   return best?.id;
 }
 
-export function shouldAutoFitGraph({ previousSignature, nextSignature, userInteracted, reason }: { previousSignature?: string; nextSignature: string; userInteracted: boolean; reason: 'activity' | 'resize' | 'structure' }): boolean {
+export function shouldAutoFitGraph({
+  previousSignature,
+  nextSignature,
+  userInteracted,
+  reason,
+}: {
+  previousSignature?: string;
+  nextSignature: string;
+  userInteracted: boolean;
+  reason: 'activity' | 'resize' | 'structure';
+}): boolean {
   if (previousSignature !== nextSignature) return true;
   if (reason === 'activity') return false;
   return !userInteracted;
 }
 
-export function screenToGraphPosition(point: GraphPoint, rect: GraphCanvasSize & { left: number; top: number }, viewport: GraphViewport): GraphPoint {
-  return { x: (point.x - rect.left - viewport.x) / viewport.zoom, y: (point.y - rect.top - viewport.y) / viewport.zoom };
+export function screenToGraphPosition(
+  point: GraphPoint,
+  rect: GraphCanvasSize & { left: number; top: number },
+  viewport: GraphViewport,
+): GraphPoint {
+  return {
+    x: (point.x - rect.left - viewport.x) / viewport.zoom,
+    y: (point.y - rect.top - viewport.y) / viewport.zoom,
+  };
 }
 
 export function graphTransform(viewport: GraphViewport): string {
   return `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
 }
 
-export function graphNodeSizeForType(type: string): { width: number; height: number } {
+export function graphNodeSizeForType(_type: string): { width: number; height: number } {
   return { width: graphNodeWidth, height: graphNodeHeight };
 }
 
 export function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+  return Math.min(max, Math.max(min, value));
+}
+
+function usableCanvasFrame(
+  size: GraphCanvasSize,
+  insets: Partial<GraphViewportInsets> | undefined,
+  padding: number,
+): { centerX: number; centerY: number; width: number; height: number } {
+  const leftInset = Math.max(0, insets?.left ?? 0);
+  const topInset = Math.max(0, insets?.top ?? 0);
+  const rightInset = Math.max(0, insets?.right ?? 0);
+  const bottomInset = Math.max(0, insets?.bottom ?? 0);
+  const left = leftInset + padding;
+  const top = topInset + padding;
+  const right = Math.max(left + 40, size.width - rightInset - padding);
+  const bottom = Math.max(top + 40, size.height - bottomInset - padding);
+  return {
+    centerX: (left + right) / 2,
+    centerY: (top + bottom) / 2,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
+function measuredNodeGroupBounds(nodes: readonly GraphGeometryNode[], padding: number): GraphBounds {
+  const minX = Math.min(...nodes.map((node) => node.position.x)) - padding;
+  const minY = Math.min(...nodes.map((node) => node.position.y)) - padding;
+  const maxX = Math.max(...nodes.map((node) => node.position.x + nodeWidth(node))) + padding;
+  const maxY = Math.max(...nodes.map((node) => node.position.y + nodeHeight(node))) + padding;
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+}
+
+function nodeWidth(node: GraphGeometryNode): number {
+  return node.width ?? graphNodeWidth;
+}
+
+function nodeHeight(node: GraphGeometryNode): number {
+  return node.height ?? graphNodeHeight;
 }
 
 function nodeCenter(node: GraphGeometryNode): GraphPoint {
-  return { x: node.position.x + nodeWidth(node) / 2, y: node.position.y + nodeHeight(node) / 2 };
+  return {
+    x: node.position.x + nodeWidth(node) / 2,
+    y: node.position.y + nodeHeight(node) / 2,
+  };
 }
 
-function edgeLabelPosition(source: GraphGeometryNode, target: GraphGeometryNode, start: GraphPoint, end: GraphPoint, horizontal: boolean, options: { labelWidth?: number; labelHeight?: number }): GraphPoint {
+function edgeLabelPosition(
+  source: GraphGeometryNode,
+  target: GraphGeometryNode,
+  start: GraphPoint,
+  end: GraphPoint,
+  horizontal: boolean,
+  options: { labelWidth?: number; labelHeight?: number },
+): GraphPoint {
   const width = options.labelWidth ?? defaultEdgeLabelWidth;
   const height = options.labelHeight ?? defaultEdgeLabelHeight;
   const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
   const nodes = [source, target];
   if (!labelOverlapsNodes(midpoint, width, height, nodes)) return midpoint;
-
   if (horizontal) {
     const top = Math.min(source.position.y, target.position.y);
     const bottom = Math.max(source.position.y + nodeHeight(source), target.position.y + nodeHeight(target));
@@ -199,7 +343,6 @@ function edgeLabelPosition(source: GraphGeometryNode, target: GraphGeometryNode,
     if (!labelOverlapsNodes(above, width, height, nodes)) return above;
     return { x: midpoint.x, y: bottom + height / 2 + edgeLabelGap };
   }
-
   const left = Math.min(source.position.x, target.position.x);
   const right = Math.max(source.position.x + nodeWidth(source), target.position.x + nodeWidth(target));
   const before = { x: left - width / 2 - edgeLabelGap, y: midpoint.y };
@@ -212,38 +355,22 @@ function labelOverlapsNodes(center: GraphPoint, width: number, height: number, n
     left: center.x - width / 2,
     right: center.x + width / 2,
     top: center.y - height / 2,
-    bottom: center.y + height / 2
+    bottom: center.y + height / 2,
   };
-  return nodes.some((node) => rectsOverlap(label, {
-    left: node.position.x,
-    right: node.position.x + nodeWidth(node),
-    top: node.position.y,
-    bottom: node.position.y + nodeHeight(node)
-  }));
+  return nodes.some((node) =>
+    rectsOverlap(label, {
+      left: node.position.x,
+      right: node.position.x + nodeWidth(node),
+      top: node.position.y,
+      bottom: node.position.y + nodeHeight(node),
+    }),
+  );
 }
 
-function nodeWidth(node: GraphGeometryNode): number {
-  return node.width ?? graphNodeWidth;
-}
-
-function nodeHeight(node: GraphGeometryNode): number {
-  return node.height ?? graphNodeHeight;
-}
-
-function measuredNodeGroupBounds(nodes: readonly GraphGeometryNode[], padding: number): GraphBounds {
-  const minX = Math.min(...nodes.map((node) => node.position.x));
-  const minY = Math.min(...nodes.map((node) => node.position.y));
-  const maxX = Math.max(...nodes.map((node) => node.position.x + nodeWidth(node)));
-  const maxY = Math.max(...nodes.map((node) => node.position.y + nodeHeight(node)));
-  return {
-    x: minX - padding,
-    y: minY - padding,
-    width: Math.max(1, maxX - minX + padding * 2),
-    height: Math.max(1, maxY - minY + padding * 2)
-  };
-}
-
-function rectsOverlap(a: { left: number; right: number; top: number; bottom: number }, b: { left: number; right: number; top: number; bottom: number }): boolean {
+function rectsOverlap(
+  a: { left: number; right: number; top: number; bottom: number },
+  b: { left: number; right: number; top: number; bottom: number },
+): boolean {
   return a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom;
 }
 
