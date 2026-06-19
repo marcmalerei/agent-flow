@@ -57,7 +57,7 @@ body { font-family: var(--vscode-font-family, system-ui); font-size: var(--vscod
 .graph-mode-switch button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app.graph-mode-run .activity-hud, .app.graph-mode-run .activity-trail { border-color: var(--vscode-charts-green); box-shadow: inset 2px 0 0 var(--vscode-charts-green); }
 .app.graph-mode-diagnose .bottom { border-top-color: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 58%, var(--agentflow-border)); }
-.canvas { position: relative; min-width: 0; min-height: var(--agentflow-canvas-min-height); width: 100%; height: 100%; overflow: hidden; background: var(--vscode-editor-background); }
+.canvas { position: relative; min-width: 0; min-height: var(--agentflow-canvas-min-height); width: 100%; height: 100%; overflow: hidden; background: var(--vscode-editor-background); container-name: graph-canvas; container-type: inline-size; }
 .native-graph { touch-action: none; user-select: none; -webkit-user-select: none; background-image: radial-gradient(color-mix(in srgb, var(--vscode-editor-foreground) 42%, transparent) 1px, transparent 1px); background-size: 24px 24px; cursor: grab; }
 .native-graph input, .native-graph textarea { user-select: text; -webkit-user-select: text; }
 .native-graph:active { cursor: grabbing; }
@@ -677,6 +677,20 @@ input[type="checkbox"] { accent-color: var(--vscode-checkbox-selectBackground, v
   .flow-node.has-activity, .activity-started, .activity-thinking, .activity-tool, .activity-file, .activity-artifact, .graph-edge.animated .graph-edge-path { animation: none; }
   .graph-edge-tracer { display: none; }
 }
+@container graph-canvas (max-width: 920px) {
+  .graph-toolstrip {
+    grid-template-columns: repeat(2, minmax(0, max-content));
+    width: min(100%, calc(100% - 24px));
+  }
+  .graph-toolstrip .graph-type-filters { grid-column: 1 / -1; }
+  .graph-toolstrip .graph-type-filters {
+    flex-wrap: wrap;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+  .graph-focus-chip { top: 156px; }
+}
+
 @media (max-width: 900px) {
   .graph-toolstrip {
     grid-template-columns: repeat(2, minmax(0, max-content));
