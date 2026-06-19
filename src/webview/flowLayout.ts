@@ -48,6 +48,11 @@ function layoutCompactGrid(pipeline: AgentPipeline): Map<string, Position> {
   let shelfHeight = 0;
   const maxShelfWidth = compactNodeWidth * 18;
   for (const [index, component] of components.entries()) {
+    const anchoredSingleton = singletonPositionHint(component);
+    if (anchoredSingleton) {
+      result.set(anchoredSingleton.id, anchoredSingleton.position);
+      continue;
+    }
     const componentPositions = layoutWrappedComponent(pipeline, component);
     const bounds = positionBounds(componentPositions);
     if (index > 0 && offsetX > 0 && offsetX + bounds.width > maxShelfWidth) {
@@ -60,6 +65,12 @@ function layoutCompactGrid(pipeline: AgentPipeline): Map<string, Position> {
     shelfHeight = Math.max(shelfHeight, bounds.height);
   }
   return result;
+}
+
+function singletonPositionHint(component: PipelineNode[]): { id: string; position: Position } | undefined {
+  if (component.length !== 1) return undefined;
+  const [node] = component;
+  return node.position ? { id: node.id, position: node.position } : undefined;
 }
 
 function layoutWrappedComponent(pipeline: AgentPipeline, component: PipelineNode[]): Map<string, Position> {
