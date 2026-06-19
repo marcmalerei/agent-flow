@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Keep first-open graph framing and focus actions inside the usable canvas area so search, filter, inspector, and overview overlays no longer cover primary nodes.
 
 - Keep the first full-graph overview locked to the meaningful starter flow until an explicit fit or focus action requests a broader framing.
 - Keep graph type filters reachable when the inspector narrows the canvas by switching the toolstrip breakpoint to canvas width and moving the filter row onto its own line before trailing items clip.
