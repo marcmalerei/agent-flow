@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Keep disconnected singleton support nodes near their authored legacy positions in compact layout so example and migrated graphs do not zoom out around isolated hooks or skills.
 - Keep first-open graph framing and focus actions inside the usable canvas area so search, filter, inspector, and overview overlays no longer cover primary nodes.
 
 - Keep the first full-graph overview locked to the meaningful starter flow until an explicit fit or focus action requests a broader framing.
