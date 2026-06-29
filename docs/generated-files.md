@@ -21,6 +21,10 @@ Generated files include a marker:
 
 `Agent Flow: Generate Files` opens a preview and then asks for confirmation. Live webview edits write the affected Markdown file immediately, while the generate command does not write until the user confirms. Unknown files are preserved.
 
+## Activity reporting
+
+Generated agents and prompts include `agentflow_report_activity` in frontmatter tool lists. Generated agents, prompts, instructions, skills, and roles include a short `Agent Flow activity reporting` section so models can emit sanitized workspace-local progress updates without relying on external debug-log parsing.
+
 ## Artifact handoffs
 
 Generated agents use explicit file handoffs, for example:

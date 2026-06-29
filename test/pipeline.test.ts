@@ -333,14 +333,40 @@ Keep this prose.
     })).toContain('## Activation criteria');
   });
 
-  it('injects Agent Flow activity reporting guidance into generated instructions and skills', () => {
+  it('injects Agent Flow activity reporting guidance into generated instructions, skills, and roles', () => {
     const instruction = generateInstructionMarkdown({ id: 'docs', type: 'instruction', label: 'Docs', rules: ['Keep docs short.'] });
     const skill = generateSkillMarkdown({ id: 'review-pr', type: 'skill', label: 'Review PR', procedure: ['Inspect diff.'] });
+    const role = generateRoleMarkdown({ id: 'frontend-developer', type: 'role', label: 'Frontend Developer', description: 'Build UI.' });
 
-    for (const markdown of [instruction, skill]) {
+    for (const markdown of [instruction, skill, role]) {
       expect(markdown).toContain('# Agent Flow activity reporting');
       expect(markdown).toContain('Report only the node id or file, phase, short summary, and optional tool or artifact path.');
     }
+  });
+
+  it('preserves edited role markdown while refreshing activity reporting guidance', () => {
+    const role = generateRoleMarkdown({
+      id: 'reviewer',
+      type: 'role',
+      label: 'Reviewer',
+      description: 'Reviews changes.',
+      markdown: `---
+name: "Reviewer"
+---
+
+# Custom Role
+
+Keep this reusable perspective.
+
+# Agent Flow activity reporting
+
+Old guidance.`
+    });
+
+    expect(role).toContain('# Custom Role');
+    expect(role).toContain('Keep this reusable perspective.');
+    expect(role).toContain('Use `agentflow_report_activity` for short, sanitized workspace-local updates');
+    expect(role).not.toContain('Old guidance.');
   });
 
   it('generates role markdown', () => {
