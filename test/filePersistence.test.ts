@@ -49,7 +49,7 @@ describe('webview file persistence', () => {
 
     const reloaded = await loadOrInferPipeline(workspace);
     expect(reloaded.nodes.find((node) => node.id === 'new-agent-1' && node.type === 'agent')).toMatchObject({ agentFile: '.github/agents/new-agent-1.agent.md' });
-    expect(reloaded.nodes.find((node) => node.id === 'new-prompt-1' && node.type === 'prompt')).toMatchObject({ promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: ['search'] });
+    expect(reloaded.nodes.find((node) => node.id === 'new-prompt-1' && node.type === 'prompt')).toMatchObject({ promptFile: '.github/prompts/new-prompt-1.prompt.md', tools: ['agentflow_report_activity', 'search'] });
     expect(reloaded.nodes.find((node) => node.id === 'new-instruction-1' && node.type === 'instruction')).toMatchObject({ instructionFile: '.github/instructions/new-instruction-1.instructions.md', label: 'new instruction' });
     expect(reloaded.nodes.find((node) => node.id === 'new-skill-1' && node.type === 'skill')).toMatchObject({ skillFile: '.github/skills/new-skill-1/SKILL.md' });
     expect(reloaded.nodes.find((node) => node.id === 'new-role-1' && node.type === 'role')).toMatchObject({ roleFile: '.github/roles/new-role-1.md', label: 'new role' });

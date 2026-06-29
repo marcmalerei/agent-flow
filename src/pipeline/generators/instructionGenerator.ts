@@ -1,6 +1,6 @@
 import { InstructionNode } from '../types';
 import { normalizeNodeLabel } from '../labels';
-import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, replaceMarkdownSection, yamlString, yamlStringLine } from './shared';
+import { AGENT_FLOW_ACTIVITY_REPORTING_HEADING, activityReportingGuidance, appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, replaceMarkdownSection, yamlString, yamlStringLine } from './shared';
 
 export function instructionFilePath(node: InstructionNode): string {
   if (node.instructionFile) return node.instructionFile;
@@ -12,9 +12,13 @@ export function generateInstructionMarkdown(node: InstructionNode): string {
   const label = normalizeNodeLabel(node.label, node.id);
   if (node.markdown?.trim()) {
     const body = replaceMarkdownSection(
-      replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
-      'Referenced instructions',
-      referenceInstructionList(node.instructionRefs)
+      replaceMarkdownSection(
+        replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
+        'Referenced instructions',
+        referenceInstructionList(node.instructionRefs)
+      ),
+      AGENT_FLOW_ACTIVITY_REPORTING_HEADING,
+      activityReportingGuidance()
     );
     return mergeMarkdownWithFrontmatter(body, frontmatter);
   }
@@ -32,6 +36,10 @@ ${referenceInstructionList(node.instructionRefs)}
 # Required artifacts
 
 ${artifactUsageList(node.artifactUsages, node.requiredArtifacts)}
+
+# Agent Flow activity reporting
+
+${activityReportingGuidance()}
 
 # Rules
 

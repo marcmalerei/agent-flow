@@ -1,7 +1,6 @@
 import { PromptNode } from '../types';
-import { normalizeToolsForVsCode } from '../toolNormalization';
 import { normalizeNodeLabel } from '../labels';
-import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, referenceRoleList, replaceMarkdownSection, yamlOptionalList, yamlString, yamlStringLine } from './shared';
+import { AGENT_FLOW_ACTIVITY_REPORTING_HEADING, activityReportingGuidance, appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, referenceRoleList, replaceMarkdownSection, toolsWithActivityReporting, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function promptFilePath(node: PromptNode): string {
   if (node.promptFile) return node.promptFile;
@@ -14,12 +13,16 @@ export function generatePromptMarkdown(node: PromptNode): string {
   if (node.markdown?.trim()) {
     const body = replaceMarkdownSection(
       replaceMarkdownSection(
-        replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
-        'Referenced instructions',
-        referenceInstructionList(node.instructionRefs)
+        replaceMarkdownSection(
+          replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
+          'Referenced instructions',
+          referenceInstructionList(node.instructionRefs)
+        ),
+        'Referenced roles',
+        referenceRoleList(node.roleRefs)
       ),
-      'Referenced roles',
-      referenceRoleList(node.roleRefs)
+      AGENT_FLOW_ACTIVITY_REPORTING_HEADING,
+      activityReportingGuidance()
     );
     return mergeMarkdownWithFrontmatter(body, frontmatter);
   }
@@ -54,6 +57,10 @@ ${referenceInstructionList(node.instructionRefs)}
 
 ${referenceRoleList(node.roleRefs)}
 
+# Agent Flow activity reporting
+
+${activityReportingGuidance()}
+
 # Definition of done
 
 ${list(node.definitionOfDone)}
@@ -66,6 +73,6 @@ function promptFrontmatter(node: PromptNode): string {
 name: ${yamlString(label)}
 ${yamlStringLine('description', node.description)}
 ${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('agent', node.startAgent)}${yamlStringLine('model', node.model)}
-${yamlOptionalList('tools', normalizeToolsForVsCode(node.tools))}
+${yamlOptionalList('tools', toolsWithActivityReporting(node.tools))}
 ---`;
 }

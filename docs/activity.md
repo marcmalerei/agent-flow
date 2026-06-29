@@ -12,6 +12,8 @@ The production-supported ingestion path is the VS Code Language Model Tool API. 
 
 These tools only record short structured activity events. They do not execute user code, read files, or require raw prompt content.
 
+Generated Agent Flow agents and prompts include `agentflow_report_activity` in their tool lists by default. Generated agents, prompts, instructions, and skills also include short guidance to report only sanitized workspace-local progress: node id or file, phase, short summary, and optional tool or artifact path. They must not report raw prompts, secrets, credentials, tokens, or full file contents.
+
 ## Event Model
 
 Activity events are workspace-local and kept in memory. Each event can include:
