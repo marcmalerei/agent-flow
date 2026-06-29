@@ -65,7 +65,8 @@ describe('basic example flow', () => {
     expect(paths).toContain('.github/skills/review-pr/SKILL.md');
     expect(paths).toContain('.github/artifacts/triage.md');
     expect(routerAgent?.content).toContain('handoffs:\n  - label: "Review Plan"');
-    expect(routerAgent?.content).toContain('tools:\n  - "agent"\n  - "read"\n  - "search"');
+    expect(routerAgent?.content).toContain('tools:\n  - "agent"\n  - "agentflow_report_activity"\n  - "read"\n  - "search"');
+    expect(routerAgent?.content).toContain('# Agent Flow activity reporting');
     expect(routerAgent?.content).toContain('agents:\n  - "implementer"');
     expect(routerAgent?.content).toContain('<!--agent-flow:begin artifact-ref action="write" path=".github/artifacts/triage.md"-->');
     expect(routerAgent?.content).toContain('Write the selected route, involved agents, and open risks.');

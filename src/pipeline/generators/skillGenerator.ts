@@ -1,6 +1,6 @@
 import { SkillNode } from '../types';
 import { normalizeNodeLabel } from '../labels';
-import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, replaceMarkdownSection, yamlBooleanLine, yamlString, yamlStringLine } from './shared';
+import { AGENT_FLOW_ACTIVITY_REPORTING_HEADING, activityReportingGuidance, appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, replaceMarkdownSection, yamlBooleanLine, yamlString, yamlStringLine } from './shared';
 
 export function skillFilePath(node: SkillNode): string {
   if (node.skillFile) return node.skillFile;
@@ -10,7 +10,14 @@ export function skillFilePath(node: SkillNode): string {
 export function generateSkillMarkdown(node: SkillNode): string {
   const frontmatter = skillFrontmatter(node);
   const label = normalizeNodeLabel(node.label, node.id);
-  if (node.markdown?.trim()) return mergeMarkdownWithFrontmatter(replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)), frontmatter);
+  if (node.markdown?.trim()) {
+    const body = replaceMarkdownSection(
+      replaceMarkdownSection(markdownBody(node.markdown), 'Required artifacts', artifactUsageList(node.artifactUsages, node.requiredArtifacts)),
+      AGENT_FLOW_ACTIVITY_REPORTING_HEADING,
+      activityReportingGuidance()
+    );
+    return mergeMarkdownWithFrontmatter(body, frontmatter);
+  }
 
   return appendGeneratedMarker(`${frontmatter}
 
@@ -43,6 +50,10 @@ ${list(node.resourceReferences)}
 # Required artifacts
 
 ${artifactUsageList(node.artifactUsages, node.requiredArtifacts)}
+
+# Agent Flow activity reporting
+
+${activityReportingGuidance()}
 `);
 }
 

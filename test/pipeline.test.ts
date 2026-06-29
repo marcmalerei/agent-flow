@@ -125,6 +125,18 @@ describe('default pipeline', () => {
     ]));
   });
 
+  it('injects Agent Flow activity reporting into generated agent and prompt tool lists', () => {
+    const agent = generateAgentMarkdown({ id: 'agent', type: 'agent', label: 'Agent', tools: [], calls: [] });
+    const prompt = generatePromptMarkdown({ id: 'prompt', type: 'prompt', label: 'Prompt', tools: [] });
+
+    for (const markdown of [agent, prompt]) {
+      expect(markdown).toContain('tools:\n  - "agentflow_report_activity"');
+      expect(markdown).toContain('# Agent Flow activity reporting');
+      expect(markdown).toContain('Use `agentflow_report_activity` for short, sanitized workspace-local updates');
+      expect(markdown).toContain('Do not include raw prompts, secrets, credentials, tokens, or full file contents.');
+    }
+  });
+
   it('defines handoffs for every default agent subagent call', () => {
     const agents = createDefaultPipeline().nodes.filter((node) => node.type === 'agent');
 
@@ -259,6 +271,7 @@ Keep this prose.
     expect(agent).toContain('target: "vscode"');
     expect(agent).toContain('user-invocable: false');
     expect(agent).toContain('disable-model-invocation: true');
+    expect(agent).toContain('tools:\n  - "agentflow_report_activity"\n  - "search"');
     expect(agent).toContain('agents:\n  - "implementer"');
     expect(agent).toContain('handoffs:\n  - label: "Start Implementation"\n    agent: "implementer"\n    prompt: "Implement the review findings."\n    send: false');
   });
@@ -273,6 +286,8 @@ Keep this prose.
       expect(markdown).not.toContain('description:');
       expect(markdown).not.toContain('argument-hint:');
     }
+    expect(agent).toContain('tools:\n  - "agentflow_report_activity"');
+    expect(prompt).toContain('tools:\n  - "agentflow_report_activity"');
     expect(instruction).not.toContain('applyTo:');
   });
 
@@ -297,7 +312,7 @@ Keep this prose.
     expect(prompt).toContain('argument-hint: "[endpoint]"');
     expect(prompt).toContain('agent: "ask"');
     expect(prompt).toContain('model: "Claude Sonnet 4"');
-    expect(prompt).toContain('tools:\n  - "search"');
+    expect(prompt).toContain('tools:\n  - "agentflow_report_activity"\n  - "search"');
   });
 
   it('generates instruction markdown', () => {
@@ -316,6 +331,16 @@ Keep this prose.
       description: 'Use for focused Vitest test creation and debugging.',
       activationCriteria: ['A TypeScript unit test is needed.']
     })).toContain('## Activation criteria');
+  });
+
+  it('injects Agent Flow activity reporting guidance into generated instructions and skills', () => {
+    const instruction = generateInstructionMarkdown({ id: 'docs', type: 'instruction', label: 'Docs', rules: ['Keep docs short.'] });
+    const skill = generateSkillMarkdown({ id: 'review-pr', type: 'skill', label: 'Review PR', procedure: ['Inspect diff.'] });
+
+    for (const markdown of [instruction, skill]) {
+      expect(markdown).toContain('# Agent Flow activity reporting');
+      expect(markdown).toContain('Report only the node id or file, phase, short summary, and optional tool or artifact path.');
+    }
   });
 
   it('generates role markdown', () => {
@@ -384,10 +409,11 @@ Keep this prose.`
     });
 
     expect(agent).toContain('name: "reviewer"');
-    expect(agent).toContain('tools:\n  - "read"\n  - "search"');
+    expect(agent).toContain('tools:\n  - "agentflow_report_activity"\n  - "read"\n  - "search"');
     expect(agent).toContain('agents:\n  - "worker"');
     expect(agent).toContain('# Custom Body');
     expect(agent).toContain('Keep this prose.');
+    expect(agent).toContain('# Agent Flow activity reporting');
     expect(agent).not.toContain('Old Reviewer');
   });
 

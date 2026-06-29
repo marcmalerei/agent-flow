@@ -1,7 +1,6 @@
 import { AgentNode } from '../types';
-import { normalizeToolsForVsCode } from '../toolNormalization';
 import { normalizeNodeLabel } from '../labels';
-import { appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, referenceRoleList, replaceMarkdownSection, yamlBooleanLine, yamlOptionalList, yamlString, yamlStringLine } from './shared';
+import { AGENT_FLOW_ACTIVITY_REPORTING_HEADING, activityReportingGuidance, appendGeneratedMarker, artifactUsageList, list, markdownBody, mergeMarkdownWithFrontmatter, nodeFileStem, referenceInstructionList, referenceRoleList, replaceMarkdownSection, toolsWithActivityReporting, yamlBooleanLine, yamlOptionalList, yamlString, yamlStringLine } from './shared';
 
 export function agentFilePath(node: AgentNode): string {
   if (node.agentFile) return node.agentFile;
@@ -14,12 +13,16 @@ export function generateAgentMarkdown(node: AgentNode): string {
   if (node.markdown?.trim()) {
     const body = replaceMarkdownSection(
       replaceMarkdownSection(
-        replaceMarkdownSection(markdownBody(node.markdown), 'Artifact work', artifactUsageList(node.artifactUsages)),
-        'Referenced instructions',
-        referenceInstructionList(node.instructionRefs)
+        replaceMarkdownSection(
+          replaceMarkdownSection(markdownBody(node.markdown), 'Artifact work', artifactUsageList(node.artifactUsages)),
+          'Referenced instructions',
+          referenceInstructionList(node.instructionRefs)
+        ),
+        'Referenced roles',
+        referenceRoleList(node.roleRefs)
       ),
-      'Referenced roles',
-      referenceRoleList(node.roleRefs)
+      AGENT_FLOW_ACTIVITY_REPORTING_HEADING,
+      activityReportingGuidance()
     );
     return mergeMarkdownWithFrontmatter(body, frontmatter);
   }
@@ -45,6 +48,10 @@ ${referenceInstructionList(node.instructionRefs)}
 # Referenced roles
 
 ${referenceRoleList(node.roleRefs)}
+
+# Agent Flow activity reporting
+
+${activityReportingGuidance()}
 
 # Context budget
 
@@ -87,7 +94,7 @@ function agentFrontmatter(node: AgentNode): string {
 name: ${yamlString(label)}
 ${yamlStringLine('description', node.description)}
 ${yamlStringLine('argument-hint', node.argumentHint)}${yamlStringLine('model', node.model)}${yamlStringLine('target', node.target)}${yamlBooleanLine('user-invocable', node.userInvocable)}${yamlBooleanLine('disable-model-invocation', node.disableModelInvocation)}${yamlAgentHandoffs(node.handoffs)}${yamlAgentHooks(node.hooks)}${yamlMcpServers(node.mcpServers)}
-${yamlOptionalList('tools', normalizeToolsForVsCode(node.tools))}${yamlOptionalList('agents', node.calls)}
+${yamlOptionalList('tools', toolsWithActivityReporting(node.tools))}${yamlOptionalList('agents', node.calls)}
 ---`;
 }
 
